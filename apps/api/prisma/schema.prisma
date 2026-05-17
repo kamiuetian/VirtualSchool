@@ -77,6 +77,8 @@ model Tenant {
   guardians   Guardian[]
   classes     ClassSection[]
   devices     Device[]
+  enrollmentBatches EnrollmentBatch[]
+  appCatalogItems AppCatalogItem[]
   policies    Policy[]
   auditEvents AuditEvent[]
 }
@@ -212,6 +214,39 @@ model Device {
 
   @@unique([tenantId, serialNumber])
   @@index([tenantId, status])
+}
+
+model EnrollmentBatch {
+  id            String   @id @default(uuid())
+  tenantId      String
+  name          String
+  token         String   @unique
+  expiresAt     DateTime?
+  enrolledCount Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+}
+
+model AppCatalogItem {
+  id             String   @id @default(uuid())
+  tenantId       String
+  name           String
+  packageId      String
+  category       String?
+  iconUrl        String?
+  description    String?
+  approvedGrades String[]
+  installRules   Json?
+  approvalStatus String   @default("APPROVED")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, packageId])
+  @@index([tenantId, approvalStatus])
 }
 
 model Policy {
