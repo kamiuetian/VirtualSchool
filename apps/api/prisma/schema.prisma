@@ -89,6 +89,9 @@ model Tenant {
   policies          Policy[]
   policyAssignments PolicyAssignment[]
   timetableBlocks   TimetableBlock[]
+  supportNotes      SupportNote[]
+  retentionSettings RetentionSettings?
+  retentionRuns     DataRetentionRun[]
   auditEvents       AuditEvent[]
 }
 
@@ -259,11 +262,67 @@ model Device {
   commands            RemoteCommand[]
   diagnostics         DeviceDiagnostic[]
   alerts              DeviceAlert[]
+  supportNotes        SupportNote[]
 
   @@unique([tenantId, serialNumber])
   @@index([tenantId, status])
   @@index([tenantId, enrollmentBatchId])
   @@index([tenantId, mdmConnector])
+}
+
+model SupportNote {
+  id          String   @id @default(uuid())
+  tenantId    String
+  deviceId    String
+  authorId    String?
+  authorEmail String?
+  category    String   @default("GENERAL")
+  severity    String   @default("S3")
+  status      String   @default("OPEN")
+  visibility  String   @default("INTERNAL")
+  pinned      Boolean  @default(false)
+  body        String
+  resolution  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  device      Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, deviceId, createdAt])
+  @@index([tenantId, status, severity])
+}
+
+model RetentionSettings {
+  id                          String   @id @default(uuid())
+  tenantId                    String   @unique
+  diagnosticRetentionDays     Int      @default(90)
+  resolvedAlertRetentionDays  Int      @default(180)
+  commandHistoryRetentionDays Int      @default(365)
+  supportNoteRetentionDays    Int      @default(730)
+  exportArtifactRetentionDays Int      @default(30)
+  auditRetentionDays          Int?
+  updatedBy                   String?
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+  tenant                      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model DataRetentionRun {
+  id          String    @id @default(uuid())
+  tenantId    String
+  mode        String
+  status      String    @default("COMPLETED")
+  actorId     String?
+  result      Json
+  cutoffs     Json
+  reason      String?
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, mode, status])
 }
 
 model DeviceDiagnostic {

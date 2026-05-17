@@ -11,6 +11,7 @@ import { PrismaModule } from "./prisma/prisma.module";
 import { RemoteCommandsModule } from "./remote-commands/remote-commands.module";
 import { ReportsModule } from "./reports/reports.module";
 import { RosterModule } from "./roster/roster.module";
+import { SupportModule } from "./support/support.module";
 import { TenantsModule } from "./tenants/tenants.module";
 import { TimetableModule } from "./timetable/timetable.module";
 import { UsersModule } from "./users/users.module";
@@ -32,6 +33,7 @@ import { UsersModule } from "./users/users.module";
     ReportsModule,
     UsersModule,
     TimetableModule,
+    SupportModule,
   ],
 })
 export class AppModule {}
