@@ -332,20 +332,30 @@ model LearningMode {
 }
 
 model RemoteCommand {
-  id          String        @id @default(uuid())
-  tenantId    String
-  deviceId    String
-  type        String
-  status      CommandStatus @default(SUBMITTED)
-  reason      String?
-  requestedBy String?
-  result      Json?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  expiresAt   DateTime?
-  device      Device        @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  id                 String        @id @default(uuid())
+  tenantId           String
+  deviceId           String
+  type               String
+  status             CommandStatus @default(SUBMITTED)
+  reason             String?
+  requestedBy        String?
+  payload            Json?
+  result             Json?
+  connectorCommandId String?
+  attempts           Int           @default(0)
+  maxAttempts        Int           @default(3)
+  failureReason      String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  expiresAt          DateTime?
+  deliveredAt        DateTime?
+  completedAt        DateTime?
+  lastAttemptAt      DateTime?
+  device             Device        @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, status])
+  @@index([tenantId, deviceId, status])
+  @@index([tenantId, type, createdAt])
   @@index([deviceId, createdAt])
 }
 

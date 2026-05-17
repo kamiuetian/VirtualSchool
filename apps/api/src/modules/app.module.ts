@@ -5,6 +5,7 @@ import { EnrollmentModule } from "./enrollment/enrollment.module";
 import { HealthModule } from "./health/health.module";
 import { PoliciesModule } from "./policies/policies.module";
 import { PrismaModule } from "./prisma/prisma.module";
+import { RemoteCommandsModule } from "./remote-commands/remote-commands.module";
 import { RosterModule } from "./roster/roster.module";
 import { TenantsModule } from "./tenants/tenants.module";
 
@@ -18,6 +19,7 @@ import { TenantsModule } from "./tenants/tenants.module";
     EnrollmentModule,
     AppCatalogModule,
     PoliciesModule,
+    RemoteCommandsModule,
   ],
 })
 export class AppModule {}

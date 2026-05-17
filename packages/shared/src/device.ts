@@ -16,16 +16,19 @@ export type CommandStatus =
   | "FAILED"
   | "EXPIRED";
 
-export type RemoteCommandType =
-  | "LOCK"
-  | "UNLOCK"
-  | "WIPE"
-  | "REQUEST_CHECK_IN"
-  | "POLICY_REFRESH"
-  | "SEND_MESSAGE"
-  | "APP_INSTALL"
-  | "APP_REMOVE"
-  | "RETIRE";
+export const remoteCommandTypes = [
+  "LOCK",
+  "UNLOCK",
+  "WIPE",
+  "REQUEST_CHECK_IN",
+  "POLICY_REFRESH",
+  "SEND_MESSAGE",
+  "APP_INSTALL",
+  "APP_REMOVE",
+  "RETIRE",
+] as const;
+
+export type RemoteCommandType = (typeof remoteCommandTypes)[number];
 
 export type EnrollmentBatchStatus = "ACTIVE" | "EXPIRED" | "REVOKED";
 
@@ -67,6 +70,36 @@ export type DeviceCheckInResult = {
   device: DeviceSummary;
   quarantined: boolean;
   wasExistingDevice: boolean;
+};
+
+export type RemoteCommandSummary = {
+  id: string;
+  tenantId: string;
+  deviceId: string;
+  type: RemoteCommandType;
+  status: CommandStatus;
+  reason?: string | null;
+  requestedBy?: string | null;
+  payload?: Record<string, unknown> | null;
+  result?: Record<string, unknown> | null;
+  connectorCommandId?: string | null;
+  attempts: number;
+  maxAttempts: number;
+  failureReason?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt?: string | null;
+  deliveredAt?: string | null;
+  completedAt?: string | null;
+  lastAttemptAt?: string | null;
+};
+
+export type QueuedRemoteCommand = {
+  id: string;
+  type: RemoteCommandType;
+  payload?: Record<string, unknown> | null;
+  expiresAt?: string | null;
+  createdAt: string;
 };
 
 export type DeviceApprovedApp = {
