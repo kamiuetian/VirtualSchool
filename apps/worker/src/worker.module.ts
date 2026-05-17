@@ -1,7 +1,15 @@
 import { Module } from "@nestjs/common";
+import { WorkerPrismaService } from "./prisma/worker-prisma.service";
 import { ModeSchedulerService } from "./workers/mode-scheduler.service";
+import { WorkerJobsService } from "./workers/worker-jobs.service";
+import { WorkerQueueService } from "./workers/worker-queue.service";
 
 @Module({
-  providers: [ModeSchedulerService]
+  providers: [
+    ModeSchedulerService,
+    WorkerJobsService,
+    WorkerPrismaService,
+    WorkerQueueService,
+  ],
 })
 export class WorkerModule {}
