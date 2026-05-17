@@ -10,6 +10,8 @@ import {
   LayoutDashboard,
   QrCode,
   ReceiptText,
+  FileBarChart,
+  Headset,
   ShieldCheck,
   Users,
 } from "lucide-react";
@@ -24,8 +26,11 @@ const navigation = [
   { href: "/enrollment", icon: QrCode, label: "Enrollment" },
   { href: "/devices", icon: Laptop, label: "Devices" },
   { href: "/policies", icon: ShieldCheck, label: "Policies" },
+  { href: "/timetable", icon: CalendarClock, label: "Timetable" },
   { href: "/apps", icon: AppWindow, label: "Apps & Web" },
   { href: "/alerts", icon: AlertTriangle, label: "Alerts" },
+  { href: "/support", icon: Headset, label: "Support" },
+  { href: "/reports", icon: FileBarChart, label: "Reports" },
   { href: "/billing", icon: ReceiptText, label: "Billing" },
 ] as const;
 

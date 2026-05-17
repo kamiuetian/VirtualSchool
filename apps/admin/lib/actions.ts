@@ -34,6 +34,42 @@ export async function inviteStaffAction(formData: FormData): Promise<void> {
   revalidateAll();
 }
 
+export async function updateStaffRoleAction(formData: FormData): Promise<void> {
+  const tenantId = required(formData, "tenantId");
+  const userId = required(formData, "userId");
+  await adminApiMutation("PATCH", `/tenants/${tenantId}/users/${userId}/role`, {
+    reason: text(formData, "reason"),
+    role: text(formData, "role"),
+  });
+  revalidateAll();
+}
+
+export async function suspendStaffAction(formData: FormData): Promise<void> {
+  await staffLifecycleAction(formData, "suspend");
+}
+
+export async function deactivateStaffAction(formData: FormData): Promise<void> {
+  await staffLifecycleAction(formData, "deactivate");
+}
+
+export async function reactivateStaffAction(formData: FormData): Promise<void> {
+  await staffLifecycleAction(formData, "reactivate");
+}
+
+export async function forceLogoutStaffAction(formData: FormData): Promise<void> {
+  await staffLifecycleAction(formData, "force-logout");
+}
+
+export async function setStaffMfaAction(formData: FormData): Promise<void> {
+  const tenantId = required(formData, "tenantId");
+  const userId = required(formData, "userId");
+  await adminApiMutation("PATCH", `/tenants/${tenantId}/users/${userId}/mfa`, {
+    mfaEnabled: booleanValue(formData, "mfaEnabled"),
+    reason: text(formData, "reason"),
+  });
+  revalidateAll();
+}
+
 export async function createClassAction(formData: FormData): Promise<void> {
   const tenantId = required(formData, "tenantId");
   await adminApiMutation("POST", `/tenants/${tenantId}/classes`, {
@@ -129,6 +165,43 @@ export async function assignPolicyAction(formData: FormData): Promise<void> {
   revalidateAll();
 }
 
+export async function createTimetableBlockAction(
+  formData: FormData,
+): Promise<void> {
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation("POST", `/tenants/${tenantId}/timetable-blocks`, {
+    branchId: text(formData, "branchId"),
+    dayOfWeek: numberValue(formData, "dayOfWeek"),
+    effectiveFrom: text(formData, "effectiveFrom"),
+    effectiveUntil: text(formData, "effectiveUntil"),
+    endMinute: timeToMinute(required(formData, "endTime")),
+    name: text(formData, "name"),
+    policyId: text(formData, "policyId"),
+    reason: text(formData, "reason"),
+    scope: text(formData, "scope"),
+    scopeId: text(formData, "scopeId"),
+    startMinute: timeToMinute(required(formData, "startTime")),
+    subject: text(formData, "subject"),
+    timezone: text(formData, "timezone"),
+  });
+  revalidateAll();
+}
+
+export async function deactivateTimetableBlockAction(
+  formData: FormData,
+): Promise<void> {
+  const tenantId = required(formData, "tenantId");
+  const blockId = required(formData, "blockId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/timetable-blocks/${blockId}/deactivate`,
+    {
+      reason: text(formData, "reason"),
+    },
+  );
+  revalidateAll();
+}
+
 export async function createAppAction(formData: FormData): Promise<void> {
   const tenantId = required(formData, "tenantId");
   await adminApiMutation("POST", `/tenants/${tenantId}/apps`, {
@@ -141,6 +214,71 @@ export async function createAppAction(formData: FormData): Promise<void> {
     },
     name: text(formData, "name"),
     packageId: text(formData, "packageId"),
+  });
+  revalidateAll();
+}
+
+export async function createSupportNoteAction(formData: FormData): Promise<void> {
+  const tenantId = required(formData, "tenantId");
+  const deviceId = required(formData, "deviceId");
+  await adminApiMutation("POST", `/tenants/${tenantId}/support/devices/${deviceId}/notes`, {
+    body: text(formData, "body"),
+    category: text(formData, "category"),
+    pinned: booleanValue(formData, "pinned"),
+    severity: text(formData, "severity"),
+    status: text(formData, "status"),
+    visibility: text(formData, "visibility"),
+  });
+  revalidateAll();
+}
+
+export async function updateSupportNoteAction(formData: FormData): Promise<void> {
+  const tenantId = required(formData, "tenantId");
+  const noteId = required(formData, "noteId");
+  await adminApiMutation("PATCH", `/tenants/${tenantId}/support/notes/${noteId}`, {
+    pinned: optionalBooleanValue(formData, "pinned"),
+    resolution: text(formData, "resolution"),
+    status: text(formData, "status"),
+  });
+  revalidateAll();
+}
+
+export async function updateRetentionSettingsAction(
+  formData: FormData,
+): Promise<void> {
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation("PATCH", `/tenants/${tenantId}/retention-settings`, {
+    auditRetentionDays: numberValue(formData, "auditRetentionDays"),
+    commandHistoryRetentionDays: numberValue(
+      formData,
+      "commandHistoryRetentionDays",
+    ),
+    diagnosticRetentionDays: numberValue(formData, "diagnosticRetentionDays"),
+    exportArtifactRetentionDays: numberValue(
+      formData,
+      "exportArtifactRetentionDays",
+    ),
+    resolvedAlertRetentionDays: numberValue(
+      formData,
+      "resolvedAlertRetentionDays",
+    ),
+    supportNoteRetentionDays: numberValue(formData, "supportNoteRetentionDays"),
+  });
+  revalidateAll();
+}
+
+export async function dryRunRetentionAction(formData: FormData): Promise<void> {
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation("POST", `/tenants/${tenantId}/retention-runs/dry-run`, {
+    reason: text(formData, "reason"),
+  });
+  revalidateAll();
+}
+
+export async function applyRetentionAction(formData: FormData): Promise<void> {
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation("POST", `/tenants/${tenantId}/retention-runs`, {
+    reason: text(formData, "reason"),
   });
   revalidateAll();
 }
@@ -192,9 +330,24 @@ function revalidateAll(): void {
     "/devices",
     "/enrollment",
     "/policies",
+    "/reports",
     "/roster",
+    "/support",
     "/tenants",
+    "/timetable",
   ].forEach((path) => revalidatePath(path));
+}
+
+async function staffLifecycleAction(
+  formData: FormData,
+  action: "deactivate" | "force-logout" | "reactivate" | "suspend",
+): Promise<void> {
+  const tenantId = required(formData, "tenantId");
+  const userId = required(formData, "userId");
+  await adminApiMutation("POST", `/tenants/${tenantId}/users/${userId}/${action}`, {
+    reason: text(formData, "reason"),
+  });
+  revalidateAll();
 }
 
 function required(formData: FormData, key: string): string {
@@ -216,9 +369,29 @@ function numberValue(formData: FormData, key: string): number | undefined {
   return value ? Number(value) : undefined;
 }
 
+function booleanValue(formData: FormData, key: string): boolean {
+  return formData.get(key) === "true" || formData.get(key) === "on";
+}
+
+function optionalBooleanValue(
+  formData: FormData,
+  key: string,
+): boolean | undefined {
+  if (!formData.has(key)) {
+    return undefined;
+  }
+
+  return booleanValue(formData, key);
+}
+
 function splitList(value: string): string[] {
   return value
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function timeToMinute(value: string): number {
+  const [hours = "0", minutes = "0"] = value.split(":");
+  return Number(hours) * 60 + Number(minutes);
 }

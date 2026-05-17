@@ -632,6 +632,10 @@ tr:last-child td {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.form-grid.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .action-panel {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -656,6 +660,10 @@ tr:last-child td {
 .inline-form {
   align-items: flex-end;
   grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+}
+
+.inline-form.wide {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .form-row {
@@ -731,11 +739,88 @@ tr:last-child td {
   color: white;
 }
 
+.submit-button.danger,
+.small-button.danger {
+  background: var(--red);
+  border-color: var(--red);
+  color: white;
+}
+
+.submit-button.danger:hover,
+.small-button.danger:hover {
+  background: #941b13;
+}
+
 .row-form {
   align-items: flex-end;
   display: grid;
   gap: 8px;
   grid-template-columns: minmax(150px, 1fr) auto;
+}
+
+.button-form {
+  display: inline-flex;
+}
+
+.list-row.dense {
+  min-height: 64px;
+}
+
+.cell-note {
+  color: var(--muted);
+  display: block;
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+.check-field {
+  align-items: center;
+  color: var(--muted-strong);
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.check-field input {
+  height: 16px;
+  width: 16px;
+}
+
+.support-layout {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.2fr);
+}
+
+.device-picker {
+  display: grid;
+  gap: 8px;
+  max-height: 360px;
+  overflow: auto;
+}
+
+.device-picker-item {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+}
+
+.device-picker-item.active {
+  background: var(--teal-soft);
+  border-color: #9fd3c8;
+}
+
+.device-picker-item strong,
+.device-picker-item span {
+  display: block;
+}
+
+.device-picker-item span {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 @media (max-width: 1220px) {
@@ -763,6 +848,11 @@ tr:last-child td {
 
   .inline-form {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .inline-form.wide,
+  .support-layout {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -807,6 +897,7 @@ tr:last-child td {
   }
 
   .form-row,
+  .form-grid.two,
   .inline-form,
   .row-form {
     grid-template-columns: 1fr;

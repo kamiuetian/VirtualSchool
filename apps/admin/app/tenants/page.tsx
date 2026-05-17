@@ -11,7 +11,13 @@ import {
 import {
   createBranchAction,
   createTenantAction,
+  deactivateStaffAction,
+  forceLogoutStaffAction,
   inviteStaffAction,
+  reactivateStaffAction,
+  setStaffMfaAction,
+  suspendStaffAction,
+  updateStaffRoleAction,
 } from "../../lib/actions";
 import { getAdminData } from "../../lib/api";
 import { formatCount, humanize } from "../../lib/format";
@@ -20,9 +26,10 @@ export const dynamic = "force-dynamic";
 
 export default async function TenantsPage() {
   const data = await getAdminData();
+  const selectedTenant = data.selectedTenant;
 
   return (
-    <AppShell connectionIssue={data.connectionIssue} tenant={data.selectedTenant}>
+    <AppShell connectionIssue={data.connectionIssue} tenant={selectedTenant}>
       <div className="content-stack">
         <PageSection kicker="Schools" title="Tenant Directory">
           <section className="stat-grid" aria-label="School tenant summary">
@@ -78,18 +85,18 @@ export default async function TenantsPage() {
               </form>
             </ActionPanel>
 
-            {data.selectedTenant ? (
+            {selectedTenant ? (
               <>
                 <ActionPanel title="Add campus">
                   <form action={createBranchAction} className="stacked-form">
-                    <input name="tenantId" type="hidden" value={data.selectedTenant.id} />
+                    <input name="tenantId" type="hidden" value={selectedTenant.id} />
                     <Field label="Campus name">
                       <input name="name" placeholder="Main Campus" required />
                     </Field>
                     <Field label="Timezone">
                       <input
                         name="timezone"
-                        placeholder={data.selectedTenant.timezone}
+                        placeholder={selectedTenant.timezone}
                       />
                     </Field>
                     <SubmitButton>Add campus</SubmitButton>
@@ -98,7 +105,7 @@ export default async function TenantsPage() {
 
                 <ActionPanel title="Invite staff">
                   <form action={inviteStaffAction} className="stacked-form">
-                    <input name="tenantId" type="hidden" value={data.selectedTenant.id} />
+                    <input name="tenantId" type="hidden" value={selectedTenant.id} />
                     <Field label="Name">
                       <input name="name" placeholder="Aisha Khan" required />
                     </Field>
@@ -161,7 +168,108 @@ export default async function TenantsPage() {
             />
           )}
         </PageSection>
+
+        {selectedTenant ? (
+          <PageSection kicker="Staff access" title="User Management">
+            {data.users.length > 0 ? (
+              <div className="list-panel">
+                {data.users.map((user) => (
+                  <article className="list-row dense" key={user.id}>
+                    <div>
+                      <strong>{user.name}</strong>
+                      <span>{user.email}</span>
+                      <small>
+                        {humanize(user.role)} - MFA {user.mfaEnabled ? "enabled" : "not enabled"}
+                      </small>
+                    </div>
+                    <div className="row-actions">
+                      <StatusPill tone={userStatusTone(user.status)}>
+                        {humanize(user.status)}
+                      </StatusPill>
+                      <form action={updateStaffRoleAction} className="row-form">
+                        <input name="tenantId" type="hidden" value={selectedTenant.id} />
+                        <input name="userId" type="hidden" value={user.id} />
+                        <Field label="Role">
+                          <select name="role" defaultValue={user.role}>
+                            <option value="SCHOOL_ADMIN">School admin</option>
+                            <option value="IT_ADMIN">IT admin</option>
+                            <option value="ACADEMIC_ADMIN">Academic admin</option>
+                            <option value="TEACHER">Teacher</option>
+                            <option value="SUPPORT_AGENT">Support agent</option>
+                            <option value="BILLING_ADMIN">Billing admin</option>
+                            <option value="AUDITOR">Auditor</option>
+                          </select>
+                        </Field>
+                        <button className="small-button" type="submit">
+                          Update role
+                        </button>
+                      </form>
+                      <form action={setStaffMfaAction} className="button-form">
+                        <input name="tenantId" type="hidden" value={selectedTenant.id} />
+                        <input name="userId" type="hidden" value={user.id} />
+                        <input name="mfaEnabled" type="hidden" value={user.mfaEnabled ? "false" : "true"} />
+                        <input name="reason" type="hidden" value="Updated from school admin console" />
+                        <button className="small-button" type="submit">
+                          {user.mfaEnabled ? "Clear MFA" : "Mark MFA"}
+                        </button>
+                      </form>
+                      {user.status === "SUSPENDED" || user.status === "DEACTIVATED" ? (
+                        <form action={reactivateStaffAction} className="button-form">
+                          <input name="tenantId" type="hidden" value={selectedTenant.id} />
+                          <input name="userId" type="hidden" value={user.id} />
+                          <input name="reason" type="hidden" value="Access restored by administrator" />
+                          <button className="small-button primary" type="submit">
+                            Reactivate
+                          </button>
+                        </form>
+                      ) : (
+                        <>
+                          <form action={suspendStaffAction} className="button-form">
+                            <input name="tenantId" type="hidden" value={selectedTenant.id} />
+                            <input name="userId" type="hidden" value={user.id} />
+                            <input name="reason" type="hidden" value="Suspended by administrator" />
+                            <button className="small-button" type="submit">
+                              Suspend
+                            </button>
+                          </form>
+                          <form action={deactivateStaffAction} className="button-form">
+                            <input name="tenantId" type="hidden" value={selectedTenant.id} />
+                            <input name="userId" type="hidden" value={user.id} />
+                            <input name="reason" type="hidden" value="Deactivated by administrator" />
+                            <button className="small-button danger" type="submit">
+                              Deactivate
+                            </button>
+                          </form>
+                        </>
+                      )}
+                      <form action={forceLogoutStaffAction} className="button-form">
+                        <input name="tenantId" type="hidden" value={selectedTenant.id} />
+                        <input name="userId" type="hidden" value={user.id} />
+                        <input name="reason" type="hidden" value="Session reset by administrator" />
+                        <button className="small-button" type="submit">
+                          Force logout
+                        </button>
+                      </form>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                title="No staff accounts yet"
+                body="Invite school admins, IT admins, academic admins, teachers, support agents, and billing contacts."
+              />
+            )}
+          </PageSection>
+        ) : null}
       </div>
     </AppShell>
   );
+}
+
+function userStatusTone(status: string): "neutral" | "good" | "warning" | "critical" {
+  if (status === "ACTIVE") return "good";
+  if (status === "SUSPENDED") return "warning";
+  if (status === "DEACTIVATED") return "critical";
+  return "neutral";
 }

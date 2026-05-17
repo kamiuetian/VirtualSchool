@@ -1,5 +1,6 @@
 import type {
   AppCatalogItemSummary,
+  AppDeploymentReport,
   BillingUsageSummary,
   ClassSectionSummary,
   DeviceAlertSummary,
@@ -7,10 +8,16 @@ import type {
   DeviceSummary,
   EnrollmentBatchSummary,
   OnboardingChecklist,
+  PolicyDeploymentReport,
   PolicyAssignmentSummary,
   PolicySummary,
+  RetentionSettingsSummary,
+  SupportNoteSummary,
+  SupportTimelineEvent,
   StudentSummary,
   TenantSummary,
+  TimetableBlockSummary,
+  UserSummary,
 } from "@virtual-school/shared";
 
 const baseUrl =
@@ -28,9 +35,14 @@ export type AdminData = {
   enrollmentBatches: EnrollmentBatchSummary[];
   policies: PolicySummary[];
   policyAssignments: PolicyAssignmentSummary[];
+  policyDeploymentReport: PolicyDeploymentReport | null;
   apps: AppCatalogItemSummary[];
+  appDeploymentReport: AppDeploymentReport | null;
   students: StudentSummary[];
   classes: ClassSectionSummary[];
+  users: UserSummary[];
+  timetableBlocks: TimetableBlockSummary[];
+  retentionSettings: RetentionSettingsSummary | null;
   billingUsage: BillingUsageSummary | null;
   connectionIssue: boolean;
 };
@@ -53,9 +65,14 @@ export async function getAdminData(): Promise<AdminData> {
       onboarding: null,
       policies: [],
       policyAssignments: [],
+      policyDeploymentReport: null,
       selectedTenant: null,
       students: [],
       tenants,
+      timetableBlocks: [],
+      users: [],
+      appDeploymentReport: null,
+      retentionSettings: null,
     };
   }
 
@@ -68,9 +85,14 @@ export async function getAdminData(): Promise<AdminData> {
     enrollmentBatches,
     policies,
     policyAssignments,
+    policyDeploymentReport,
     apps,
+    appDeploymentReport,
     students,
     classes,
+    users,
+    timetableBlocks,
+    retentionSettings,
     billingUsage,
   ] = await Promise.all([
     apiGet<OnboardingChecklist>(`${tenantPath}/onboarding-checklist`),
@@ -80,9 +102,14 @@ export async function getAdminData(): Promise<AdminData> {
     apiGet<EnrollmentBatchSummary[]>(`${tenantPath}/enrollment-batches`),
     apiGet<PolicySummary[]>(`${tenantPath}/policies`),
     apiGet<PolicyAssignmentSummary[]>(`${tenantPath}/policies/assignments`),
+    apiGet<PolicyDeploymentReport>(`${tenantPath}/reports/policy-deployments`),
     apiGet<AppCatalogItemSummary[]>(`${tenantPath}/apps`),
+    apiGet<AppDeploymentReport>(`${tenantPath}/reports/app-deployments`),
     apiGet<StudentSummary[]>(`${tenantPath}/students`),
     apiGet<ClassSectionSummary[]>(`${tenantPath}/classes`),
+    apiGet<UserSummary[]>(`${tenantPath}/users`),
+    apiGet<TimetableBlockSummary[]>(`${tenantPath}/timetable-blocks`),
+    apiGet<RetentionSettingsSummary>(`${tenantPath}/retention-settings`),
     apiGet<BillingUsageSummary>(`${tenantPath}/billing/usage`),
   ]);
 
@@ -100,9 +127,14 @@ export async function getAdminData(): Promise<AdminData> {
       enrollmentBatches,
       policies,
       policyAssignments,
+      policyDeploymentReport,
       apps,
+      appDeploymentReport,
       students,
       classes,
+      users,
+      timetableBlocks,
+      retentionSettings,
       billingUsage,
     ].some((result) => result.failed),
     deviceInventory: deviceInventory.data ?? null,
@@ -111,9 +143,14 @@ export async function getAdminData(): Promise<AdminData> {
     onboarding: onboarding.data ?? null,
     policies: policies.data ?? [],
     policyAssignments: policyAssignments.data ?? [],
+    policyDeploymentReport: policyDeploymentReport.data ?? null,
     selectedTenant,
     students: students.data ?? [],
     tenants,
+    timetableBlocks: timetableBlocks.data ?? [],
+    users: users.data ?? [],
+    appDeploymentReport: appDeploymentReport.data ?? null,
+    retentionSettings: retentionSettings.data ?? null,
   };
 }
 
@@ -136,6 +173,35 @@ export async function adminApiMutation(
     const text = await response.text();
     throw new Error(text || `API request failed with ${response.status}`);
   }
+}
+
+export async function getDeviceSupportData(
+  tenantId: string,
+  deviceId: string,
+): Promise<{
+  notes: SupportNoteSummary[];
+  timeline: SupportTimelineEvent[];
+  connectionIssue: boolean;
+}> {
+  const [notes, timeline] = await Promise.all([
+    apiGet<SupportNoteSummary[]>(`/tenants/${tenantId}/support/devices/${deviceId}/notes`),
+    apiGet<SupportTimelineEvent[]>(
+      `/tenants/${tenantId}/support/devices/${deviceId}/timeline?limit=12`,
+    ),
+  ]);
+
+  return {
+    connectionIssue: notes.failed || timeline.failed,
+    notes: notes.data ?? [],
+    timeline: timeline.data ?? [],
+  };
+}
+
+export async function adminApiRawGet(path: string): Promise<Response> {
+  return fetch(`${baseUrl}${path}`, {
+    cache: "no-store",
+    headers: authHeaders(),
+  });
 }
 
 async function apiGet<T>(
