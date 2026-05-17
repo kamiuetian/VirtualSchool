@@ -202,6 +202,15 @@ export class TenantsService {
         },
       });
 
+      await tx.billingSubscription.create({
+        data: {
+          billingEmail: input.primaryContactEmail,
+          planKey: created.planKey,
+          status: created.status === "ACTIVE" ? "ACTIVE" : "TRIALING",
+          tenantId: created.id,
+        },
+      });
+
       await tx.auditEvent.create({
         data: {
           action: "tenant.create",

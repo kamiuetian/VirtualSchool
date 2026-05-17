@@ -29,6 +29,7 @@ const allPermissions: Permission[] = [
   "report:export",
   "audit:read",
   "billing:read",
+  "billing:manage",
 ];
 
 export const apiRolePermissions: Record<Role, Permission[]> = {
@@ -45,6 +46,7 @@ export const apiRolePermissions: Record<Role, Permission[]> = {
     "report:export",
     "audit:read",
     "billing:read",
+    "billing:manage",
   ],
   IT_ADMIN: [
     "tenant:read",
@@ -65,7 +67,7 @@ export const apiRolePermissions: Record<Role, Permission[]> = {
   ],
   TEACHER: ["tenant:read", "device:read"],
   SUPPORT_AGENT: ["tenant:read", "device:read", "device:command"],
-  BILLING_ADMIN: ["tenant:read", "billing:read"],
+  BILLING_ADMIN: ["tenant:read", "billing:read", "billing:manage"],
   AUDITOR: ["tenant:read", "audit:read", "report:export"],
   STUDENT: [],
   GUARDIAN: [],

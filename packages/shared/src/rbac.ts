@@ -28,7 +28,8 @@ export const permissions = [
   "policy:manage",
   "report:export",
   "audit:read",
-  "billing:read"
+  "billing:read",
+  "billing:manage"
 ] as const;
 
 export type Permission = (typeof permissions)[number];
@@ -46,7 +47,8 @@ export const rolePermissions: Record<Role, Permission[]> = {
     "policy:manage",
     "report:export",
     "audit:read",
-    "billing:read"
+    "billing:read",
+    "billing:manage"
   ],
   IT_ADMIN: [
     "tenant:read",
@@ -61,7 +63,7 @@ export const rolePermissions: Record<Role, Permission[]> = {
   ACADEMIC_ADMIN: ["tenant:read", "roster:manage", "class:manage", "policy:manage", "report:export"],
   TEACHER: ["tenant:read", "device:read"],
   SUPPORT_AGENT: ["tenant:read", "device:read", "device:command"],
-  BILLING_ADMIN: ["tenant:read", "billing:read"],
+  BILLING_ADMIN: ["tenant:read", "billing:read", "billing:manage"],
   AUDITOR: ["tenant:read", "audit:read", "report:export"],
   STUDENT: [],
   GUARDIAN: []

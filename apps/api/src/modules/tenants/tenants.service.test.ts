@@ -4,6 +4,7 @@ import { TenantsService } from "./tenants.service";
 describe("TenantsService", () => {
   it("creates an isolated tenant summary and audit event", async () => {
     const auditEvents: unknown[] = [];
+    const billingSubscriptions: unknown[] = [];
     const tenants: unknown[] = [];
     const tenantCreateInput = {
       country: "US",
@@ -23,6 +24,12 @@ describe("TenantsService", () => {
           auditEvent: {
             create: async ({ data }: { data: unknown }) => {
               auditEvents.push(data);
+              return data;
+            },
+          },
+          billingSubscription: {
+            create: async ({ data }: { data: unknown }) => {
+              billingSubscriptions.push(data);
               return data;
             },
           },
@@ -55,6 +62,13 @@ describe("TenantsService", () => {
       name: "Pilot School",
     });
     expect(auditEvents).toHaveLength(1);
+    expect(billingSubscriptions).toEqual([
+      expect.objectContaining({
+        planKey: "starter",
+        status: "TRIALING",
+        tenantId: "tenant-1",
+      }),
+    ]);
     expect(auditEvents[0]).toMatchObject({
       action: "tenant.create",
       object: "Tenant",

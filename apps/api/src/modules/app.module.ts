@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { AppCatalogModule } from "./app-catalog/app-catalog.module";
 import { AuditModule } from "./audit/audit.module";
 import { AuthModule } from "./auth/auth.module";
+import { BillingModule } from "./billing/billing.module";
 import { DeviceDiagnosticsModule } from "./device-diagnostics/device-diagnostics.module";
 import { EnrollmentModule } from "./enrollment/enrollment.module";
 import { HealthModule } from "./health/health.module";
@@ -31,6 +32,7 @@ import { UsersModule } from "./users/users.module";
     RemoteCommandsModule,
     AuditModule,
     ReportsModule,
+    BillingModule,
     UsersModule,
     TimetableModule,
     SupportModule,

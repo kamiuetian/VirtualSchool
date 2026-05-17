@@ -66,33 +66,65 @@ enum EnrollmentBatchStatus {
   REVOKED
 }
 
+enum BillingSubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  CANCELED
+}
+
 model Tenant {
-  id                String             @id @default(uuid())
-  name              String
-  domain            String?            @unique
-  country           String
-  timezone          String
-  language          String             @default("en")
-  planKey           String
-  status            TenantStatus       @default(PILOT)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  branches          Branch[]
-  users             User[]
-  students          Student[]
-  guardians         Guardian[]
-  classes           ClassSection[]
-  rosterImports     RosterImport[]
-  devices           Device[]
-  enrollmentBatches EnrollmentBatch[]
-  appCatalogItems   AppCatalogItem[]
-  policies          Policy[]
-  policyAssignments PolicyAssignment[]
-  timetableBlocks   TimetableBlock[]
-  supportNotes      SupportNote[]
-  retentionSettings RetentionSettings?
-  retentionRuns     DataRetentionRun[]
-  auditEvents       AuditEvent[]
+  id                  String               @id @default(uuid())
+  name                String
+  domain              String?              @unique
+  country             String
+  timezone            String
+  language            String               @default("en")
+  planKey             String
+  status              TenantStatus         @default(PILOT)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  branches            Branch[]
+  users               User[]
+  students            Student[]
+  guardians           Guardian[]
+  classes             ClassSection[]
+  rosterImports       RosterImport[]
+  devices             Device[]
+  enrollmentBatches   EnrollmentBatch[]
+  appCatalogItems     AppCatalogItem[]
+  policies            Policy[]
+  policyAssignments   PolicyAssignment[]
+  timetableBlocks     TimetableBlock[]
+  supportNotes        SupportNote[]
+  retentionSettings   RetentionSettings?
+  retentionRuns       DataRetentionRun[]
+  billingSubscription BillingSubscription?
+  auditEvents         AuditEvent[]
+}
+
+model BillingSubscription {
+  id                 String                    @id @default(uuid())
+  tenantId           String                    @unique
+  planKey            String
+  status             BillingSubscriptionStatus @default(TRIALING)
+  billingEmail       String?
+  billingPeriodStart DateTime?
+  billingPeriodEnd   DateTime?
+  trialEndsAt        DateTime?
+  deviceLimit        Int?
+  studentLimit       Int?
+  staffLimit         Int?
+  branchLimit        Int?
+  notes              String?
+  updatedBy          String?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  tenant             Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([planKey])
+  @@index([status])
 }
 
 model Branch {
