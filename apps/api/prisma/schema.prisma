@@ -229,7 +229,7 @@ model RosterImport {
 }
 
 model Device {
-  id                  String           @id @default(uuid())
+  id                  String             @id @default(uuid())
   tenantId            String
   branchId            String?
   studentId           String?
@@ -239,29 +239,80 @@ model Device {
   model               String?
   androidVersion      String?
   enrollmentId        String?
-  mdmConnector        String           @default("ANDROID_MANAGEMENT_API")
+  mdmConnector        String             @default("ANDROID_MANAGEMENT_API")
   connectorDeviceName String?
-  status              DeviceStatus     @default(PENDING)
+  status              DeviceStatus       @default(PENDING)
   lastCheckInAt       DateTime?
   policyVersion       Int?
   enrollmentBatchId   String?
-  ownershipType       String           @default("SCHOOL_OWNED")
-  health              String           @default("UNKNOWN")
-  compliance          String           @default("UNKNOWN")
-  tags                String[]         @default([])
-  createdAt           DateTime         @default(now())
-  updatedAt           DateTime         @updatedAt
-  tenant              Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branch              Branch?          @relation(fields: [branchId], references: [id])
-  student             Student?         @relation(fields: [studentId], references: [id])
-  class               ClassSection?    @relation(fields: [classId], references: [id])
-  enrollmentBatch     EnrollmentBatch? @relation(fields: [enrollmentBatchId], references: [id])
+  ownershipType       String             @default("SCHOOL_OWNED")
+  health              String             @default("UNKNOWN")
+  compliance          String             @default("UNKNOWN")
+  tags                String[]           @default([])
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  tenant              Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch              Branch?            @relation(fields: [branchId], references: [id])
+  student             Student?           @relation(fields: [studentId], references: [id])
+  class               ClassSection?      @relation(fields: [classId], references: [id])
+  enrollmentBatch     EnrollmentBatch?   @relation(fields: [enrollmentBatchId], references: [id])
   commands            RemoteCommand[]
+  diagnostics         DeviceDiagnostic[]
+  alerts              DeviceAlert[]
 
   @@unique([tenantId, serialNumber])
   @@index([tenantId, status])
   @@index([tenantId, enrollmentBatchId])
   @@index([tenantId, mdmConnector])
+}
+
+model DeviceDiagnostic {
+  id              String   @id @default(uuid())
+  tenantId        String
+  deviceId        String
+  batteryLevel    Int?
+  storageFreeMb   Int?
+  networkStatus   String?
+  launcherVersion String?
+  browserVersion  String?
+  mdmPolicyName   String?
+  policyVersion   Int?
+  health          String?
+  compliance      String?
+  details         Json?
+  reportedAt      DateTime @default(now())
+  createdAt       DateTime @default(now())
+  device          Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, deviceId, reportedAt])
+  @@index([tenantId, reportedAt])
+}
+
+model DeviceAlert {
+  id             String    @id @default(uuid())
+  tenantId       String
+  deviceId       String?
+  type           String
+  severity       String
+  status         String    @default("OPEN")
+  title          String
+  message        String
+  source         String
+  metadata       Json?
+  firstSeenAt    DateTime  @default(now())
+  lastSeenAt     DateTime  @default(now())
+  acknowledgedAt DateTime?
+  acknowledgedBy String?
+  resolvedAt     DateTime?
+  resolvedBy     String?
+  resolutionNote String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  device         Device?   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status, severity])
+  @@index([tenantId, deviceId, status])
+  @@index([tenantId, type, status])
 }
 
 model EnrollmentBatch {

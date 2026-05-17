@@ -165,3 +165,71 @@ export type DevicePolicyPayload = {
     useLastKnownPolicyWhenOffline: boolean;
   };
 };
+
+export type DeviceAlertSeverity = "INFO" | "WARNING" | "CRITICAL";
+
+export type DeviceAlertStatus = "OPEN" | "ACKNOWLEDGED" | "RESOLVED";
+
+export type DeviceAlertType =
+  | "BATTERY_LOW"
+  | "STORAGE_LOW"
+  | "DEVICE_OFFLINE"
+  | "DEVICE_NON_COMPLIANT"
+  | "DEVICE_UNHEALTHY"
+  | "POLICY_DEPLOYMENT_FAILED"
+  | "APP_DEPLOYMENT_FAILED";
+
+export type DeviceDiagnosticSummary = {
+  id: string;
+  tenantId: string;
+  deviceId: string;
+  batteryLevel?: number | null;
+  storageFreeMb?: number | null;
+  networkStatus?: string | null;
+  launcherVersion?: string | null;
+  browserVersion?: string | null;
+  mdmPolicyName?: string | null;
+  policyVersion?: number | null;
+  health?: string | null;
+  compliance?: string | null;
+  details?: Record<string, unknown> | null;
+  reportedAt: string;
+  createdAt: string;
+};
+
+export type DeviceAlertSummary = {
+  id: string;
+  tenantId: string;
+  deviceId?: string | null;
+  type: DeviceAlertType;
+  severity: DeviceAlertSeverity;
+  status: DeviceAlertStatus;
+  title: string;
+  message: string;
+  source: string;
+  metadata?: Record<string, unknown> | null;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  acknowledgedAt?: string | null;
+  acknowledgedBy?: string | null;
+  resolvedAt?: string | null;
+  resolvedBy?: string | null;
+  resolutionNote?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type DeviceDiagnosticUploadResult = {
+  diagnostic: DeviceDiagnosticSummary;
+  device: DeviceSummary;
+  alerts: DeviceAlertSummary[];
+  resolvedAlertIds: string[];
+};
+
+export type OfflineAlertScanSummary = {
+  tenantId: string;
+  offlineAfterMinutes: number;
+  evaluatedDevices: number;
+  alertsCreatedOrUpdated: number;
+  alerts: DeviceAlertSummary[];
+};
