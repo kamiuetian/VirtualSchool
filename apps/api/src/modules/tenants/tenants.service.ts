@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { TenantSummary } from "@virtual-school/shared";
 import type { TenantStatus } from "../../generated/prisma";
 import { PrismaService } from "../prisma/prisma.service";
@@ -6,7 +6,7 @@ import type { CreateTenantDto } from "./dto/create-tenant.dto";
 
 @Injectable()
 export class TenantsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async list(): Promise<TenantSummary[]> {
     const tenants = await this.prisma.tenant.findMany({

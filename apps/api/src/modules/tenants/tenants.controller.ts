@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, Post } from "@nestjs/common";
 import { ApiCreatedResponse, ApiOkResponse, ApiTags } from "@nestjs/swagger";
 import type { TenantSummary } from "@virtual-school/shared";
 import { CreateTenantDto } from "./dto/create-tenant.dto";
@@ -7,7 +7,7 @@ import { TenantsService } from "./tenants.service";
 @ApiTags("tenants")
 @Controller("tenants")
 export class TenantsController {
-  constructor(private readonly tenantsService: TenantsService) {}
+  constructor(@Inject(TenantsService) private readonly tenantsService: TenantsService) {}
 
   @Get()
   @ApiOkResponse({ description: "Tenant list scoped to authorized platform/school access" })
