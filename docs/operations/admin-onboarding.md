@@ -11,3 +11,21 @@ This guide will help school admins complete the first-run setup checklist:
 7. Generate an Android enrollment batch.
 8. Enroll and assign the first device.
 9. Validate policy deployment, launcher layout, and reporting.
+
+## Approved App Catalog
+
+Before enrolling pilot devices, configure at least one approved app with:
+
+- App name and Android package ID.
+- Approved grades or sections.
+- Install rule, such as available, force installed, or blocked.
+- Approval status.
+
+The Phase 1 API exposes this setup through:
+
+- `GET /api/v1/tenants/{tenantId}/apps`
+- `POST /api/v1/tenants/{tenantId}/apps`
+- `PATCH /api/v1/tenants/{tenantId}/apps/{appId}`
+
+Duplicate package IDs are blocked per tenant. Deprecating or blocking an app should be
+done before policy assignment changes so admins have a clear audit trail.
