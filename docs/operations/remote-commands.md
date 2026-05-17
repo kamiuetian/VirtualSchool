@@ -37,13 +37,17 @@ Phase 1 supports tenant-scoped command history and queued remote operations for 
 - `POST /api/v1/tenants/:tenantId/devices/:deviceId/commands/:commandId/results`
   - Requires `device:command`.
   - Records `EXECUTED` or `FAILED` execution result.
+- `POST /api/v1/tenants/:tenantId/command-dispatch-runs`
+  - Requires `device:command`.
+  - Dispatches queued commands through the active MDM connector.
+  - Defaults to `MDM_CONNECTOR_MODE=stub` for local development and CI.
 
 ## Status Lifecycle
 
 Normal delivery path:
 
 1. API queues command as `QUEUED`.
-2. Connector claims command and status becomes `DELIVERED`.
+2. Dispatch service sends the command through the active connector and status becomes `DELIVERED`.
 3. Connector reports execution and status becomes `EXECUTED`.
 
 Failure and expiry path:
@@ -63,6 +67,28 @@ The API writes audit events for:
 - Execution success.
 - Execution failure.
 - Expiry.
+
+## Android Management API Connector
+
+The direct Android connector maps Phase 1 commands to `enterprises.devices.issueCommand`:
+
+- `LOCK` maps to Android Management API `LOCK`.
+- `WIPE` maps to Android Management API `WIPE` with `wipeParams.wipeReason`.
+- `preserveFactoryResetProtection=true` maps to `PRESERVE_RESET_PROTECTION_DATA`.
+
+Commands such as `APP_INSTALL`, `APP_REMOVE`, `POLICY_REFRESH`, `SEND_MESSAGE`, and `UNLOCK` are not direct Android Management API commands in Phase 1. They remain queued domain commands until policy publishing, launcher messaging, or a later connector path handles them.
+
+Production mode requires:
+
+- `MDM_CONNECTOR_MODE=android-management`
+- `ANDROID_MANAGEMENT_ENTERPRISE_ID` or `ANDROID_ENTERPRISE_ID`
+- `GOOGLE_APPLICATION_CREDENTIALS` pointing to the service account JSON
+- Device `connectorDeviceName` or `enrollmentId`
+
+References:
+
+- Android Management API `enterprises.devices.issueCommand`: https://developers.google.com/android/management/reference/rest/v1/enterprises.devices/issueCommand
+- Android Management API `WipeDataFlag`: https://developers.google.com/android/management/reference/rest/v1/WipeDataFlag
 
 Destructive wipe commands also capture the actor, reason, command type, expiry, and confirmation outcome.
 

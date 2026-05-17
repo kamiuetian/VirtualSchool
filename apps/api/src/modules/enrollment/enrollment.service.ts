@@ -161,6 +161,8 @@ export class EnrollmentService {
         ? await tx.device.update({
             data: {
               androidVersion: input.androidVersion,
+              connectorDeviceName:
+                input.connectorDeviceName ?? existing.connectorDeviceName,
               enrollmentBatchId: batch.id,
               enrollmentId: input.enrollmentId ?? existing.enrollmentId,
               health: "CHECKED_IN",
@@ -176,6 +178,7 @@ export class EnrollmentService {
         : await tx.device.create({
             data: {
               androidVersion: input.androidVersion,
+              connectorDeviceName: input.connectorDeviceName,
               enrollmentBatchId: batch.id,
               enrollmentId: input.enrollmentId,
               health: "CHECKED_IN",
@@ -423,6 +426,8 @@ export class EnrollmentService {
       id: device.id,
       lastCheckInAt: device.lastCheckInAt?.toISOString() ?? null,
       manufacturer: device.manufacturer,
+      connectorDeviceName: device.connectorDeviceName,
+      mdmConnector: device.mdmConnector,
       model: device.model,
       ownershipType: "SCHOOL_OWNED",
       policyVersion: device.policyVersion,

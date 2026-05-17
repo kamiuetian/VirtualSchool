@@ -3,6 +3,7 @@ import { AppCatalogModule } from "./app-catalog/app-catalog.module";
 import { AuthModule } from "./auth/auth.module";
 import { EnrollmentModule } from "./enrollment/enrollment.module";
 import { HealthModule } from "./health/health.module";
+import { MdmConnectorsModule } from "./mdm-connectors/mdm-connectors.module";
 import { PoliciesModule } from "./policies/policies.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { RemoteCommandsModule } from "./remote-commands/remote-commands.module";
@@ -17,6 +18,7 @@ import { TenantsModule } from "./tenants/tenants.module";
     TenantsModule,
     RosterModule,
     EnrollmentModule,
+    MdmConnectorsModule,
     AppCatalogModule,
     PoliciesModule,
     RemoteCommandsModule,

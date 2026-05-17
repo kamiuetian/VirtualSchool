@@ -23,6 +23,14 @@ export class DeviceCheckInDto {
   @IsString()
   enrollmentId?: string;
 
+  @ApiPropertyOptional({
+    description:
+      "Android Management API device resource name, for example enterprises/{enterpriseId}/devices/{deviceId}",
+  })
+  @IsOptional()
+  @IsString()
+  connectorDeviceName?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

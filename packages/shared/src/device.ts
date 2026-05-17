@@ -57,6 +57,8 @@ export type DeviceSummary = {
   model?: string | null;
   androidVersion?: string | null;
   enrollmentId?: string | null;
+  mdmConnector: string;
+  connectorDeviceName?: string | null;
   ownershipType: "SCHOOL_OWNED";
   status: DeviceStatus;
   health: string;
@@ -100,6 +102,23 @@ export type QueuedRemoteCommand = {
   payload?: Record<string, unknown> | null;
   expiresAt?: string | null;
   createdAt: string;
+};
+
+export type CommandDispatchRunSummary = {
+  tenantId: string;
+  connector: string;
+  attempted: number;
+  accepted: number;
+  failed: number;
+  requeued: number;
+  commands: Array<{
+    commandId: string;
+    deviceId: string;
+    type: RemoteCommandType;
+    status: CommandStatus;
+    connectorCommandId?: string | null;
+    failureReason?: string | null;
+  }>;
 };
 
 export type DeviceApprovedApp = {

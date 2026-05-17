@@ -198,36 +198,39 @@ model ClassMembership {
 }
 
 model Device {
-  id                String           @id @default(uuid())
-  tenantId          String
-  branchId          String?
-  studentId         String?
-  classId           String?
-  serialNumber      String
-  manufacturer      String?
-  model             String?
-  androidVersion    String?
-  enrollmentId      String?
-  status            DeviceStatus     @default(PENDING)
-  lastCheckInAt     DateTime?
-  policyVersion     Int?
-  enrollmentBatchId String?
-  ownershipType     String           @default("SCHOOL_OWNED")
-  health            String           @default("UNKNOWN")
-  compliance        String           @default("UNKNOWN")
-  tags              String[]         @default([])
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  tenant            Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branch            Branch?          @relation(fields: [branchId], references: [id])
-  student           Student?         @relation(fields: [studentId], references: [id])
-  class             ClassSection?    @relation(fields: [classId], references: [id])
-  enrollmentBatch   EnrollmentBatch? @relation(fields: [enrollmentBatchId], references: [id])
-  commands          RemoteCommand[]
+  id                  String           @id @default(uuid())
+  tenantId            String
+  branchId            String?
+  studentId           String?
+  classId             String?
+  serialNumber        String
+  manufacturer        String?
+  model               String?
+  androidVersion      String?
+  enrollmentId        String?
+  mdmConnector        String           @default("ANDROID_MANAGEMENT_API")
+  connectorDeviceName String?
+  status              DeviceStatus     @default(PENDING)
+  lastCheckInAt       DateTime?
+  policyVersion       Int?
+  enrollmentBatchId   String?
+  ownershipType       String           @default("SCHOOL_OWNED")
+  health              String           @default("UNKNOWN")
+  compliance          String           @default("UNKNOWN")
+  tags                String[]         @default([])
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  tenant              Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch              Branch?          @relation(fields: [branchId], references: [id])
+  student             Student?         @relation(fields: [studentId], references: [id])
+  class               ClassSection?    @relation(fields: [classId], references: [id])
+  enrollmentBatch     EnrollmentBatch? @relation(fields: [enrollmentBatchId], references: [id])
+  commands            RemoteCommand[]
 
   @@unique([tenantId, serialNumber])
   @@index([tenantId, status])
   @@index([tenantId, enrollmentBatchId])
+  @@index([tenantId, mdmConnector])
 }
 
 model EnrollmentBatch {
