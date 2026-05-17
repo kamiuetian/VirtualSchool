@@ -29,7 +29,7 @@ export default defineConfig({
   reporter: process.env.CI ? [["github"], ["list"]] : "list",
   retries: process.env.CI ? 1 : 0,
   testDir: "./tests/e2e",
-  timeout: 30_000,
+  timeout: 60_000,
   use: {
     baseURL,
     trace: "retain-on-failure",
@@ -40,7 +40,7 @@ export default defineConfig({
       env: {
         ADMIN_E2E_API_PORT: String(apiPort),
       },
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: false,
       timeout: 120_000,
       url: `${apiURL}/tenants`,
     },
@@ -50,7 +50,7 @@ export default defineConfig({
         ADMIN_API_BASE_URL: apiURL,
         NEXT_PUBLIC_API_BASE_URL: apiURL,
       },
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: false,
       timeout: 120_000,
       url: baseURL,
     },

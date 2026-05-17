@@ -4,6 +4,7 @@ const pages = [
   { heading: "Keep every school tablet ready for class.", path: "/" },
   { heading: "Tenant Directory", path: "/tenants" },
   { heading: "Roster And Classes", path: "/roster" },
+  { heading: "Enrollment Batches", path: "/enrollment" },
   { heading: "Device Inventory", path: "/devices" },
   { heading: "Policies And Modes", path: "/policies" },
   { heading: "Timetable Blocks", path: "/timetable" },
@@ -57,6 +58,12 @@ test.describe("admin portal regression", () => {
     await page.goto("/alerts");
     await expect(page.getByRole("heading", { name: "Offline Detection" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Run scan" })).toBeVisible();
+
+    await page.goto("/enrollment");
+    await expect(
+      page.getByRole("img", { name: "Enrollment QR for Pilot tablets" }),
+    ).toBeVisible();
+    await expect(page.getByRole("link", { name: "Download QR" })).toBeVisible();
   });
 
   test("downloads CSV exports through portal routes", async ({ page }) => {

@@ -1,4 +1,6 @@
 import { QrCode } from "lucide-react";
+import QRCode from "qrcode";
+import type { EnrollmentBatchSummary } from "@virtual-school/shared";
 import { AppShell } from "../../components/app-shell";
 import {
   ActionPanel,
@@ -17,6 +19,13 @@ export const dynamic = "force-dynamic";
 
 export default async function EnrollmentPage() {
   const data = await getAdminData();
+  const batchesWithQr = await Promise.all(
+    data.enrollmentBatches.map(async (batch) => ({
+      batch,
+      qrDataUrl: await enrollmentQrDataUrl(batch),
+      qrText: enrollmentQrText(batch),
+    })),
+  );
   const active = data.enrollmentBatches.filter((batch) => batch.status === "ACTIVE");
   const enrolled = data.enrollmentBatches.reduce(
     (total, batch) => total + batch.enrolledCount,
@@ -71,18 +80,35 @@ export default async function EnrollmentPage() {
         <PageSection title="Enrollment Batch Register">
           {data.enrollmentBatches.length > 0 ? (
             <div className="card-grid">
-              {data.enrollmentBatches.map((batch) => (
-                <article className="record-card" key={batch.id}>
-                  <div className="record-icon">
-                    <QrCode size={20} />
+              {batchesWithQr.map(({ batch, qrDataUrl, qrText }) => (
+                <article className="record-card enrollment-card" key={batch.id}>
+                  <div className="enrollment-card-header">
+                    <div className="record-icon">
+                      <QrCode size={20} />
+                    </div>
+                    <StatusPill tone={batch.status === "ACTIVE" ? "good" : "neutral"}>
+                      {humanize(batch.status)}
+                    </StatusPill>
                   </div>
                   <div>
                     <strong>{batch.name}</strong>
-                    <span>{batch.enrolledCount} enrolled</span>
+                    <span>{batch.enrolledCount} enrolled from this QR batch</span>
                   </div>
-                  <StatusPill tone={batch.status === "ACTIVE" ? "good" : "neutral"}>
-                    {humanize(batch.status)}
-                  </StatusPill>
+                  <div className="qr-panel">
+                    <img
+                      alt={`Enrollment QR for ${batch.name}`}
+                      height={192}
+                      src={qrDataUrl}
+                      width={192}
+                    />
+                    <a
+                      className="small-button primary"
+                      download={`${safeFileName(batch.name)}-enrollment-qr.png`}
+                      href={qrDataUrl}
+                    >
+                      Download QR
+                    </a>
+                  </div>
                   <dl>
                     <div>
                       <dt>Expires</dt>
@@ -91,6 +117,14 @@ export default async function EnrollmentPage() {
                     <div>
                       <dt>Limit</dt>
                       <dd>{batch.maxDevices ? formatCount(batch.maxDevices) : "No cap"}</dd>
+                    </div>
+                    <div>
+                      <dt>Token</dt>
+                      <dd>{batch.token}</dd>
+                    </div>
+                    <div>
+                      <dt>Payload</dt>
+                      <dd className="payload-text">{qrText}</dd>
                     </div>
                   </dl>
                 </article>
@@ -106,4 +140,26 @@ export default async function EnrollmentPage() {
       </div>
     </AppShell>
   );
+}
+
+async function enrollmentQrDataUrl(
+  batch: EnrollmentBatchSummary,
+): Promise<string> {
+  return QRCode.toDataURL(enrollmentQrText(batch), {
+    errorCorrectionLevel: "M",
+    margin: 2,
+    scale: 8,
+    type: "image/png",
+  });
+}
+
+function enrollmentQrText(batch: EnrollmentBatchSummary): string {
+  return JSON.stringify(batch.qrPayload);
+}
+
+function safeFileName(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
 }
