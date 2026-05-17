@@ -67,16 +67,16 @@ enum EnrollmentBatchStatus {
 }
 
 model Tenant {
-  id                String            @id @default(uuid())
+  id                String             @id @default(uuid())
   name              String
-  domain            String?           @unique
+  domain            String?            @unique
   country           String
   timezone          String
-  language          String            @default("en")
+  language          String             @default("en")
   planKey           String
-  status            TenantStatus      @default(PILOT)
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+  status            TenantStatus       @default(PILOT)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
   branches          Branch[]
   users             User[]
   students          Student[]
@@ -86,6 +86,7 @@ model Tenant {
   enrollmentBatches EnrollmentBatch[]
   appCatalogItems   AppCatalogItem[]
   policies          Policy[]
+  policyAssignments PolicyAssignment[]
   auditEvents       AuditEvent[]
 }
 
@@ -268,18 +269,40 @@ model AppCatalogItem {
 }
 
 model Policy {
-  id        String          @id @default(uuid())
-  tenantId  String
-  name      String
-  status    String          @default("DRAFT")
-  version   Int             @default(1)
-  rules     Json
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
-  tenant    Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  versions  PolicyVersion[]
+  id          String             @id @default(uuid())
+  tenantId    String
+  name        String
+  status      String             @default("DRAFT")
+  version     Int                @default(1)
+  rules       Json
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  versions    PolicyVersion[]
+  assignments PolicyAssignment[]
 
   @@index([tenantId, status])
+}
+
+model PolicyAssignment {
+  id        String    @id @default(uuid())
+  tenantId  String
+  policyId  String
+  scope     String
+  scopeId   String?
+  active    Boolean   @default(true)
+  startsAt  DateTime?
+  endsAt    DateTime?
+  reason    String?
+  actorId   String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  policy    Policy    @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, scope, scopeId])
+  @@index([tenantId, active])
+  @@index([policyId])
 }
 
 model PolicyVersion {

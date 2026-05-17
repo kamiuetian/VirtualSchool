@@ -182,4 +182,133 @@ describe("PoliciesService", () => {
     );
     expect(audit).toHaveBeenCalledOnce();
   });
+
+  it("assigns a published tenant baseline policy with an audit event", async () => {
+    const audit = vi.fn();
+    const policy = {
+      createdAt: now,
+      id: "policy-1",
+      name: "Default School",
+      rules: baseRules,
+      status: "PUBLISHED",
+      tenantId: "tenant-1",
+      updatedAt: now,
+      version: 2,
+    };
+    const service = new PoliciesService({
+      $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
+        callback({
+          auditEvent: {
+            create: audit,
+          },
+          policyAssignment: {
+            create: async ({ data }: { data: Record<string, unknown> }) => ({
+              ...data,
+              active: true,
+              createdAt: now,
+              id: "assignment-1",
+              policy,
+              updatedAt: now,
+            }),
+          },
+        }),
+      policy: {
+        findFirst: async () => policy,
+      },
+    } as never);
+
+    await expect(
+      service.assignPolicy("tenant-1", "policy-1", {
+        reason: "Baseline for pilot",
+        scope: "TENANT",
+      }),
+    ).resolves.toMatchObject({
+      id: "assignment-1",
+      policyName: "Default School",
+      scope: "TENANT",
+    });
+    expect(audit).toHaveBeenCalledOnce();
+  });
+
+  it("resolves the active device policy using mode precedence", async () => {
+    const defaultPolicy = {
+      createdAt: now,
+      id: "policy-default",
+      name: "Default School",
+      rules: baseRules,
+      status: "PUBLISHED",
+      tenantId: "tenant-1",
+      updatedAt: now,
+      version: 4,
+    };
+    const lostPolicy = {
+      ...defaultPolicy,
+      id: "policy-lost",
+      name: "Lost Device",
+      rules: {
+        ...baseRules,
+        mode: "LOST_DEVICE",
+      },
+      version: 1,
+    };
+    const service = new PoliciesService({
+      device: {
+        findFirst: async () => ({
+          classId: "class-1",
+          id: "device-1",
+          student: {
+            grade: "5",
+            id: "student-1",
+          },
+          studentId: "student-1",
+          tenantId: "tenant-1",
+        }),
+      },
+      policyAssignment: {
+        findMany: async () => [
+          {
+            active: true,
+            actorId: null,
+            createdAt: now,
+            endsAt: null,
+            id: "assignment-default",
+            policy: defaultPolicy,
+            policyId: defaultPolicy.id,
+            reason: null,
+            scope: "TENANT",
+            scopeId: null,
+            startsAt: null,
+            tenantId: "tenant-1",
+            updatedAt: now,
+          },
+          {
+            active: true,
+            actorId: null,
+            createdAt: now,
+            endsAt: null,
+            id: "assignment-lost",
+            policy: lostPolicy,
+            policyId: lostPolicy.id,
+            reason: null,
+            scope: "DEVICE",
+            scopeId: "device-1",
+            startsAt: null,
+            tenantId: "tenant-1",
+            updatedAt: now,
+          },
+        ],
+      },
+    } as never);
+
+    await expect(
+      service.resolveActivePolicyForDevice("tenant-1", "device-1"),
+    ).resolves.toMatchObject({
+      activePolicy: {
+        id: "policy-lost",
+      },
+      assignment: {
+        id: "assignment-lost",
+      },
+    });
+  });
 });

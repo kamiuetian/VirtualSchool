@@ -46,3 +46,8 @@ Use `POST /api/v1/tenants/{tenantId}/policies/starter-templates` to create any m
 templates. Use `POST /api/v1/tenants/{tenantId}/policies/{policyId}/publish` when a
 template is ready for pilot deployment. Publishing increments the policy version and
 writes a version snapshot for rollback and audit review.
+
+Assign published policies through `POST /api/v1/tenants/{tenantId}/policies/{policyId}/assignments`.
+Supported scopes are tenant baseline, grade, class, student, and device. Device detail
+views should use `GET /api/v1/tenants/{tenantId}/policies/devices/{deviceId}/active`
+to show the active policy, assignment source, policy version, and precedence explanation.

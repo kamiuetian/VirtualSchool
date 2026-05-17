@@ -1,9 +1,12 @@
 import { Body, Controller, Get, Inject, Param, Post } from "@nestjs/common";
 import { ApiCreatedResponse, ApiOkResponse, ApiTags } from "@nestjs/swagger";
 import type {
+  ActivePolicyResolution,
+  PolicyAssignmentSummary,
   PolicySummary,
   PolicyVersionSummary,
 } from "@virtual-school/shared";
+import { AssignPolicyDto } from "./dto/assign-policy.dto";
 import { CreatePolicyDto } from "./dto/create-policy.dto";
 import { PublishPolicyDto } from "./dto/publish-policy.dto";
 import { PoliciesService } from "./policies.service";
@@ -19,6 +22,29 @@ export class PoliciesController {
   @ApiOkResponse({ description: "Tenant policy templates and custom policies" })
   listPolicies(@Param("tenantId") tenantId: string): Promise<PolicySummary[]> {
     return this.policiesService.listPolicies(tenantId);
+  }
+
+  @Get("assignments")
+  @ApiOkResponse({ description: "Tenant policy assignment list" })
+  listPolicyAssignments(
+    @Param("tenantId") tenantId: string,
+  ): Promise<PolicyAssignmentSummary[]> {
+    return this.policiesService.listPolicyAssignments(tenantId);
+  }
+
+  @Get("devices/:deviceId/active")
+  @ApiOkResponse({
+    description:
+      "Resolve the active policy for a device with a precedence explanation",
+  })
+  resolveActivePolicyForDevice(
+    @Param("tenantId") tenantId: string,
+    @Param("deviceId") deviceId: string,
+  ): Promise<ActivePolicyResolution> {
+    return this.policiesService.resolveActivePolicyForDevice(
+      tenantId,
+      deviceId,
+    );
   }
 
   @Post()
@@ -50,6 +76,19 @@ export class PoliciesController {
     @Body() body: PublishPolicyDto,
   ): Promise<PolicySummary> {
     return this.policiesService.publishPolicy(tenantId, policyId, body);
+  }
+
+  @Post(":policyId/assignments")
+  @ApiCreatedResponse({
+    description:
+      "Assign a published policy to a tenant, grade, class, student, or device",
+  })
+  assignPolicy(
+    @Param("tenantId") tenantId: string,
+    @Param("policyId") policyId: string,
+    @Body() body: AssignPolicyDto,
+  ): Promise<PolicyAssignmentSummary> {
+    return this.policiesService.assignPolicy(tenantId, policyId, body);
   }
 
   @Get(":policyId/versions")

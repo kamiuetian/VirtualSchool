@@ -1,5 +1,14 @@
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import type {
+  ActivePolicyResolution,
+  LearningMode,
+  PolicyAssignmentScope,
+  PolicyAssignmentSummary,
   PolicyRuleSet,
   PolicyStatus,
   PolicySummary,
@@ -7,13 +16,29 @@ import type {
 } from "@virtual-school/shared";
 import {
   type Policy,
+  type PolicyAssignment,
   type PolicyVersion,
   Prisma,
 } from "../../generated/prisma";
 import { PrismaService } from "../prisma/prisma.service";
+import type { AssignPolicyDto } from "./dto/assign-policy.dto";
 import type { CreatePolicyDto } from "./dto/create-policy.dto";
 import type { PublishPolicyDto } from "./dto/publish-policy.dto";
 import { starterPolicyTemplates } from "./starter-policy-templates";
+
+type PolicyAssignmentWithPolicy = PolicyAssignment & {
+  policy: Policy;
+};
+
+const policyPrecedence: Record<LearningMode, number> = {
+  LOST_DEVICE: 100,
+  EXAM: 90,
+  EMERGENCY_SUPPORT_OVERRIDE: 80,
+  TIMETABLE_CLASS: 70,
+  HOMEWORK_AFTER_SCHOOL: 60,
+  DEVICE_BASELINE: 50,
+  DEFAULT_SCHOOL: 10,
+};
 
 @Injectable()
 export class PoliciesService {
@@ -207,6 +232,256 @@ export class PoliciesService {
     return this.toPolicySummary(updated);
   }
 
+  async listPolicyAssignments(
+    tenantId: string,
+  ): Promise<PolicyAssignmentSummary[]> {
+    await this.ensureTenantExists(tenantId);
+
+    const assignments = await this.prisma.policyAssignment.findMany({
+      include: {
+        policy: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      where: {
+        tenantId,
+      },
+    });
+
+    return assignments.map((assignment) =>
+      this.toPolicyAssignmentSummary(assignment),
+    );
+  }
+
+  async assignPolicy(
+    tenantId: string,
+    policyId: string,
+    input: AssignPolicyDto,
+  ): Promise<PolicyAssignmentSummary> {
+    const policy = await this.prisma.policy.findFirst({
+      where: {
+        id: policyId,
+        tenantId,
+      },
+    });
+
+    if (!policy) {
+      throw new NotFoundException(
+        `Policy ${policyId} was not found for tenant ${tenantId}`,
+      );
+    }
+
+    if (policy.status !== "PUBLISHED") {
+      throw new BadRequestException("Only published policies can be assigned");
+    }
+
+    this.validateAssignmentScope(input.scope, input.scopeId);
+    await this.ensureAssignmentTargetExists(
+      tenantId,
+      input.scope,
+      input.scopeId,
+    );
+
+    const assignment = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.policyAssignment.create({
+        data: {
+          actorId: input.actorId,
+          endsAt: input.endsAt ? new Date(input.endsAt) : undefined,
+          policyId,
+          reason: input.reason,
+          scope: input.scope,
+          scopeId: input.scopeId,
+          startsAt: input.startsAt ? new Date(input.startsAt) : undefined,
+          tenantId,
+        },
+        include: {
+          policy: true,
+        },
+      });
+
+      await tx.auditEvent.create({
+        data: {
+          action: "policy.assign",
+          actorId: input.actorId,
+          newValue: {
+            endsAt: created.endsAt,
+            policyId,
+            policyVersion: policy.version,
+            scope: created.scope,
+            scopeId: created.scopeId,
+            startsAt: created.startsAt,
+          },
+          object: "PolicyAssignment",
+          objectId: created.id,
+          outcome: "SUCCESS",
+          reason: input.reason,
+          tenantId,
+        },
+      });
+
+      return created;
+    });
+
+    return this.toPolicyAssignmentSummary(assignment);
+  }
+
+  async resolveActivePolicyForDevice(
+    tenantId: string,
+    deviceId: string,
+  ): Promise<ActivePolicyResolution> {
+    const device = await this.prisma.device.findFirst({
+      include: {
+        student: {
+          select: {
+            grade: true,
+            id: true,
+          },
+        },
+      },
+      where: {
+        id: deviceId,
+        tenantId,
+      },
+    });
+
+    if (!device) {
+      throw new NotFoundException(
+        `Device ${deviceId} was not found for tenant ${tenantId}`,
+      );
+    }
+
+    const scopeMatches: Array<{ scope: string; scopeId?: string | null }> = [
+      {
+        scope: "TENANT",
+        scopeId: null,
+      },
+    ];
+
+    if (device.student?.grade) {
+      scopeMatches.push({
+        scope: "GRADE",
+        scopeId: device.student.grade,
+      });
+    }
+
+    if (device.classId) {
+      scopeMatches.push({
+        scope: "CLASS",
+        scopeId: device.classId,
+      });
+    }
+
+    if (device.studentId) {
+      scopeMatches.push({
+        scope: "STUDENT",
+        scopeId: device.studentId,
+      });
+    }
+
+    scopeMatches.push({
+      scope: "DEVICE",
+      scopeId: device.id,
+    });
+
+    const now = new Date();
+    const assignments = await this.prisma.policyAssignment.findMany({
+      include: {
+        policy: true,
+      },
+      where: {
+        active: true,
+        tenantId,
+        OR: scopeMatches,
+        policy: {
+          status: "PUBLISHED",
+        },
+        AND: [
+          {
+            OR: [
+              {
+                startsAt: null,
+              },
+              {
+                startsAt: {
+                  lte: now,
+                },
+              },
+            ],
+          },
+          {
+            OR: [
+              {
+                endsAt: null,
+              },
+              {
+                endsAt: {
+                  gt: now,
+                },
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    if (assignments.length === 0) {
+      throw new NotFoundException(
+        `No active published policy assignment was found for device ${deviceId}`,
+      );
+    }
+
+    const candidates = assignments.map((assignment) => {
+      const rules = assignment.policy.rules as PolicyRuleSet;
+
+      return {
+        id: assignment.id,
+        mode: rules.mode,
+        policyVersion: assignment.policy.version,
+        source: this.assignmentSource(assignment),
+      };
+    });
+
+    const sortedCandidates = [...candidates].sort((left, right) => {
+      const precedenceDiff =
+        policyPrecedence[right.mode] - policyPrecedence[left.mode];
+      if (precedenceDiff !== 0) {
+        return precedenceDiff;
+      }
+
+      return right.policyVersion - left.policyVersion;
+    });
+    const resolved = sortedCandidates[0];
+    if (!resolved) {
+      throw new Error("Policy resolution failed");
+    }
+    const activeAssignment = assignments.find(
+      (assignment) => assignment.id === resolved.id,
+    );
+
+    if (!activeAssignment) {
+      throw new Error("Policy assignment resolution failed");
+    }
+
+    return {
+      activePolicy: this.toPolicySummary(activeAssignment.policy),
+      assignment: this.toPolicyAssignmentSummary(activeAssignment),
+      deviceId,
+      evaluated: assignments.map((assignment) => {
+        const rules = assignment.policy.rules as PolicyRuleSet;
+
+        return {
+          assignment: this.toPolicyAssignmentSummary(assignment),
+          mode: rules.mode,
+          precedence: policyPrecedence[rules.mode],
+          source: this.assignmentSource(assignment),
+        };
+      }),
+      explanation: `${resolved.mode} from ${resolved.source} won with precedence ${policyPrecedence[resolved.mode]} and policy version ${resolved.policyVersion}.`,
+      tenantId,
+    };
+  }
+
   async listPolicyVersions(
     tenantId: string,
     policyId: string,
@@ -254,6 +529,104 @@ export class PoliciesService {
     }
   }
 
+  private validateAssignmentScope(
+    scope: PolicyAssignmentScope,
+    scopeId: string | undefined,
+  ): void {
+    if (scope === "TENANT" && scopeId) {
+      throw new BadRequestException(
+        "Tenant baseline assignments must not include scopeId",
+      );
+    }
+
+    if (scope !== "TENANT" && !scopeId) {
+      throw new BadRequestException(`${scope} assignments require scopeId`);
+    }
+  }
+
+  private async ensureAssignmentTargetExists(
+    tenantId: string,
+    scope: PolicyAssignmentScope,
+    scopeId: string | undefined,
+  ): Promise<void> {
+    if (scope === "TENANT") {
+      return;
+    }
+
+    if (scope === "GRADE") {
+      const student = await this.prisma.student.findFirst({
+        select: {
+          id: true,
+        },
+        where: {
+          grade: scopeId,
+          tenantId,
+        },
+      });
+
+      if (!student) {
+        throw new NotFoundException(
+          `Grade ${scopeId} was not found for tenant ${tenantId}`,
+        );
+      }
+      return;
+    }
+
+    if (scope === "CLASS") {
+      const classSection = await this.prisma.classSection.findFirst({
+        select: {
+          id: true,
+        },
+        where: {
+          id: scopeId,
+          tenantId,
+        },
+      });
+
+      if (!classSection) {
+        throw new NotFoundException(
+          `Class ${scopeId} was not found for tenant ${tenantId}`,
+        );
+      }
+      return;
+    }
+
+    if (scope === "STUDENT") {
+      const student = await this.prisma.student.findFirst({
+        select: {
+          id: true,
+        },
+        where: {
+          id: scopeId,
+          tenantId,
+        },
+      });
+
+      if (!student) {
+        throw new NotFoundException(
+          `Student ${scopeId} was not found for tenant ${tenantId}`,
+        );
+      }
+      return;
+    }
+
+    const device = await this.prisma.device.findFirst({
+      select: {
+        id: true,
+      },
+      where: {
+        id: scopeId,
+        tenantId,
+      },
+    });
+
+    if (!device) {
+      throw new NotFoundException(
+        `Device ${scopeId} was not found for tenant ${tenantId}`,
+      );
+    }
+  }
+
   private toPolicySummary(policy: Policy): PolicySummary {
     return {
       createdAt: policy.createdAt.toISOString(),
@@ -265,6 +638,31 @@ export class PoliciesService {
       updatedAt: policy.updatedAt.toISOString(),
       version: policy.version,
     };
+  }
+
+  private toPolicyAssignmentSummary(
+    assignment: PolicyAssignmentWithPolicy,
+  ): PolicyAssignmentSummary {
+    return {
+      active: assignment.active,
+      actorId: assignment.actorId,
+      createdAt: assignment.createdAt.toISOString(),
+      endsAt: assignment.endsAt?.toISOString() ?? null,
+      id: assignment.id,
+      policyId: assignment.policyId,
+      policyName: assignment.policy.name,
+      policyStatus: assignment.policy.status as PolicyStatus,
+      policyVersion: assignment.policy.version,
+      reason: assignment.reason,
+      scope: assignment.scope as PolicyAssignmentScope,
+      scopeId: assignment.scopeId,
+      startsAt: assignment.startsAt?.toISOString() ?? null,
+      tenantId: assignment.tenantId,
+    };
+  }
+
+  private assignmentSource(assignment: PolicyAssignment): string {
+    return `${assignment.scope}:${assignment.scopeId ?? "baseline"}`;
   }
 
   private toPolicyVersionSummary(version: PolicyVersion): PolicyVersionSummary {

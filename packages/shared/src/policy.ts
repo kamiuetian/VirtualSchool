@@ -79,6 +79,44 @@ export type PolicyVersionSummary = {
   createdAt: string;
 };
 
+export type PolicyAssignmentScope =
+  | "TENANT"
+  | "GRADE"
+  | "CLASS"
+  | "STUDENT"
+  | "DEVICE";
+
+export type PolicyAssignmentSummary = {
+  id: string;
+  tenantId: string;
+  policyId: string;
+  policyName: string;
+  policyVersion: number;
+  policyStatus: PolicyStatus;
+  scope: PolicyAssignmentScope;
+  scopeId?: string | null;
+  active: boolean;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  reason?: string | null;
+  actorId?: string | null;
+  createdAt: string;
+};
+
+export type ActivePolicyResolution = {
+  deviceId: string;
+  tenantId: string;
+  activePolicy: PolicySummary;
+  assignment: PolicyAssignmentSummary;
+  explanation: string;
+  evaluated: Array<{
+    assignment: PolicyAssignmentSummary;
+    mode: LearningMode;
+    source: string;
+    precedence: number;
+  }>;
+};
+
 export type StarterPolicyTemplateKey =
   | "GRADE_1_3_LOCKDOWN"
   | "GRADE_4_8_SUPERVISED"
