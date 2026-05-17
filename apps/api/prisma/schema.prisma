@@ -60,38 +60,44 @@ enum CommandStatus {
   EXPIRED
 }
 
+enum EnrollmentBatchStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
 model Tenant {
-  id          String       @id @default(uuid())
-  name        String
-  domain      String?      @unique
-  country     String
-  timezone    String
-  language    String       @default("en")
-  planKey     String
-  status      TenantStatus @default(PILOT)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  branches    Branch[]
-  users       User[]
-  students    Student[]
-  guardians   Guardian[]
-  classes     ClassSection[]
-  devices     Device[]
+  id                String            @id @default(uuid())
+  name              String
+  domain            String?           @unique
+  country           String
+  timezone          String
+  language          String            @default("en")
+  planKey           String
+  status            TenantStatus      @default(PILOT)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  branches          Branch[]
+  users             User[]
+  students          Student[]
+  guardians         Guardian[]
+  classes           ClassSection[]
+  devices           Device[]
   enrollmentBatches EnrollmentBatch[]
-  appCatalogItems AppCatalogItem[]
-  policies    Policy[]
-  auditEvents AuditEvent[]
+  appCatalogItems   AppCatalogItem[]
+  policies          Policy[]
+  auditEvents       AuditEvent[]
 }
 
 model Branch {
-  id        String   @id @default(uuid())
+  id        String         @id @default(uuid())
   tenantId  String
   name      String
   timezone  String?
-  status    String   @default("ACTIVE")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  status    String         @default("ACTIVE")
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  tenant    Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   users     User[]
   students  Student[]
   classes   ClassSection[]
@@ -120,18 +126,18 @@ model User {
 }
 
 model Student {
-  id          String        @id @default(uuid())
+  id          String            @id @default(uuid())
   tenantId    String
   branchId    String?
   studentCode String
   name        String
   grade       String
   section     String?
-  status      StudentStatus @default(PENDING)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  tenant      Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branch      Branch?       @relation(fields: [branchId], references: [id])
+  status      StudentStatus     @default(PENDING)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  tenant      Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch      Branch?           @relation(fields: [branchId], references: [id])
   guardians   StudentGuardian[]
   devices     Device[]
   classes     ClassMembership[]
@@ -141,14 +147,14 @@ model Student {
 }
 
 model Guardian {
-  id        String   @id @default(uuid())
+  id        String            @id @default(uuid())
   tenantId  String
   name      String
   email     String?
   phone     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   students  StudentGuardian[]
 
   @@index([tenantId, email])
@@ -165,16 +171,16 @@ model StudentGuardian {
 }
 
 model ClassSection {
-  id        String   @id @default(uuid())
+  id        String            @id @default(uuid())
   tenantId  String
   branchId  String?
   name      String
   grade     String
   subject   String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branch    Branch?  @relation(fields: [branchId], references: [id])
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch    Branch?           @relation(fields: [branchId], references: [id])
   members   ClassMembership[]
   devices   Device[]
 
@@ -191,43 +197,55 @@ model ClassMembership {
 }
 
 model Device {
-  id             String       @id @default(uuid())
-  tenantId       String
-  branchId       String?
-  studentId      String?
-  classId        String?
-  serialNumber   String
-  manufacturer   String?
-  model          String?
-  androidVersion String?
-  enrollmentId   String?
-  status         DeviceStatus @default(PENDING)
-  lastCheckInAt  DateTime?
-  policyVersion  Int?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  tenant         Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branch         Branch?      @relation(fields: [branchId], references: [id])
-  student        Student?     @relation(fields: [studentId], references: [id])
-  class          ClassSection? @relation(fields: [classId], references: [id])
-  commands       RemoteCommand[]
+  id                String           @id @default(uuid())
+  tenantId          String
+  branchId          String?
+  studentId         String?
+  classId           String?
+  serialNumber      String
+  manufacturer      String?
+  model             String?
+  androidVersion    String?
+  enrollmentId      String?
+  status            DeviceStatus     @default(PENDING)
+  lastCheckInAt     DateTime?
+  policyVersion     Int?
+  enrollmentBatchId String?
+  ownershipType     String           @default("SCHOOL_OWNED")
+  health            String           @default("UNKNOWN")
+  compliance        String           @default("UNKNOWN")
+  tags              String[]         @default([])
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  tenant            Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch            Branch?          @relation(fields: [branchId], references: [id])
+  student           Student?         @relation(fields: [studentId], references: [id])
+  class             ClassSection?    @relation(fields: [classId], references: [id])
+  enrollmentBatch   EnrollmentBatch? @relation(fields: [enrollmentBatchId], references: [id])
+  commands          RemoteCommand[]
 
   @@unique([tenantId, serialNumber])
   @@index([tenantId, status])
+  @@index([tenantId, enrollmentBatchId])
 }
 
 model EnrollmentBatch {
-  id            String   @id @default(uuid())
+  id            String                @id @default(uuid())
   tenantId      String
   name          String
-  token         String   @unique
+  token         String                @unique
+  status        EnrollmentBatchStatus @default(ACTIVE)
   expiresAt     DateTime?
-  enrolledCount Int      @default(0)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  maxDevices    Int?
+  qrPayload     Json
+  enrolledCount Int                   @default(0)
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  tenant        Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  devices       Device[]
 
   @@index([tenantId, createdAt])
+  @@index([tenantId, status])
 }
 
 model AppCatalogItem {
@@ -250,16 +268,16 @@ model AppCatalogItem {
 }
 
 model Policy {
-  id          String   @id @default(uuid())
-  tenantId    String
-  name        String
-  status      String   @default("DRAFT")
-  version     Int      @default(1)
-  rules       Json
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  versions    PolicyVersion[]
+  id        String          @id @default(uuid())
+  tenantId  String
+  name      String
+  status    String          @default("DRAFT")
+  version   Int             @default(1)
+  rules     Json
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  tenant    Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  versions  PolicyVersion[]
 
   @@index([tenantId, status])
 }

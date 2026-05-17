@@ -1,0 +1,68 @@
+import { Body, Controller, Get, Inject, Param, Post } from "@nestjs/common";
+import { ApiCreatedResponse, ApiOkResponse, ApiTags } from "@nestjs/swagger";
+import type {
+  DeviceCheckInResult,
+  DeviceSummary,
+  EnrollmentBatchSummary,
+} from "@virtual-school/shared";
+import { AssignDeviceDto } from "./dto/assign-device.dto";
+import { CreateEnrollmentBatchDto } from "./dto/create-enrollment-batch.dto";
+import { DeviceCheckInDto } from "./dto/device-check-in.dto";
+import { EnrollmentService } from "./enrollment.service";
+
+@ApiTags("enrollment")
+@Controller("tenants/:tenantId")
+export class EnrollmentController {
+  constructor(
+    @Inject(EnrollmentService)
+    private readonly enrollmentService: EnrollmentService,
+  ) {}
+
+  @Get("enrollment-batches")
+  @ApiOkResponse({ description: "Tenant Android enrollment batches" })
+  listEnrollmentBatches(
+    @Param("tenantId") tenantId: string,
+  ): Promise<EnrollmentBatchSummary[]> {
+    return this.enrollmentService.listEnrollmentBatches(tenantId);
+  }
+
+  @Post("enrollment-batches")
+  @ApiCreatedResponse({
+    description: "Create a QR-backed Android enrollment batch",
+  })
+  createEnrollmentBatch(
+    @Param("tenantId") tenantId: string,
+    @Body() body: CreateEnrollmentBatchDto,
+  ): Promise<EnrollmentBatchSummary> {
+    return this.enrollmentService.createEnrollmentBatch(tenantId, body);
+  }
+
+  @Get("devices")
+  @ApiOkResponse({ description: "Tenant Android device inventory" })
+  listDevices(@Param("tenantId") tenantId: string): Promise<DeviceSummary[]> {
+    return this.enrollmentService.listDevices(tenantId);
+  }
+
+  @Post("devices/check-ins")
+  @ApiCreatedResponse({
+    description: "Record a managed Android device check-in or first enrollment",
+  })
+  recordDeviceCheckIn(
+    @Param("tenantId") tenantId: string,
+    @Body() body: DeviceCheckInDto,
+  ): Promise<DeviceCheckInResult> {
+    return this.enrollmentService.recordDeviceCheckIn(tenantId, body);
+  }
+
+  @Post("devices/:deviceId/assignments")
+  @ApiCreatedResponse({
+    description: "Assign a quarantined device to a branch, student, or class",
+  })
+  assignDevice(
+    @Param("tenantId") tenantId: string,
+    @Param("deviceId") deviceId: string,
+    @Body() body: AssignDeviceDto,
+  ): Promise<DeviceSummary> {
+    return this.enrollmentService.assignDevice(tenantId, deviceId, body);
+  }
+}
