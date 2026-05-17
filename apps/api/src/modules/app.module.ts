@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { AppCatalogModule } from "./app-catalog/app-catalog.module";
+import { AuthModule } from "./auth/auth.module";
 import { EnrollmentModule } from "./enrollment/enrollment.module";
 import { HealthModule } from "./health/health.module";
 import { PoliciesModule } from "./policies/policies.module";
@@ -10,6 +11,7 @@ import { TenantsModule } from "./tenants/tenants.module";
 @Module({
   imports: [
     PrismaModule,
+    AuthModule,
     HealthModule,
     TenantsModule,
     RosterModule,

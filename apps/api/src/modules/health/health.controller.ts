@@ -1,5 +1,6 @@
 import { Controller, Get } from "@nestjs/common";
 import { ApiOkResponse, ApiTags } from "@nestjs/swagger";
+import { Public } from "../auth/decorators/public.decorator";
 
 type HealthResponse = {
   service: string;
@@ -8,6 +9,7 @@ type HealthResponse = {
 };
 
 @ApiTags("health")
+@Public()
 @Controller("health")
 export class HealthController {
   @Get()
@@ -16,7 +18,7 @@ export class HealthController {
     return {
       service: "api",
       status: "ok",
-      version: "0.1.0"
+      version: "0.1.0",
     };
   }
 }

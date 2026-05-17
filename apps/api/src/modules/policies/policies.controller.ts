@@ -7,6 +7,7 @@ import type {
   PolicySummary,
   PolicyVersionSummary,
 } from "@virtual-school/shared";
+import { RequirePermissions } from "../auth/decorators/require-permissions.decorator";
 import { AssignPolicyDto } from "./dto/assign-policy.dto";
 import { CreatePolicyDto } from "./dto/create-policy.dto";
 import { PublishPolicyDto } from "./dto/publish-policy.dto";
@@ -20,12 +21,14 @@ export class PoliciesController {
   ) {}
 
   @Get()
+  @RequirePermissions("tenant:read")
   @ApiOkResponse({ description: "Tenant policy templates and custom policies" })
   listPolicies(@Param("tenantId") tenantId: string): Promise<PolicySummary[]> {
     return this.policiesService.listPolicies(tenantId);
   }
 
   @Get("assignments")
+  @RequirePermissions("tenant:read")
   @ApiOkResponse({ description: "Tenant policy assignment list" })
   listPolicyAssignments(
     @Param("tenantId") tenantId: string,
@@ -34,6 +37,7 @@ export class PoliciesController {
   }
 
   @Get("devices/:deviceId/active")
+  @RequirePermissions("device:read")
   @ApiOkResponse({
     description:
       "Resolve the active policy for a device with a precedence explanation",
@@ -49,6 +53,7 @@ export class PoliciesController {
   }
 
   @Get("devices/:deviceId/payload")
+  @RequirePermissions("device:read")
   @ApiOkResponse({
     description:
       "Return the active launcher and browser policy payload for a managed Android device",
@@ -61,6 +66,7 @@ export class PoliciesController {
   }
 
   @Post()
+  @RequirePermissions("policy:manage")
   @ApiCreatedResponse({ description: "Create a versioned policy" })
   createPolicy(
     @Param("tenantId") tenantId: string,
@@ -70,6 +76,7 @@ export class PoliciesController {
   }
 
   @Post("starter-templates")
+  @RequirePermissions("policy:manage")
   @ApiCreatedResponse({
     description: "Create missing Phase 1 starter policy templates",
   })
@@ -80,6 +87,7 @@ export class PoliciesController {
   }
 
   @Post(":policyId/publish")
+  @RequirePermissions("policy:manage")
   @ApiOkResponse({
     description: "Publish a policy and write a new version snapshot",
   })
@@ -92,6 +100,7 @@ export class PoliciesController {
   }
 
   @Post(":policyId/assignments")
+  @RequirePermissions("policy:manage")
   @ApiCreatedResponse({
     description:
       "Assign a published policy to a tenant, grade, class, student, or device",
@@ -105,6 +114,7 @@ export class PoliciesController {
   }
 
   @Get(":policyId/versions")
+  @RequirePermissions("tenant:read")
   @ApiOkResponse({ description: "Policy version history" })
   listPolicyVersions(
     @Param("tenantId") tenantId: string,

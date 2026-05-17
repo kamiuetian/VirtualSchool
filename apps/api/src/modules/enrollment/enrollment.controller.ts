@@ -5,6 +5,7 @@ import type {
   DeviceSummary,
   EnrollmentBatchSummary,
 } from "@virtual-school/shared";
+import { RequirePermissions } from "../auth/decorators/require-permissions.decorator";
 import { AssignDeviceDto } from "./dto/assign-device.dto";
 import { CreateEnrollmentBatchDto } from "./dto/create-enrollment-batch.dto";
 import { DeviceCheckInDto } from "./dto/device-check-in.dto";
@@ -19,6 +20,7 @@ export class EnrollmentController {
   ) {}
 
   @Get("enrollment-batches")
+  @RequirePermissions("device:read")
   @ApiOkResponse({ description: "Tenant Android enrollment batches" })
   listEnrollmentBatches(
     @Param("tenantId") tenantId: string,
@@ -27,6 +29,7 @@ export class EnrollmentController {
   }
 
   @Post("enrollment-batches")
+  @RequirePermissions("device:enroll")
   @ApiCreatedResponse({
     description: "Create a QR-backed Android enrollment batch",
   })
@@ -38,12 +41,14 @@ export class EnrollmentController {
   }
 
   @Get("devices")
+  @RequirePermissions("device:read")
   @ApiOkResponse({ description: "Tenant Android device inventory" })
   listDevices(@Param("tenantId") tenantId: string): Promise<DeviceSummary[]> {
     return this.enrollmentService.listDevices(tenantId);
   }
 
   @Post("devices/check-ins")
+  @RequirePermissions("device:enroll")
   @ApiCreatedResponse({
     description: "Record a managed Android device check-in or first enrollment",
   })
@@ -55,6 +60,7 @@ export class EnrollmentController {
   }
 
   @Post("devices/:deviceId/assignments")
+  @RequirePermissions("device:enroll")
   @ApiCreatedResponse({
     description: "Assign a quarantined device to a branch, student, or class",
   })

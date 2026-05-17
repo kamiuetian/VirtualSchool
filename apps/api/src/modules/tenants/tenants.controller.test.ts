@@ -9,12 +9,12 @@ describe("TenantsController", () => {
       name: "Pilot School",
       planKey: "starter",
       status: "PILOT",
-      timezone: "America/New_York"
+      timezone: "America/New_York",
     });
     const controller = new TenantsController({
       create,
       getById: vi.fn(),
-      list: vi.fn()
+      listAuthorized: vi.fn(),
     } as never);
 
     await expect(
@@ -23,11 +23,11 @@ describe("TenantsController", () => {
         name: "Pilot School",
         planKey: "starter",
         status: "PILOT",
-        timezone: "America/New_York"
-      })
+        timezone: "America/New_York",
+      }),
     ).resolves.toMatchObject({
       id: "tenant-1",
-      name: "Pilot School"
+      name: "Pilot School",
     });
     expect(create).toHaveBeenCalledOnce();
   });

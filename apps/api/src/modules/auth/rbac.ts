@@ -1,0 +1,72 @@
+import type { Permission, Role } from "@virtual-school/shared";
+
+export const apiRoles = [
+  "PLATFORM_SUPER_ADMIN",
+  "SCHOOL_ADMIN",
+  "IT_ADMIN",
+  "ACADEMIC_ADMIN",
+  "TEACHER",
+  "SUPPORT_AGENT",
+  "BILLING_ADMIN",
+  "AUDITOR",
+  "STUDENT",
+  "GUARDIAN",
+] as const satisfies readonly Role[];
+
+const allPermissions: Permission[] = [
+  "tenant:create",
+  "tenant:read",
+  "tenant:update",
+  "user:invite",
+  "user:suspend",
+  "roster:manage",
+  "class:manage",
+  "device:enroll",
+  "device:read",
+  "device:command",
+  "device:wipe",
+  "policy:manage",
+  "report:export",
+  "audit:read",
+  "billing:read",
+];
+
+export const apiRolePermissions: Record<Role, Permission[]> = {
+  PLATFORM_SUPER_ADMIN: [...allPermissions],
+  SCHOOL_ADMIN: [
+    "tenant:read",
+    "tenant:update",
+    "user:invite",
+    "user:suspend",
+    "roster:manage",
+    "class:manage",
+    "device:read",
+    "policy:manage",
+    "report:export",
+    "audit:read",
+    "billing:read",
+  ],
+  IT_ADMIN: [
+    "tenant:read",
+    "device:enroll",
+    "device:read",
+    "device:command",
+    "device:wipe",
+    "policy:manage",
+    "report:export",
+    "audit:read",
+  ],
+  ACADEMIC_ADMIN: [
+    "tenant:read",
+    "roster:manage",
+    "class:manage",
+    "policy:manage",
+    "report:export",
+  ],
+  TEACHER: ["tenant:read", "device:read"],
+  SUPPORT_AGENT: ["tenant:read", "device:read", "device:command"],
+  BILLING_ADMIN: ["tenant:read", "billing:read"],
+  AUDITOR: ["tenant:read", "audit:read", "report:export"],
+  STUDENT: [],
+  GUARDIAN: [],
+};
