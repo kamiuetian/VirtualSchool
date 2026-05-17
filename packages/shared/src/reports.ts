@@ -46,6 +46,8 @@ export type PolicyDeploymentReportRow = {
   version: number;
   assignmentCount: number;
   activeAssignmentCount: number;
+  queuedDeploymentCount: number;
+  failedDeploymentCount: number;
   latestVersionSummary?: string | null;
   updatedAt: string;
 };
@@ -56,6 +58,8 @@ export type PolicyDeploymentReport = ReportGeneratedMetadata & {
     published: number;
     draft: number;
     activeAssignments: number;
+    queuedDeploymentCommands: number;
+    failedDeployments: number;
   };
   policies: PolicyDeploymentReportRow[];
 };
@@ -68,6 +72,8 @@ export type AppDeploymentReportRow = {
   approvalStatus: string;
   approvedGrades: string[];
   assignedPolicyCount: number;
+  queuedCommandCount: number;
+  failedDeploymentCount: number;
   policyNames: string[];
   updatedAt: string;
 };
@@ -78,6 +84,8 @@ export type AppDeploymentReport = ReportGeneratedMetadata & {
     approved: number;
     blocked: number;
     assignedApps: number;
+    queuedCommands: number;
+    failedDeployments: number;
   };
   apps: AppDeploymentReportRow[];
 };

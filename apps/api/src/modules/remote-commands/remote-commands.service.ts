@@ -21,6 +21,16 @@ import type { RecordDeliveryFailureDto } from "./dto/record-delivery-failure.dto
 
 const defaultCommandTtlMinutes = 60;
 const destructiveCommandTypes = new Set<RemoteCommandType>(["WIPE", "RETIRE"]);
+const deploymentCommandAlertTypes: Partial<
+  Record<
+    RemoteCommandType,
+    "APP_DEPLOYMENT_FAILED" | "POLICY_DEPLOYMENT_FAILED"
+  >
+> = {
+  APP_INSTALL: "APP_DEPLOYMENT_FAILED",
+  APP_REMOVE: "APP_DEPLOYMENT_FAILED",
+  POLICY_REFRESH: "POLICY_DEPLOYMENT_FAILED",
+};
 
 @Injectable()
 export class RemoteCommandsService {
@@ -210,6 +220,10 @@ export class RemoteCommandsService {
         },
       });
 
+      if (!canRetry) {
+        await this.createOrRefreshDeploymentFailureAlert(tx, saved);
+      }
+
       return saved;
     });
 
@@ -261,6 +275,9 @@ export class RemoteCommandsService {
           deviceId,
           command.type as RemoteCommandType,
         );
+        await this.resolveDeploymentFailureAlert(tx, command);
+      } else {
+        await this.createOrRefreshDeploymentFailureAlert(tx, saved);
       }
 
       await tx.auditEvent.create({
@@ -305,7 +322,7 @@ export class RemoteCommandsService {
 
     for (const command of overdueCommands) {
       await this.prisma.$transaction(async (tx) => {
-        await tx.remoteCommand.update({
+        const saved = await tx.remoteCommand.update({
           data: {
             completedAt: now,
             failureReason: "Command expired before completion",
@@ -331,6 +348,8 @@ export class RemoteCommandsService {
             tenantId,
           },
         });
+
+        await this.createOrRefreshDeploymentFailureAlert(tx, saved);
       });
     }
 
@@ -473,6 +492,129 @@ export class RemoteCommandsService {
       where: {
         id: deviceId,
         tenantId,
+      },
+    });
+  }
+
+  private async createOrRefreshDeploymentFailureAlert(
+    tx: Prisma.TransactionClient,
+    command: RemoteCommand,
+  ): Promise<void> {
+    const alertType =
+      deploymentCommandAlertTypes[command.type as RemoteCommandType];
+
+    if (!alertType) {
+      return;
+    }
+
+    const now = new Date();
+    const payload = this.jsonRecord(command.payload) ?? {};
+    const packageId =
+      typeof payload.packageId === "string" ? payload.packageId : null;
+    const appName =
+      typeof payload.appName === "string" ? payload.appName : null;
+    const policyId =
+      typeof payload.policyId === "string" ? payload.policyId : null;
+    const title =
+      alertType === "APP_DEPLOYMENT_FAILED"
+        ? "App deployment failed"
+        : "Policy deployment failed";
+    const target =
+      appName ?? packageId ?? policyId ?? command.type.toLowerCase();
+    const message = `${command.type} command ${command.status.toLowerCase()} for ${target}: ${
+      command.failureReason ?? "No failure reason supplied"
+    }`;
+    const metadata = {
+      appId: typeof payload.appId === "string" ? payload.appId : null,
+      appName,
+      commandId: command.id,
+      commandStatus: command.status,
+      commandType: command.type,
+      failureReason: command.failureReason,
+      packageId,
+      policyId,
+      policyVersion:
+        typeof payload.policyVersion === "number"
+          ? payload.policyVersion
+          : null,
+      source: payload.source ?? null,
+    };
+
+    const existing = await tx.deviceAlert.findFirst({
+      orderBy: {
+        lastSeenAt: "desc",
+      },
+      where: {
+        deviceId: command.deviceId,
+        status: {
+          in: ["OPEN", "ACKNOWLEDGED"],
+        },
+        tenantId: command.tenantId,
+        type: alertType,
+      },
+    });
+
+    if (existing) {
+      await tx.deviceAlert.update({
+        data: {
+          acknowledgedAt: null,
+          acknowledgedBy: null,
+          lastSeenAt: now,
+          message,
+          metadata: metadata as Prisma.InputJsonValue,
+          severity: "WARNING",
+          status: "OPEN",
+          title,
+        },
+        where: {
+          id: existing.id,
+        },
+      });
+      return;
+    }
+
+    await tx.deviceAlert.create({
+      data: {
+        deviceId: command.deviceId,
+        firstSeenAt: now,
+        lastSeenAt: now,
+        message,
+        metadata: metadata as Prisma.InputJsonValue,
+        severity: "WARNING",
+        source: "COMMAND_RECONCILIATION",
+        status: "OPEN",
+        tenantId: command.tenantId,
+        title,
+        type: alertType,
+      },
+    });
+  }
+
+  private async resolveDeploymentFailureAlert(
+    tx: Prisma.TransactionClient,
+    command: RemoteCommand,
+  ): Promise<void> {
+    const alertType =
+      deploymentCommandAlertTypes[command.type as RemoteCommandType];
+
+    if (!alertType) {
+      return;
+    }
+
+    await tx.deviceAlert.updateMany({
+      data: {
+        resolvedAt: new Date(),
+        resolvedBy: "system",
+        resolutionNote: "Deployment command executed successfully",
+        status: "RESOLVED",
+      },
+      where: {
+        deviceId: command.deviceId,
+        status: {
+          in: ["OPEN", "ACKNOWLEDGED"],
+        },
+        tenantId: command.tenantId,
+        type: alertType,
       },
     });
   }

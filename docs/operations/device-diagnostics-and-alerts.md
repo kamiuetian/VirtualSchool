@@ -40,8 +40,11 @@ Diagnostics create or refresh these alerts:
 - `DEVICE_NON_COMPLIANT`: compliance value is not `COMPLIANT` or `UNKNOWN`.
 - `DEVICE_UNHEALTHY`: health value is not `CHECKED_IN`, `OK`, `HEALTHY`, or `UNKNOWN`.
 - `DEVICE_OFFLINE`: offline scan finds a device past the configured check-in threshold.
+- `POLICY_DEPLOYMENT_FAILED`: a `POLICY_REFRESH` command fails or expires before device execution.
+- `APP_DEPLOYMENT_FAILED`: an `APP_INSTALL` or `APP_REMOVE` command fails or expires before device execution.
 
 Recovered diagnostics automatically resolve matching open or acknowledged alerts where safe to do so.
+Successful later app or policy deployment commands resolve matching open deployment failure alerts for that device.
 
 ## Audit Events
 

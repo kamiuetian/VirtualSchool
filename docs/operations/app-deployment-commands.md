@@ -29,6 +29,9 @@ The response includes targeted device count, queued command count, skipped devic
   - `APP_REMOVE` for remove deployments
 - Command payload includes app id, package id, app name, install rules, action, scope, and source.
 - `app_deployment.queue` audit events capture actor, package, scope, command type, and queued count.
+- Failed or expired `APP_INSTALL` and `APP_REMOVE` commands create or refresh `APP_DEPLOYMENT_FAILED` alerts.
+- Successful later app deployment command execution resolves matching app deployment failure alerts for that device.
+- App deployment reports include queued command counts and failed deployment counts by app.
 
 ## Android Management API Boundary
 

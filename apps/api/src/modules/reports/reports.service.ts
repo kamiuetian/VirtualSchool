@@ -11,6 +11,7 @@ import {
   Prisma,
   type AppCatalogItem,
   type Device,
+  type RemoteCommand,
 } from "../../generated/prisma";
 import { PrismaService } from "../prisma/prisma.service";
 
@@ -120,34 +121,57 @@ export class ReportsService {
   ): Promise<PolicyDeploymentReport> {
     await this.ensureTenantExists(tenantId);
 
-    const policies = await this.prisma.policy.findMany({
-      include: {
-        assignments: {
-          select: {
-            active: true,
-            id: true,
+    const [policies, commands] = await Promise.all([
+      this.prisma.policy.findMany({
+        include: {
+          assignments: {
+            select: {
+              active: true,
+              id: true,
+            },
+          },
+          versions: {
+            orderBy: {
+              version: "desc",
+            },
+            take: 1,
           },
         },
-        versions: {
-          orderBy: {
-            version: "desc",
-          },
-          take: 1,
+        orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
+        where: {
+          tenantId,
         },
-      },
-      orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
-      where: {
-        tenantId,
-      },
-    });
+      }),
+      this.prisma.remoteCommand.findMany({
+        where: {
+          status: {
+            in: ["QUEUED", "DELIVERED", "FAILED", "EXPIRED"],
+          },
+          tenantId,
+          type: "POLICY_REFRESH",
+        },
+      }),
+    ]);
     const rows = policies.map((policy) => ({
       activeAssignmentCount: policy.assignments.filter(
         (assignment) => assignment.active,
       ).length,
       assignmentCount: policy.assignments.length,
+      failedDeploymentCount: this.countCommandsForPayloadMatch(
+        commands,
+        "policyId",
+        policy.id,
+        ["FAILED", "EXPIRED"],
+      ),
       latestVersionSummary: policy.versions[0]?.summary ?? null,
       name: policy.name,
       policyId: policy.id,
+      queuedDeploymentCount: this.countCommandsForPayloadMatch(
+        commands,
+        "policyId",
+        policy.id,
+        ["QUEUED", "DELIVERED"],
+      ),
       status: policy.status as PolicyStatus,
       updatedAt: policy.updatedAt.toISOString(),
       version: policy.version,
@@ -163,8 +187,16 @@ export class ReportsService {
           0,
         ),
         draft: rows.filter((row) => row.status === "DRAFT").length,
+        failedDeployments: rows.reduce(
+          (total, row) => total + row.failedDeploymentCount,
+          0,
+        ),
         policies: rows.length,
         published: rows.filter((row) => row.status === "PUBLISHED").length,
+        queuedDeploymentCommands: rows.reduce(
+          (total, row) => total + row.queuedDeploymentCount,
+          0,
+        ),
       },
     };
   }
@@ -172,7 +204,7 @@ export class ReportsService {
   async getAppDeploymentReport(tenantId: string): Promise<AppDeploymentReport> {
     await this.ensureTenantExists(tenantId);
 
-    const [apps, policies] = await Promise.all([
+    const [apps, policies, commands] = await Promise.all([
       this.prisma.appCatalogItem.findMany({
         orderBy: [{ approvalStatus: "asc" }, { name: "asc" }],
         where: {
@@ -189,6 +221,17 @@ export class ReportsService {
           status: "PUBLISHED",
         },
       }),
+      this.prisma.remoteCommand.findMany({
+        where: {
+          status: {
+            in: ["QUEUED", "DELIVERED", "FAILED", "EXPIRED"],
+          },
+          tenantId,
+          type: {
+            in: ["APP_INSTALL", "APP_REMOVE"],
+          },
+        },
+      }),
     ]);
     const rows = apps.map((app) =>
       this.toAppDeploymentRow(
@@ -200,6 +243,7 @@ export class ReportsService {
             ).includes(app.packageId),
           )
           .map((policy) => policy.name),
+        commands,
       ),
     );
 
@@ -213,6 +257,14 @@ export class ReportsService {
           .length,
         assignedApps: rows.filter((row) => row.assignedPolicyCount > 0).length,
         blocked: rows.filter((row) => row.approvalStatus === "BLOCKED").length,
+        failedDeployments: rows.reduce(
+          (total, row) => total + row.failedDeploymentCount,
+          0,
+        ),
+        queuedCommands: rows.reduce(
+          (total, row) => total + row.queuedCommandCount,
+          0,
+        ),
       },
     };
   }
@@ -256,6 +308,7 @@ export class ReportsService {
   private toAppDeploymentRow(
     app: AppCatalogItem,
     policyNames: string[],
+    commands: RemoteCommand[],
   ): AppDeploymentReport["apps"][number] {
     return {
       appId: app.id,
@@ -263,11 +316,47 @@ export class ReportsService {
       approvedGrades: app.approvedGrades,
       assignedPolicyCount: policyNames.length,
       category: app.category,
+      failedDeploymentCount: this.countAppCommands(commands, app, [
+        "FAILED",
+        "EXPIRED",
+      ]),
       name: app.name,
       packageId: app.packageId,
       policyNames,
+      queuedCommandCount: this.countAppCommands(commands, app, [
+        "QUEUED",
+        "DELIVERED",
+      ]),
       updatedAt: app.updatedAt.toISOString(),
     };
+  }
+
+  private countCommandsForPayloadMatch(
+    commands: RemoteCommand[],
+    key: string,
+    value: string,
+    statuses: string[],
+  ): number {
+    return commands.filter((command) => {
+      const payload = this.jsonRecord(command.payload);
+
+      return statuses.includes(command.status) && payload?.[key] === value;
+    }).length;
+  }
+
+  private countAppCommands(
+    commands: RemoteCommand[],
+    app: Pick<AppCatalogItem, "id" | "packageId">,
+    statuses: string[],
+  ): number {
+    return commands.filter((command) => {
+      const payload = this.jsonRecord(command.payload);
+
+      return (
+        statuses.includes(command.status) &&
+        (payload?.appId === app.id || payload?.packageId === app.packageId)
+      );
+    }).length;
   }
 
   private countBy<T>(
@@ -284,5 +373,13 @@ export class ReportsService {
   private csvCell(value: unknown): string {
     const text = value === null || value === undefined ? "" : String(value);
     return `"${text.replaceAll('"', '""')}"`;
+  }
+
+  private jsonRecord(value: Prisma.JsonValue): Record<string, unknown> | null {
+    if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+      return value as Record<string, unknown>;
+    }
+
+    return null;
   }
 }

@@ -153,6 +153,9 @@ export class CommandDispatchService {
         },
         status: "QUEUED",
         tenantId,
+        type: {
+          in: mdmConnectorCommandTypes,
+        },
       },
     });
   }

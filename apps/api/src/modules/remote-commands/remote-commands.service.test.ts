@@ -240,6 +240,72 @@ describe("RemoteCommandsService", () => {
     });
   });
 
+  it("creates app deployment alerts for final app command failures", async () => {
+    const createAlert = vi.fn();
+    const service = new RemoteCommandsService({
+      $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
+        callback({
+          auditEvent: {
+            create: vi.fn(),
+          },
+          deviceAlert: {
+            create: createAlert,
+            findFirst: vi.fn().mockResolvedValue(null),
+          },
+          remoteCommand: {
+            update: async ({ data }: { data: Record<string, unknown> }) =>
+              command({
+                attempts: 3,
+                completedAt: data.completedAt,
+                failureReason: data.failureReason,
+                maxAttempts: 3,
+                payload: {
+                  appId: "app-1",
+                  appName: "Math App",
+                  packageId: "com.example.math",
+                },
+                status: data.status,
+                type: "APP_INSTALL",
+              }),
+          },
+        }),
+      remoteCommand: {
+        findFirst: async () =>
+          command({
+            attempts: 3,
+            maxAttempts: 3,
+            payload: {
+              appId: "app-1",
+              appName: "Math App",
+              packageId: "com.example.math",
+            },
+            status: "DELIVERED",
+            type: "APP_INSTALL",
+          }),
+      },
+    } as never);
+
+    await expect(
+      service.recordDeliveryFailure("tenant-1", "device-1", "command-1", {
+        failureReason: "Managed Play rejected install",
+      }),
+    ).resolves.toMatchObject({
+      status: "FAILED",
+      type: "APP_INSTALL",
+    });
+
+    expect(createAlert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          deviceId: "device-1",
+          source: "COMMAND_RECONCILIATION",
+          title: "App deployment failed",
+          type: "APP_DEPLOYMENT_FAILED",
+        }),
+      }),
+    );
+  });
+
   it("applies device side effects when lock command execution succeeds", async () => {
     const updateMany = vi.fn();
     const service = new RemoteCommandsService({
@@ -285,6 +351,125 @@ describe("RemoteCommandsService", () => {
         data: {
           status: "LOCKED",
         },
+      }),
+    );
+  });
+
+  it("resolves app deployment alerts when a later app command succeeds", async () => {
+    const resolveAlerts = vi.fn();
+    const service = new RemoteCommandsService({
+      $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
+        callback({
+          auditEvent: {
+            create: vi.fn(),
+          },
+          deviceAlert: {
+            updateMany: resolveAlerts,
+          },
+          device: {
+            updateMany: vi.fn(),
+          },
+          remoteCommand: {
+            update: async ({ data }: { data: Record<string, unknown> }) =>
+              command({
+                completedAt: data.completedAt,
+                payload: {
+                  appId: "app-1",
+                  packageId: "com.example.math",
+                },
+                result: data.result,
+                status: data.status,
+                type: "APP_INSTALL",
+              }),
+          },
+        }),
+      remoteCommand: {
+        findFirst: async () =>
+          command({
+            payload: {
+              appId: "app-1",
+              packageId: "com.example.math",
+            },
+            status: "DELIVERED",
+            type: "APP_INSTALL",
+          }),
+      },
+    } as never);
+
+    await expect(
+      service.recordCommandResult("tenant-1", "device-1", "command-1", {
+        result: {
+          installed: true,
+        },
+        status: "EXECUTED",
+      }),
+    ).resolves.toMatchObject({
+      status: "EXECUTED",
+      type: "APP_INSTALL",
+    });
+
+    expect(resolveAlerts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          resolutionNote: "Deployment command executed successfully",
+          status: "RESOLVED",
+        }),
+        where: expect.objectContaining({
+          type: "APP_DEPLOYMENT_FAILED",
+        }),
+      }),
+    );
+  });
+
+  it("creates policy deployment alerts when policy refresh commands expire", async () => {
+    const createAlert = vi.fn();
+    const service = new RemoteCommandsService({
+      $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
+        callback({
+          auditEvent: {
+            create: vi.fn(),
+          },
+          deviceAlert: {
+            create: createAlert,
+            findFirst: vi.fn().mockResolvedValue(null),
+          },
+          remoteCommand: {
+            update: async ({ data }: { data: Record<string, unknown> }) =>
+              command({
+                completedAt: data.completedAt,
+                failureReason: data.failureReason,
+                payload: {
+                  policyId: "policy-1",
+                  policyVersion: 2,
+                },
+                status: data.status,
+                type: "POLICY_REFRESH",
+              }),
+          },
+        }),
+      remoteCommand: {
+        findMany: vi.fn().mockResolvedValue([
+          command({
+            expiresAt: new Date("2026-05-17T09:00:00.000Z"),
+            payload: {
+              policyId: "policy-1",
+              policyVersion: 2,
+            },
+            status: "QUEUED",
+            type: "POLICY_REFRESH",
+          }),
+        ]),
+      },
+    } as never);
+
+    await expect(service.expireOverdueCommands("tenant-1")).resolves.toBe(1);
+
+    expect(createAlert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          title: "Policy deployment failed",
+          type: "POLICY_DEPLOYMENT_FAILED",
+        }),
       }),
     );
   });

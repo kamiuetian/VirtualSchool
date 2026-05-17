@@ -138,6 +138,22 @@ describe("ReportsService", () => {
           },
         ],
       },
+      remoteCommand: {
+        findMany: async () => [
+          {
+            payload: {
+              policyId: "policy-1",
+            },
+            status: "FAILED",
+          },
+          {
+            payload: {
+              policyId: "policy-1",
+            },
+            status: "QUEUED",
+          },
+        ],
+      },
       tenant: {
         findUnique: async () => ({ id: "tenant-1" }),
       },
@@ -149,8 +165,10 @@ describe("ReportsService", () => {
       totals: {
         activeAssignments: 1,
         draft: 1,
+        failedDeployments: 1,
         policies: 2,
         published: 1,
+        queuedDeploymentCommands: 1,
       },
     });
   });
@@ -180,6 +198,24 @@ describe("ReportsService", () => {
           },
         ],
       },
+      remoteCommand: {
+        findMany: async () => [
+          {
+            payload: {
+              appId: "app-1",
+              packageId: "com.example.math",
+            },
+            status: "DELIVERED",
+          },
+          {
+            payload: {
+              appId: "app-1",
+              packageId: "com.example.math",
+            },
+            status: "EXPIRED",
+          },
+        ],
+      },
       tenant: {
         findUnique: async () => ({ id: "tenant-1" }),
       },
@@ -191,12 +227,16 @@ describe("ReportsService", () => {
       apps: [
         {
           assignedPolicyCount: 1,
+          failedDeploymentCount: 1,
           packageId: "com.example.math",
           policyNames: ["Grade 5"],
+          queuedCommandCount: 1,
         },
       ],
       totals: {
         assignedApps: 1,
+        failedDeployments: 1,
+        queuedCommands: 1,
       },
     });
   });
