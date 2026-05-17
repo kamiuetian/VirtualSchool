@@ -82,6 +82,7 @@ model Tenant {
   students          Student[]
   guardians         Guardian[]
   classes           ClassSection[]
+  rosterImports     RosterImport[]
   devices           Device[]
   enrollmentBatches EnrollmentBatch[]
   appCatalogItems   AppCatalogItem[]
@@ -195,6 +196,27 @@ model ClassMembership {
   student   Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@id([classId, studentId])
+}
+
+model RosterImport {
+  id             String    @id @default(uuid())
+  tenantId       String
+  filename       String?
+  status         String    @default("PREVIEWED")
+  totalRows      Int
+  validRows      Int
+  errorRows      Int
+  rows           Json
+  errorReportCsv String?
+  committedAt    DateTime?
+  committedBy    String?
+  createdBy      String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, status])
 }
 
 model Device {

@@ -4,6 +4,6 @@ import { RosterService } from "./roster.service";
 
 @Module({
   controllers: [RosterController],
-  providers: [RosterService]
+  providers: [RosterService],
 })
 export class RosterModule {}

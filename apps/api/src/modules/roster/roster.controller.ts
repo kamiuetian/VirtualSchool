@@ -1,12 +1,25 @@
-import { Body, Controller, Get, Inject, Param, Post } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  Inject,
+  Param,
+  Post,
+  Req,
+} from "@nestjs/common";
 import { ApiCreatedResponse, ApiOkResponse, ApiTags } from "@nestjs/swagger";
 import type {
   ClassSectionSummary,
+  RosterImportCommitResult,
+  RosterImportSummary,
   StudentSummary,
 } from "@virtual-school/shared";
 import { RequirePermissions } from "../auth/decorators/require-permissions.decorator";
+import type { AuthenticatedRequest } from "../auth/types/authenticated-request";
 import { CreateClassSectionDto } from "./dto/create-class-section.dto";
 import { CreateStudentDto } from "./dto/create-student.dto";
+import { PreviewRosterImportDto } from "./dto/preview-roster-import.dto";
 import { RosterService } from "./roster.service";
 
 @ApiTags("roster")
@@ -61,5 +74,62 @@ export class RosterController {
     @Param("studentId") studentId: string,
   ): Promise<ClassSectionSummary> {
     return this.rosterService.addStudentToClass(tenantId, classId, studentId);
+  }
+
+  @Post("roster-imports/preview")
+  @RequirePermissions("roster:manage")
+  @ApiCreatedResponse({
+    description: "Validate and preview a roster CSV import",
+  })
+  previewRosterImport(
+    @Param("tenantId") tenantId: string,
+    @Body() body: PreviewRosterImportDto,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<RosterImportSummary> {
+    return this.rosterService.previewRosterImport(
+      tenantId,
+      body,
+      request.user?.subject,
+    );
+  }
+
+  @Get("roster-imports/:importId")
+  @RequirePermissions("roster:manage")
+  @ApiOkResponse({ description: "Roster import preview details" })
+  getRosterImport(
+    @Param("tenantId") tenantId: string,
+    @Param("importId") importId: string,
+  ): Promise<RosterImportSummary> {
+    return this.rosterService.getRosterImport(tenantId, importId);
+  }
+
+  @Post("roster-imports/:importId/commit")
+  @RequirePermissions("roster:manage")
+  @ApiCreatedResponse({ description: "Commit a validated roster import" })
+  commitRosterImport(
+    @Param("tenantId") tenantId: string,
+    @Param("importId") importId: string,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<RosterImportCommitResult> {
+    return this.rosterService.commitRosterImport(
+      tenantId,
+      importId,
+      request.user?.subject,
+    );
+  }
+
+  @Get("roster-imports/:importId/error-report.csv")
+  @Header("Content-Type", "text/csv; charset=utf-8")
+  @Header(
+    "Content-Disposition",
+    'attachment; filename="roster-import-errors.csv"',
+  )
+  @RequirePermissions("roster:manage")
+  @ApiOkResponse({ description: "Roster import validation error CSV" })
+  getRosterImportErrorReportCsv(
+    @Param("tenantId") tenantId: string,
+    @Param("importId") importId: string,
+  ): Promise<string> {
+    return this.rosterService.getRosterImportErrorReportCsv(tenantId, importId);
   }
 }

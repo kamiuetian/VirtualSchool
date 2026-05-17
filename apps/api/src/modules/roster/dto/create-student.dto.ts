@@ -7,10 +7,16 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
-  ValidateNested
+  ValidateNested,
 } from "class-validator";
 
-const studentStatuses = ["ACTIVE", "PENDING", "SUSPENDED", "GRADUATED", "WITHDRAWN"] as const;
+const studentStatuses = [
+  "ACTIVE",
+  "PENDING",
+  "SUSPENDED",
+  "GRADUATED",
+  "WITHDRAWN",
+] as const;
 
 class CreateGuardianDto {
   @ApiProperty()

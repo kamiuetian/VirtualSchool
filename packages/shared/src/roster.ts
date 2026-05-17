@@ -1,4 +1,9 @@
-export type StudentStatus = "ACTIVE" | "PENDING" | "SUSPENDED" | "GRADUATED" | "WITHDRAWN";
+export type StudentStatus =
+  | "ACTIVE"
+  | "PENDING"
+  | "SUSPENDED"
+  | "GRADUATED"
+  | "WITHDRAWN";
 
 export type StudentSummary = {
   id: string;
@@ -27,4 +32,51 @@ export type ClassSectionSummary = {
   grade: string;
   subject?: string | null;
   studentCount: number;
+};
+
+export type RosterImportStatus = "PREVIEWED" | "COMMITTED" | "FAILED";
+
+export type RosterImportRowInput = {
+  studentCode: string;
+  name: string;
+  grade: string;
+  section?: string | null;
+  status?: StudentStatus | null;
+  branchId?: string | null;
+  guardianName?: string | null;
+  guardianEmail?: string | null;
+  guardianPhone?: string | null;
+  guardianRelationship?: string | null;
+  className?: string | null;
+  classSubject?: string | null;
+};
+
+export type RosterImportRowResult = {
+  rowNumber: number;
+  input: RosterImportRowInput;
+  errors: string[];
+  action: "CREATE_STUDENT" | "REJECT";
+};
+
+export type RosterImportSummary = {
+  id: string;
+  tenantId: string;
+  filename?: string | null;
+  status: RosterImportStatus;
+  totalRows: number;
+  validRows: number;
+  errorRows: number;
+  rows: RosterImportRowResult[];
+  createdBy?: string | null;
+  committedBy?: string | null;
+  createdAt: string;
+  committedAt?: string | null;
+};
+
+export type RosterImportCommitResult = {
+  import: RosterImportSummary;
+  createdStudents: number;
+  createdGuardians: number;
+  createdClasses: number;
+  createdMemberships: number;
 };
