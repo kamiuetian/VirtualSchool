@@ -311,4 +311,101 @@ describe("PoliciesService", () => {
       },
     });
   });
+
+  it("builds a device launcher and browser policy payload from the active policy", async () => {
+    const policy = {
+      createdAt: now,
+      id: "policy-1",
+      name: "Default School",
+      rules: {
+        ...baseRules,
+        approvedAppPackageIds: ["com.google.android.apps.classroom"],
+        webShortcuts: [
+          {
+            title: "Math",
+            url: "https://math.example.edu",
+          },
+        ],
+      },
+      status: "PUBLISHED",
+      tenantId: "tenant-1",
+      updatedAt: now,
+      version: 2,
+    };
+    const service = new PoliciesService({
+      appCatalogItem: {
+        findMany: async () => [
+          {
+            approvalStatus: "APPROVED",
+            approvedGrades: ["5"],
+            category: "Learning",
+            createdAt: now,
+            description: null,
+            iconUrl: "https://cdn.example.edu/classroom.png",
+            id: "app-1",
+            installRules: {
+              installType: "FORCE_INSTALLED",
+            },
+            name: "Google Classroom",
+            packageId: "com.google.android.apps.classroom",
+            tenantId: "tenant-1",
+            updatedAt: now,
+          },
+        ],
+      },
+      device: {
+        findFirst: async () => ({
+          classId: null,
+          id: "device-1",
+          student: null,
+          studentId: null,
+          tenantId: "tenant-1",
+        }),
+      },
+      policyAssignment: {
+        findMany: async () => [
+          {
+            active: true,
+            actorId: null,
+            createdAt: now,
+            endsAt: null,
+            id: "assignment-1",
+            policy,
+            policyId: policy.id,
+            reason: null,
+            scope: "TENANT",
+            scopeId: null,
+            startsAt: null,
+            tenantId: "tenant-1",
+            updatedAt: now,
+          },
+        ],
+      },
+    } as never);
+
+    await expect(
+      service.getDevicePolicyPayload("tenant-1", "device-1"),
+    ).resolves.toMatchObject({
+      browser: {
+        defaultWebAccess: "DENY",
+      },
+      launcher: {
+        approvedApps: [
+          {
+            installType: "FORCE_INSTALLED",
+            packageId: "com.google.android.apps.classroom",
+          },
+        ],
+        webShortcuts: [
+          {
+            title: "Math",
+          },
+        ],
+      },
+      policy: {
+        id: "policy-1",
+        mode: "DEFAULT_SCHOOL",
+      },
+    });
+  });
 });

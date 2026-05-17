@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 import type {
   ActivePolicyResolution,
+  DevicePolicyPayload,
   LearningMode,
   PolicyAssignmentScope,
   PolicyAssignmentSummary,
@@ -478,6 +479,78 @@ export class PoliciesService {
         };
       }),
       explanation: `${resolved.mode} from ${resolved.source} won with precedence ${policyPrecedence[resolved.mode]} and policy version ${resolved.policyVersion}.`,
+      tenantId,
+    };
+  }
+
+  async getDevicePolicyPayload(
+    tenantId: string,
+    deviceId: string,
+  ): Promise<DevicePolicyPayload> {
+    const resolution = await this.resolveActivePolicyForDevice(
+      tenantId,
+      deviceId,
+    );
+    const rules = resolution.activePolicy.rules;
+
+    const apps =
+      rules.approvedAppPackageIds.length === 0
+        ? []
+        : await this.prisma.appCatalogItem.findMany({
+            orderBy: {
+              name: "asc",
+            },
+            where: {
+              approvalStatus: "APPROVED",
+              packageId: {
+                in: rules.approvedAppPackageIds,
+              },
+              tenantId,
+            },
+          });
+
+    return {
+      browser: {
+        defaultWebAccess: rules.defaultWebAccess,
+        urlAllowlist: rules.urlAllowlist,
+        urlBlocklist: rules.urlBlocklist,
+      },
+      cache: {
+        ttlSeconds: 3600,
+        useLastKnownPolicyWhenOffline: true,
+      },
+      deviceId,
+      generatedAt: new Date().toISOString(),
+      launcher: {
+        approvedApps: apps.map((app) => ({
+          category: app.category,
+          iconUrl: app.iconUrl,
+          installType:
+            typeof app.installRules === "object" &&
+            app.installRules !== null &&
+            !Array.isArray(app.installRules) &&
+            "installType" in app.installRules
+              ? (app.installRules.installType as
+                  | "AVAILABLE"
+                  | "FORCE_INSTALLED"
+                  | "BLOCKED")
+              : undefined,
+          name: app.name,
+          packageId: app.packageId,
+        })),
+        showMessages: rules.launcher.showMessages,
+        showSupportContact: rules.launcher.showSupportContact,
+        webShortcuts: rules.webShortcuts,
+      },
+      policy: {
+        explanation: resolution.explanation,
+        id: resolution.activePolicy.id,
+        mode: rules.mode,
+        name: resolution.activePolicy.name,
+        source: `${resolution.assignment.scope}:${resolution.assignment.scopeId ?? "baseline"}`,
+        version: resolution.activePolicy.version,
+      },
+      restrictions: rules.restrictions,
       tenantId,
     };
   }

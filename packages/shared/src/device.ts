@@ -68,3 +68,48 @@ export type DeviceCheckInResult = {
   quarantined: boolean;
   wasExistingDevice: boolean;
 };
+
+export type DeviceApprovedApp = {
+  name: string;
+  packageId: string;
+  iconUrl?: string | null;
+  category?: string | null;
+  installType?: "AVAILABLE" | "FORCE_INSTALLED" | "BLOCKED";
+};
+
+export type DevicePolicyPayload = {
+  tenantId: string;
+  deviceId: string;
+  generatedAt: string;
+  policy: {
+    id: string;
+    name: string;
+    version: number;
+    mode: string;
+    source: string;
+    explanation: string;
+  };
+  launcher: {
+    approvedApps: DeviceApprovedApp[];
+    webShortcuts: Array<{
+      title: string;
+      url: string;
+    }>;
+    showMessages: boolean;
+    showSupportContact: boolean;
+  };
+  browser: {
+    defaultWebAccess: "ALLOW" | "DENY";
+    urlAllowlist: string[];
+    urlBlocklist: string[];
+  };
+  restrictions: {
+    blockSettings: boolean;
+    blockAppInstall: boolean;
+    blockSafeMode: boolean;
+  };
+  cache: {
+    ttlSeconds: number;
+    useLastKnownPolicyWhenOffline: boolean;
+  };
+};

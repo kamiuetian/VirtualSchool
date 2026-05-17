@@ -2,6 +2,7 @@ import { Body, Controller, Get, Inject, Param, Post } from "@nestjs/common";
 import { ApiCreatedResponse, ApiOkResponse, ApiTags } from "@nestjs/swagger";
 import type {
   ActivePolicyResolution,
+  DevicePolicyPayload,
   PolicyAssignmentSummary,
   PolicySummary,
   PolicyVersionSummary,
@@ -45,6 +46,18 @@ export class PoliciesController {
       tenantId,
       deviceId,
     );
+  }
+
+  @Get("devices/:deviceId/payload")
+  @ApiOkResponse({
+    description:
+      "Return the active launcher and browser policy payload for a managed Android device",
+  })
+  getDevicePolicyPayload(
+    @Param("tenantId") tenantId: string,
+    @Param("deviceId") deviceId: string,
+  ): Promise<DevicePolicyPayload> {
+    return this.policiesService.getDevicePolicyPayload(tenantId, deviceId);
   }
 
   @Post()

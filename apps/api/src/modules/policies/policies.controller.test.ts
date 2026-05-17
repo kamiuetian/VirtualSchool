@@ -11,11 +11,15 @@ describe("PoliciesController", () => {
       },
     ]);
     const controller = new PoliciesController({
+      assignPolicy: vi.fn(),
       createPolicy: vi.fn(),
       createStarterTemplates,
+      getDevicePolicyPayload: vi.fn(),
       listPolicies: vi.fn(),
+      listPolicyAssignments: vi.fn(),
       listPolicyVersions: vi.fn(),
       publishPolicy: vi.fn(),
+      resolveActivePolicyForDevice: vi.fn(),
     } as never);
 
     await expect(
@@ -31,11 +35,15 @@ describe("PoliciesController", () => {
       version: 2,
     });
     const controller = new PoliciesController({
+      assignPolicy: vi.fn(),
       createPolicy: vi.fn(),
       createStarterTemplates: vi.fn(),
+      getDevicePolicyPayload: vi.fn(),
       listPolicies: vi.fn(),
+      listPolicyAssignments: vi.fn(),
       listPolicyVersions: vi.fn(),
       publishPolicy,
+      resolveActivePolicyForDevice: vi.fn(),
     } as never);
 
     await expect(
@@ -47,5 +55,32 @@ describe("PoliciesController", () => {
       version: 2,
     });
     expect(publishPolicy).toHaveBeenCalledOnce();
+  });
+
+  it("delegates device policy payload lookup to the service", async () => {
+    const getDevicePolicyPayload = vi.fn().mockResolvedValue({
+      deviceId: "device-1",
+      policy: {
+        id: "policy-1",
+      },
+    });
+    const controller = new PoliciesController({
+      assignPolicy: vi.fn(),
+      createPolicy: vi.fn(),
+      createStarterTemplates: vi.fn(),
+      getDevicePolicyPayload,
+      listPolicies: vi.fn(),
+      listPolicyAssignments: vi.fn(),
+      listPolicyVersions: vi.fn(),
+      publishPolicy: vi.fn(),
+      resolveActivePolicyForDevice: vi.fn(),
+    } as never);
+
+    await expect(
+      controller.getDevicePolicyPayload("tenant-1", "device-1"),
+    ).resolves.toMatchObject({
+      deviceId: "device-1",
+    });
+    expect(getDevicePolicyPayload).toHaveBeenCalledOnce();
   });
 });

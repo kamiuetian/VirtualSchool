@@ -27,7 +27,12 @@ live Android Management API connector is wired in.
 5. Review inventory with `GET /api/v1/tenants/{tenantId}/devices`.
 6. Assign the tablet with `POST /api/v1/tenants/{tenantId}/devices/{deviceId}/assignments`.
 7. Confirm the onboarding checklist marks enrollment batch and first device enrolled as complete.
+8. Fetch the enforced launcher/browser payload with `GET /api/v1/tenants/{tenantId}/policies/devices/{deviceId}/payload`.
 
 New devices must stay in `PENDING` quarantine until an admin assigns them to a branch,
 student, class, or device group. Duplicate serial numbers with conflicting enrollment IDs
 are rejected so a device cannot be silently re-bound during pilot operations.
+
+The device policy payload includes the winning policy version, precedence explanation,
+approved app packages, web shortcuts, browser allow/block rules, restrictions, and
+last-known-policy cache guidance for short connectivity interruptions.
