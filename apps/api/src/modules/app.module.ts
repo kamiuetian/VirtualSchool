@@ -11,6 +11,7 @@ import { RemoteCommandsModule } from "./remote-commands/remote-commands.module";
 import { ReportsModule } from "./reports/reports.module";
 import { RosterModule } from "./roster/roster.module";
 import { TenantsModule } from "./tenants/tenants.module";
+import { UsersModule } from "./users/users.module";
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { TenantsModule } from "./tenants/tenants.module";
     RemoteCommandsModule,
     AuditModule,
     ReportsModule,
+    UsersModule,
   ],
 })
 export class AppModule {}
