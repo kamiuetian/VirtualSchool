@@ -37,6 +37,8 @@ export type PolicyResolution = {
 
 export type PolicyStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
 
+export type PolicyMdmPublishStatus = "PUBLISHED" | "FAILED" | "SKIPPED";
+
 export type PolicyRuleSet = {
   mode: LearningMode;
   approvedAppPackageIds: string[];
@@ -65,8 +67,17 @@ export type PolicySummary = {
   status: PolicyStatus;
   version: number;
   rules: PolicyRuleSet;
+  mdmPolicyName?: string | null;
+  mdmPublishStatus?: PolicyMdmPublishStatus | null;
+  mdmPublishedAt?: string | null;
+  mdmPublishError?: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type PolicyPublishSummary = PolicySummary & {
+  mdmPublishRequest?: Record<string, unknown> | null;
+  mdmPublishResponse?: Record<string, unknown> | null;
 };
 
 export type PolicyVersionSummary = {

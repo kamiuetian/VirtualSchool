@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { PrismaModule } from "../prisma/prisma.module";
 import { AndroidManagementCommandMapper } from "./android-management-command.mapper";
+import { AndroidManagementPolicyMapper } from "./android-management-policy.mapper";
 import { AndroidManagementConnector } from "./android-management.connector";
 import { CommandDispatchController } from "./command-dispatch.controller";
 import { CommandDispatchService } from "./command-dispatch.service";
@@ -13,6 +14,7 @@ import { StubMdmConnector } from "./stub-mdm.connector";
   imports: [PrismaModule],
   providers: [
     AndroidManagementCommandMapper,
+    AndroidManagementPolicyMapper,
     AndroidManagementConnector,
     CommandDispatchService,
     MdmConnectorRegistry,

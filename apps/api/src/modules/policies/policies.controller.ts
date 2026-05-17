@@ -4,6 +4,7 @@ import type {
   ActivePolicyResolution,
   DevicePolicyPayload,
   PolicyAssignmentSummary,
+  PolicyPublishSummary,
   PolicySummary,
   PolicyVersionSummary,
 } from "@virtual-school/shared";
@@ -95,7 +96,7 @@ export class PoliciesController {
     @Param("tenantId") tenantId: string,
     @Param("policyId") policyId: string,
     @Body() body: PublishPolicyDto,
-  ): Promise<PolicySummary> {
+  ): Promise<PolicyPublishSummary> {
     return this.policiesService.publishPolicy(tenantId, policyId, body);
   }
 

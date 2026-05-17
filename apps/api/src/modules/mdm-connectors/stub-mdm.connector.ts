@@ -3,6 +3,8 @@ import type {
   MdmCommandDispatchInput,
   MdmCommandDispatchResult,
   MdmConnector,
+  MdmPolicyPublishInput,
+  MdmPolicyPublishResult,
 } from "./mdm-connector.types";
 
 @Injectable()
@@ -24,6 +26,29 @@ export class StubMdmConnector implements MdmConnector {
       },
       response: {
         acceptedAt: new Date().toISOString(),
+        mode: "stub",
+      },
+    };
+  }
+
+  async publishPolicy(
+    input: MdmPolicyPublishInput,
+  ): Promise<MdmPolicyPublishResult> {
+    const mdmPolicyName = `stub/policies/${input.tenantId}/${input.policy.id}`;
+
+    return {
+      accepted: true,
+      connector: this.key,
+      mdmPolicyName,
+      request: {
+        appCount: input.apps.length,
+        mode: input.policy.rules.mode,
+        policyId: input.policy.id,
+        policyVersion: input.policy.version,
+      },
+      response: {
+        acceptedAt: new Date().toISOString(),
+        mdmPolicyName,
         mode: "stub",
       },
     };

@@ -10,17 +10,22 @@ import type {
   LearningMode,
   PolicyAssignmentScope,
   PolicyAssignmentSummary,
+  PolicyMdmPublishStatus,
+  PolicyPublishSummary,
   PolicyRuleSet,
   PolicyStatus,
   PolicySummary,
   PolicyVersionSummary,
 } from "@virtual-school/shared";
 import {
+  type AppCatalogItem,
   type Policy,
   type PolicyAssignment,
   type PolicyVersion,
   Prisma,
 } from "../../generated/prisma";
+import { MdmConnectorRegistry } from "../mdm-connectors/mdm-connector.registry";
+import type { MdmPolicyPublishResult } from "../mdm-connectors/mdm-connector.types";
 import { PrismaService } from "../prisma/prisma.service";
 import type { AssignPolicyDto } from "./dto/assign-policy.dto";
 import type { CreatePolicyDto } from "./dto/create-policy.dto";
@@ -43,7 +48,11 @@ const policyPrecedence: Record<LearningMode, number> = {
 
 @Injectable()
 export class PoliciesService {
-  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+  constructor(
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(MdmConnectorRegistry)
+    private readonly connectorRegistry: MdmConnectorRegistry,
+  ) {}
 
   async listPolicies(tenantId: string): Promise<PolicySummary[]> {
     await this.ensureTenantExists(tenantId);
@@ -170,7 +179,7 @@ export class PoliciesService {
     tenantId: string,
     policyId: string,
     input: PublishPolicyDto,
-  ): Promise<PolicySummary> {
+  ): Promise<PolicyPublishSummary> {
     const policy = await this.prisma.policy.findFirst({
       where: {
         id: policyId,
@@ -187,6 +196,8 @@ export class PoliciesService {
     const updated = await this.prisma.$transaction(async (tx) => {
       const saved = await tx.policy.update({
         data: {
+          mdmPublishError: null,
+          mdmPublishStatus: null,
           status: "PUBLISHED",
           version: {
             increment: 1,
@@ -230,7 +241,78 @@ export class PoliciesService {
       return saved;
     });
 
-    return this.toPolicySummary(updated);
+    const apps = await this.getApprovedPolicyApps(tenantId, updated);
+    const connector = this.connectorRegistry.getActiveConnector();
+    let publishResult: MdmPolicyPublishResult;
+
+    try {
+      publishResult = await connector.publishPolicy({
+        apps,
+        policy: {
+          id: updated.id,
+          name: updated.name,
+          rules: updated.rules as PolicyRuleSet,
+          version: updated.version,
+        },
+        tenantId,
+      });
+    } catch (error) {
+      publishResult = {
+        accepted: false,
+        connector: connector.key,
+        failureReason:
+          error instanceof Error ? error.message : "MDM policy publish failed",
+        retryable: true,
+      };
+    }
+
+    const publishStatus: PolicyMdmPublishStatus = publishResult.accepted
+      ? "PUBLISHED"
+      : publishResult.skipped
+        ? "SKIPPED"
+        : "FAILED";
+    const mdmUpdated = await this.prisma.$transaction(async (tx) => {
+      const saved = await tx.policy.update({
+        data: {
+          mdmPolicyName: publishResult.mdmPolicyName ?? null,
+          mdmPublishError: publishResult.failureReason,
+          mdmPublishRequest:
+            (publishResult.request as Prisma.InputJsonValue | undefined) ??
+            Prisma.JsonNull,
+          mdmPublishResponse:
+            (publishResult.response as Prisma.InputJsonValue | undefined) ??
+            Prisma.JsonNull,
+          mdmPublishStatus: publishStatus,
+          mdmPublishedAt: publishResult.accepted ? new Date() : null,
+        },
+        where: {
+          id: updated.id,
+        },
+      });
+
+      await tx.auditEvent.create({
+        data: {
+          action: publishResult.accepted
+            ? "policy.mdm_publish"
+            : "policy.mdm_publish_fail",
+          actorId: input.actorId,
+          newValue: {
+            connector: publishResult.connector,
+            mdmPolicyName: publishResult.mdmPolicyName,
+            mdmPublishStatus: publishStatus,
+          },
+          object: "Policy",
+          objectId: saved.id,
+          outcome: publishStatus,
+          reason: publishResult.failureReason ?? input.reason,
+          tenantId,
+        },
+      });
+
+      return saved;
+    });
+
+    return this.toPolicyPublishSummary(mdmUpdated);
   }
 
   async listPolicyAssignments(
@@ -704,6 +786,11 @@ export class PoliciesService {
     return {
       createdAt: policy.createdAt.toISOString(),
       id: policy.id,
+      mdmPolicyName: policy.mdmPolicyName,
+      mdmPublishError: policy.mdmPublishError,
+      mdmPublishedAt: policy.mdmPublishedAt?.toISOString() ?? null,
+      mdmPublishStatus:
+        (policy.mdmPublishStatus as PolicyMdmPublishStatus | null) ?? null,
       name: policy.name,
       rules: policy.rules as PolicyRuleSet,
       status: policy.status as PolicyStatus,
@@ -711,6 +798,58 @@ export class PoliciesService {
       updatedAt: policy.updatedAt.toISOString(),
       version: policy.version,
     };
+  }
+
+  private toPolicyPublishSummary(policy: Policy): PolicyPublishSummary {
+    return {
+      ...this.toPolicySummary(policy),
+      mdmPublishRequest: this.jsonRecord(policy.mdmPublishRequest),
+      mdmPublishResponse: this.jsonRecord(policy.mdmPublishResponse),
+    };
+  }
+
+  private async getApprovedPolicyApps(
+    tenantId: string,
+    policy: Policy,
+  ): Promise<
+    Array<
+      Pick<
+        AppCatalogItem,
+        "approvalStatus" | "installRules" | "name" | "packageId"
+      >
+    >
+  > {
+    const rules = policy.rules as PolicyRuleSet;
+
+    if (rules.approvedAppPackageIds.length === 0) {
+      return [];
+    }
+
+    return this.prisma.appCatalogItem.findMany({
+      select: {
+        approvalStatus: true,
+        installRules: true,
+        name: true,
+        packageId: true,
+      },
+      where: {
+        approvalStatus: "APPROVED",
+        packageId: {
+          in: rules.approvedAppPackageIds,
+        },
+        tenantId,
+      },
+    });
+  }
+
+  private jsonRecord(
+    value: Prisma.JsonValue | null,
+  ): Record<string, unknown> | null {
+    if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+      return value as Record<string, unknown>;
+    }
+
+    return null;
   }
 
   private toPolicyAssignmentSummary(

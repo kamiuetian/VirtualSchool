@@ -1,5 +1,5 @@
-import type { RemoteCommandType } from "@virtual-school/shared";
-import type { Prisma } from "../../generated/prisma";
+import type { PolicyRuleSet, RemoteCommandType } from "@virtual-school/shared";
+import type { AppCatalogItem, Prisma } from "../../generated/prisma";
 
 export type MdmConnectorKey = "ANDROID_MANAGEMENT_API" | "STUB";
 
@@ -36,9 +36,37 @@ export type MdmCommandDispatchResult = {
   retryable?: boolean;
 };
 
+export type MdmPolicyPublishInput = {
+  tenantId: string;
+  policy: {
+    id: string;
+    name: string;
+    version: number;
+    rules: PolicyRuleSet;
+  };
+  apps: Array<
+    Pick<
+      AppCatalogItem,
+      "installRules" | "name" | "packageId" | "approvalStatus"
+    >
+  >;
+};
+
+export type MdmPolicyPublishResult = {
+  accepted: boolean;
+  connector: MdmConnectorKey;
+  mdmPolicyName?: string;
+  request?: Record<string, unknown>;
+  response?: Record<string, unknown>;
+  failureReason?: string;
+  retryable?: boolean;
+  skipped?: boolean;
+};
+
 export interface MdmConnector {
   readonly key: MdmConnectorKey;
   dispatchCommand(
     input: MdmCommandDispatchInput,
   ): Promise<MdmCommandDispatchResult>;
+  publishPolicy(input: MdmPolicyPublishInput): Promise<MdmPolicyPublishResult>;
 }

@@ -1,10 +1,13 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { GoogleAuth } from "google-auth-library";
 import { AndroidManagementCommandMapper } from "./android-management-command.mapper";
+import { AndroidManagementPolicyMapper } from "./android-management-policy.mapper";
 import type {
   MdmCommandDispatchInput,
   MdmCommandDispatchResult,
   MdmConnector,
+  MdmPolicyPublishInput,
+  MdmPolicyPublishResult,
 } from "./mdm-connector.types";
 
 type AndroidOperation = {
@@ -28,6 +31,8 @@ export class AndroidManagementConnector implements MdmConnector {
   constructor(
     @Inject(AndroidManagementCommandMapper)
     private readonly commandMapper: AndroidManagementCommandMapper,
+    @Inject(AndroidManagementPolicyMapper)
+    private readonly policyMapper: AndroidManagementPolicyMapper,
   ) {}
 
   async dispatchCommand(
@@ -85,6 +90,53 @@ export class AndroidManagementConnector implements MdmConnector {
       operationName: operation.name,
       request: mapping.command,
       response: operation as Record<string, unknown>,
+    };
+  }
+
+  async publishPolicy(
+    input: MdmPolicyPublishInput,
+  ): Promise<MdmPolicyPublishResult> {
+    const enterpriseId =
+      process.env.ANDROID_MANAGEMENT_ENTERPRISE_ID ??
+      process.env.ANDROID_ENTERPRISE_ID;
+
+    if (!enterpriseId) {
+      return {
+        accepted: false,
+        connector: this.key,
+        failureReason:
+          "ANDROID_MANAGEMENT_ENTERPRISE_ID is required to publish policies",
+        retryable: false,
+      };
+    }
+
+    const payload = this.policyMapper.map({
+      apps: input.apps.map((app) => ({
+        installRules: app.installRules,
+        packageId: app.packageId,
+      })),
+      enterpriseId,
+      policyId: input.policy.id,
+      rules: input.policy.rules,
+      tenantId: input.tenantId,
+      version: input.policy.version,
+    });
+    const client = await this.auth.getClient();
+    const baseUrl =
+      process.env.ANDROID_MANAGEMENT_API_BASE_URL ??
+      "https://androidmanagement.googleapis.com";
+    const response = await client.request<Record<string, unknown>>({
+      data: payload,
+      method: "PATCH",
+      url: `${baseUrl}/v1/${payload.name}`,
+    });
+
+    return {
+      accepted: true,
+      connector: this.key,
+      mdmPolicyName: payload.name,
+      request: payload,
+      response: response.data,
     };
   }
 

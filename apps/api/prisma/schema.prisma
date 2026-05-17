@@ -303,20 +303,27 @@ model AppCatalogItem {
 }
 
 model Policy {
-  id              String             @id @default(uuid())
-  tenantId        String
-  name            String
-  status          String             @default("DRAFT")
-  version         Int                @default(1)
-  rules           Json
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
-  tenant          Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  versions        PolicyVersion[]
-  assignments     PolicyAssignment[]
-  timetableBlocks TimetableBlock[]
+  id                 String             @id @default(uuid())
+  tenantId           String
+  name               String
+  status             String             @default("DRAFT")
+  version            Int                @default(1)
+  rules              Json
+  mdmPolicyName      String?
+  mdmPublishStatus   String?
+  mdmPublishedAt     DateTime?
+  mdmPublishError    String?
+  mdmPublishRequest  Json?
+  mdmPublishResponse Json?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  tenant             Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  versions           PolicyVersion[]
+  assignments        PolicyAssignment[]
+  timetableBlocks    TimetableBlock[]
 
   @@index([tenantId, status])
+  @@index([tenantId, mdmPublishStatus])
 }
 
 model TimetableBlock {

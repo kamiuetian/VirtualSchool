@@ -20,39 +20,63 @@ const baseRules = {
   webShortcuts: [],
 };
 
+function connectorRegistry(overrides: Record<string, unknown> = {}) {
+  return {
+    getActiveConnector: () => ({
+      dispatchCommand: vi.fn(),
+      key: "STUB",
+      publishPolicy: vi.fn().mockResolvedValue({
+        accepted: true,
+        connector: "STUB",
+        mdmPolicyName: "stub/policies/tenant-1/policy-1",
+        request: {
+          mode: "stub",
+        },
+        response: {
+          acceptedAt: now.toISOString(),
+        },
+        ...overrides,
+      }),
+    }),
+  };
+}
+
 describe("PoliciesService", () => {
   it("creates a policy with an initial version and audit event", async () => {
     const auditEvents: unknown[] = [];
     const versions: unknown[] = [];
-    const service = new PoliciesService({
-      $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
-        callback({
-          auditEvent: {
-            create: async ({ data }: { data: unknown }) => {
-              auditEvents.push(data);
-              return data;
+    const service = new PoliciesService(
+      {
+        $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
+          callback({
+            auditEvent: {
+              create: async ({ data }: { data: unknown }) => {
+                auditEvents.push(data);
+                return data;
+              },
             },
-          },
-          policy: {
-            create: async ({ data }: { data: Record<string, unknown> }) => ({
-              ...data,
-              createdAt: now,
-              id: "policy-1",
-              updatedAt: now,
-              version: 1,
-            }),
-          },
-          policyVersion: {
-            create: async ({ data }: { data: unknown }) => {
-              versions.push(data);
-              return data;
+            policy: {
+              create: async ({ data }: { data: Record<string, unknown> }) => ({
+                ...data,
+                createdAt: now,
+                id: "policy-1",
+                updatedAt: now,
+                version: 1,
+              }),
             },
-          },
-        }),
-      tenant: {
-        findUnique: async () => ({ id: "tenant-1" }),
-      },
-    } as never);
+            policyVersion: {
+              create: async ({ data }: { data: unknown }) => {
+                versions.push(data);
+                return data;
+              },
+            },
+          }),
+        tenant: {
+          findUnique: async () => ({ id: "tenant-1" }),
+        },
+      } as never,
+      connectorRegistry() as never,
+    );
 
     await expect(
       service.createPolicy("tenant-1", {
@@ -79,45 +103,48 @@ describe("PoliciesService", () => {
 
   it("creates missing starter templates without duplicating existing policies", async () => {
     const createdNames: string[] = [];
-    const service = new PoliciesService({
-      $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
-        callback({
-          auditEvent: {
-            create: async () => ({}),
-          },
-          policy: {
-            create: async ({ data }: { data: Record<string, unknown> }) => {
-              createdNames.push(data.name as string);
-              return {
-                ...data,
-                createdAt: now,
-                id: `policy-${createdNames.length}`,
-                updatedAt: now,
-                version: 1,
-              };
+    const service = new PoliciesService(
+      {
+        $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
+          callback({
+            auditEvent: {
+              create: async () => ({}),
             },
-            findFirst: async ({ where }: { where: { name: string } }) =>
-              where.name === "Default School Mode"
-                ? {
-                    createdAt: now,
-                    id: "existing-default",
-                    name: "Default School Mode",
-                    rules: baseRules,
-                    status: "DRAFT",
-                    tenantId: "tenant-1",
-                    updatedAt: now,
-                    version: 1,
-                  }
-                : null,
-          },
-          policyVersion: {
-            create: async () => ({}),
-          },
-        }),
-      tenant: {
-        findUnique: async () => ({ id: "tenant-1" }),
-      },
-    } as never);
+            policy: {
+              create: async ({ data }: { data: Record<string, unknown> }) => {
+                createdNames.push(data.name as string);
+                return {
+                  ...data,
+                  createdAt: now,
+                  id: `policy-${createdNames.length}`,
+                  updatedAt: now,
+                  version: 1,
+                };
+              },
+              findFirst: async ({ where }: { where: { name: string } }) =>
+                where.name === "Default School Mode"
+                  ? {
+                      createdAt: now,
+                      id: "existing-default",
+                      name: "Default School Mode",
+                      rules: baseRules,
+                      status: "DRAFT",
+                      tenantId: "tenant-1",
+                      updatedAt: now,
+                      version: 1,
+                    }
+                  : null,
+            },
+            policyVersion: {
+              create: async () => ({}),
+            },
+          }),
+        tenant: {
+          findUnique: async () => ({ id: "tenant-1" }),
+        },
+      } as never,
+      connectorRegistry() as never,
+    );
 
     const policies = await service.createStarterTemplates("tenant-1");
 
@@ -139,27 +166,39 @@ describe("PoliciesService", () => {
       updatedAt: now,
       version: 1,
     };
-    const service = new PoliciesService({
-      $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
-        callback({
-          auditEvent: {
-            create: audit,
-          },
-          policy: {
-            update: async () => ({
-              ...existing,
-              status: "PUBLISHED",
-              version: 2,
-            }),
-          },
-          policyVersion: {
-            create: versionCreate,
-          },
-        }),
-      policy: {
-        findFirst: async () => existing,
-      },
-    } as never);
+    const service = new PoliciesService(
+      {
+        $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
+          callback({
+            auditEvent: {
+              create: audit,
+            },
+            policy: {
+              update: async ({ data }: { data: Record<string, unknown> }) => ({
+                ...existing,
+                mdmPolicyName: data.mdmPolicyName ?? null,
+                mdmPublishError: data.mdmPublishError ?? null,
+                mdmPublishedAt: data.mdmPublishedAt ?? null,
+                mdmPublishRequest: data.mdmPublishRequest ?? null,
+                mdmPublishResponse: data.mdmPublishResponse ?? null,
+                mdmPublishStatus: data.mdmPublishStatus ?? null,
+                status: data.status ?? "PUBLISHED",
+                version: 2,
+              }),
+            },
+            policyVersion: {
+              create: versionCreate,
+            },
+          }),
+        appCatalogItem: {
+          findMany: async () => [],
+        },
+        policy: {
+          findFirst: async () => existing,
+        },
+      } as never,
+      connectorRegistry() as never,
+    );
 
     await expect(
       service.publishPolicy("tenant-1", "policy-1", {
@@ -167,6 +206,8 @@ describe("PoliciesService", () => {
         reason: "Ready for pilot",
       }),
     ).resolves.toMatchObject({
+      mdmPolicyName: "stub/policies/tenant-1/policy-1",
+      mdmPublishStatus: "PUBLISHED",
       status: "PUBLISHED",
       version: 2,
     });
@@ -180,7 +221,7 @@ describe("PoliciesService", () => {
         }),
       }),
     );
-    expect(audit).toHaveBeenCalledOnce();
+    expect(audit).toHaveBeenCalledTimes(2);
   });
 
   it("assigns a published tenant baseline policy with an audit event", async () => {
@@ -195,27 +236,30 @@ describe("PoliciesService", () => {
       updatedAt: now,
       version: 2,
     };
-    const service = new PoliciesService({
-      $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
-        callback({
-          auditEvent: {
-            create: audit,
-          },
-          policyAssignment: {
-            create: async ({ data }: { data: Record<string, unknown> }) => ({
-              ...data,
-              active: true,
-              createdAt: now,
-              id: "assignment-1",
-              policy,
-              updatedAt: now,
-            }),
-          },
-        }),
-      policy: {
-        findFirst: async () => policy,
-      },
-    } as never);
+    const service = new PoliciesService(
+      {
+        $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
+          callback({
+            auditEvent: {
+              create: audit,
+            },
+            policyAssignment: {
+              create: async ({ data }: { data: Record<string, unknown> }) => ({
+                ...data,
+                active: true,
+                createdAt: now,
+                id: "assignment-1",
+                policy,
+                updatedAt: now,
+              }),
+            },
+          }),
+        policy: {
+          findFirst: async () => policy,
+        },
+      } as never,
+      connectorRegistry() as never,
+    );
 
     await expect(
       service.assignPolicy("tenant-1", "policy-1", {
@@ -251,54 +295,57 @@ describe("PoliciesService", () => {
       },
       version: 1,
     };
-    const service = new PoliciesService({
-      device: {
-        findFirst: async () => ({
-          classId: "class-1",
-          id: "device-1",
-          student: {
-            grade: "5",
-            id: "student-1",
-          },
-          studentId: "student-1",
-          tenantId: "tenant-1",
-        }),
-      },
-      policyAssignment: {
-        findMany: async () => [
-          {
-            active: true,
-            actorId: null,
-            createdAt: now,
-            endsAt: null,
-            id: "assignment-default",
-            policy: defaultPolicy,
-            policyId: defaultPolicy.id,
-            reason: null,
-            scope: "TENANT",
-            scopeId: null,
-            startsAt: null,
+    const service = new PoliciesService(
+      {
+        device: {
+          findFirst: async () => ({
+            classId: "class-1",
+            id: "device-1",
+            student: {
+              grade: "5",
+              id: "student-1",
+            },
+            studentId: "student-1",
             tenantId: "tenant-1",
-            updatedAt: now,
-          },
-          {
-            active: true,
-            actorId: null,
-            createdAt: now,
-            endsAt: null,
-            id: "assignment-lost",
-            policy: lostPolicy,
-            policyId: lostPolicy.id,
-            reason: null,
-            scope: "DEVICE",
-            scopeId: "device-1",
-            startsAt: null,
-            tenantId: "tenant-1",
-            updatedAt: now,
-          },
-        ],
-      },
-    } as never);
+          }),
+        },
+        policyAssignment: {
+          findMany: async () => [
+            {
+              active: true,
+              actorId: null,
+              createdAt: now,
+              endsAt: null,
+              id: "assignment-default",
+              policy: defaultPolicy,
+              policyId: defaultPolicy.id,
+              reason: null,
+              scope: "TENANT",
+              scopeId: null,
+              startsAt: null,
+              tenantId: "tenant-1",
+              updatedAt: now,
+            },
+            {
+              active: true,
+              actorId: null,
+              createdAt: now,
+              endsAt: null,
+              id: "assignment-lost",
+              policy: lostPolicy,
+              policyId: lostPolicy.id,
+              reason: null,
+              scope: "DEVICE",
+              scopeId: "device-1",
+              startsAt: null,
+              tenantId: "tenant-1",
+              updatedAt: now,
+            },
+          ],
+        },
+      } as never,
+      connectorRegistry() as never,
+    );
 
     await expect(
       service.resolveActivePolicyForDevice("tenant-1", "device-1"),
@@ -332,56 +379,59 @@ describe("PoliciesService", () => {
       updatedAt: now,
       version: 2,
     };
-    const service = new PoliciesService({
-      appCatalogItem: {
-        findMany: async () => [
-          {
-            approvalStatus: "APPROVED",
-            approvedGrades: ["5"],
-            category: "Learning",
-            createdAt: now,
-            description: null,
-            iconUrl: "https://cdn.example.edu/classroom.png",
-            id: "app-1",
-            installRules: {
-              installType: "FORCE_INSTALLED",
+    const service = new PoliciesService(
+      {
+        appCatalogItem: {
+          findMany: async () => [
+            {
+              approvalStatus: "APPROVED",
+              approvedGrades: ["5"],
+              category: "Learning",
+              createdAt: now,
+              description: null,
+              iconUrl: "https://cdn.example.edu/classroom.png",
+              id: "app-1",
+              installRules: {
+                installType: "FORCE_INSTALLED",
+              },
+              name: "Google Classroom",
+              packageId: "com.google.android.apps.classroom",
+              tenantId: "tenant-1",
+              updatedAt: now,
             },
-            name: "Google Classroom",
-            packageId: "com.google.android.apps.classroom",
+          ],
+        },
+        device: {
+          findFirst: async () => ({
+            classId: null,
+            id: "device-1",
+            student: null,
+            studentId: null,
             tenantId: "tenant-1",
-            updatedAt: now,
-          },
-        ],
-      },
-      device: {
-        findFirst: async () => ({
-          classId: null,
-          id: "device-1",
-          student: null,
-          studentId: null,
-          tenantId: "tenant-1",
-        }),
-      },
-      policyAssignment: {
-        findMany: async () => [
-          {
-            active: true,
-            actorId: null,
-            createdAt: now,
-            endsAt: null,
-            id: "assignment-1",
-            policy,
-            policyId: policy.id,
-            reason: null,
-            scope: "TENANT",
-            scopeId: null,
-            startsAt: null,
-            tenantId: "tenant-1",
-            updatedAt: now,
-          },
-        ],
-      },
-    } as never);
+          }),
+        },
+        policyAssignment: {
+          findMany: async () => [
+            {
+              active: true,
+              actorId: null,
+              createdAt: now,
+              endsAt: null,
+              id: "assignment-1",
+              policy,
+              policyId: policy.id,
+              reason: null,
+              scope: "TENANT",
+              scopeId: null,
+              startsAt: null,
+              tenantId: "tenant-1",
+              updatedAt: now,
+            },
+          ],
+        },
+      } as never,
+      connectorRegistry() as never,
+    );
 
     await expect(
       service.getDevicePolicyPayload("tenant-1", "device-1"),
