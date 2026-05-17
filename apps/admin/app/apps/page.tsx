@@ -1,5 +1,14 @@
 import { AppShell } from "../../components/app-shell";
-import { EmptyState, PageSection, StatCard, StatusPill } from "../../components/ui";
+import {
+  ActionPanel,
+  EmptyState,
+  Field,
+  PageSection,
+  StatCard,
+  StatusPill,
+  SubmitButton,
+} from "../../components/ui";
+import { createAppAction } from "../../lib/actions";
 import { getAdminData } from "../../lib/api";
 import { formatCount, formatDateTime, humanize } from "../../lib/format";
 
@@ -32,6 +41,48 @@ export default async function AppsPage() {
             />
           </section>
         </PageSection>
+
+        {data.selectedTenant ? (
+          <PageSection kicker="Catalog action" title="Add Approved App">
+            <ActionPanel title="Managed Google Play app">
+              <form action={createAppAction} className="inline-form">
+                <input name="tenantId" type="hidden" value={data.selectedTenant.id} />
+                <Field label="App name">
+                  <input name="name" placeholder="Google Classroom" required />
+                </Field>
+                <Field label="Package ID">
+                  <input
+                    name="packageId"
+                    placeholder="com.google.android.apps.classroom"
+                    required
+                  />
+                </Field>
+                <Field label="Category">
+                  <input name="category" placeholder="Learning" />
+                </Field>
+                <Field label="Grades">
+                  <input name="approvedGrades" placeholder="1, 2, 3" />
+                </Field>
+                <Field label="Install rule">
+                  <select name="installType" defaultValue="AVAILABLE">
+                    <option value="AVAILABLE">Available</option>
+                    <option value="FORCE_INSTALLED">Force installed</option>
+                    <option value="BLOCKED">Blocked</option>
+                  </select>
+                </Field>
+                <Field label="Status">
+                  <select name="approvalStatus" defaultValue="APPROVED">
+                    <option value="APPROVED">Approved</option>
+                    <option value="PENDING_REVIEW">Pending review</option>
+                    <option value="DEPRECATED">Deprecated</option>
+                    <option value="BLOCKED">Blocked</option>
+                  </select>
+                </Field>
+                <SubmitButton>Add app</SubmitButton>
+              </form>
+            </ActionPanel>
+          </PageSection>
+        ) : null}
 
         <PageSection title="Approved App Catalog">
           {data.apps.length > 0 ? (

@@ -80,3 +80,41 @@ export function ProgressBar({
     </span>
   );
 }
+
+export function Field({
+  children,
+  label,
+}: {
+  children: ReactNode;
+  label: string;
+}) {
+  return (
+    <label className="form-field">
+      <span>{label}</span>
+      {children}
+    </label>
+  );
+}
+
+export function ActionPanel({
+  children,
+  title,
+}: {
+  children: ReactNode;
+  title: string;
+}) {
+  return (
+    <div className="action-panel">
+      <h3>{title}</h3>
+      {children}
+    </div>
+  );
+}
+
+export function SubmitButton({ children }: { children: ReactNode }) {
+  return (
+    <button className="submit-button" type="submit">
+      {children}
+    </button>
+  );
+}

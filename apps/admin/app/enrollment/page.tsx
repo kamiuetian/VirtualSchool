@@ -1,6 +1,15 @@
 import { QrCode } from "lucide-react";
 import { AppShell } from "../../components/app-shell";
-import { EmptyState, PageSection, StatCard, StatusPill } from "../../components/ui";
+import {
+  ActionPanel,
+  EmptyState,
+  Field,
+  PageSection,
+  StatCard,
+  StatusPill,
+  SubmitButton,
+} from "../../components/ui";
+import { createEnrollmentBatchAction } from "../../lib/actions";
 import { getAdminData } from "../../lib/api";
 import { formatCount, formatDate, humanize } from "../../lib/format";
 
@@ -38,6 +47,26 @@ export default async function EnrollmentPage() {
             )}
           </div>
         </PageSection>
+
+        {data.selectedTenant ? (
+          <PageSection kicker="Provisioning" title="Create Enrollment Batch">
+            <ActionPanel title="New QR batch">
+              <form action={createEnrollmentBatchAction} className="inline-form">
+                <input name="tenantId" type="hidden" value={data.selectedTenant.id} />
+                <Field label="Batch name">
+                  <input name="name" placeholder="Grade 4 tablet rollout" required />
+                </Field>
+                <Field label="Device cap">
+                  <input min="1" name="maxDevices" placeholder="60" type="number" />
+                </Field>
+                <Field label="Expires">
+                  <input name="expiresAt" type="datetime-local" />
+                </Field>
+                <SubmitButton>Create batch</SubmitButton>
+              </form>
+            </ActionPanel>
+          </PageSection>
+        ) : null}
 
         <PageSection title="Enrollment Batch Register">
           {data.enrollmentBatches.length > 0 ? (

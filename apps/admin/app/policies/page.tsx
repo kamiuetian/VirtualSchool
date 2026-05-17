@@ -1,5 +1,18 @@
 import { AppShell } from "../../components/app-shell";
-import { EmptyState, PageSection, StatCard, StatusPill } from "../../components/ui";
+import {
+  ActionPanel,
+  EmptyState,
+  Field,
+  PageSection,
+  StatCard,
+  StatusPill,
+  SubmitButton,
+} from "../../components/ui";
+import {
+  assignPolicyAction,
+  createStarterPoliciesAction,
+  publishPolicyAction,
+} from "../../lib/actions";
 import { getAdminData } from "../../lib/api";
 import { formatCount, formatDateTime, humanize } from "../../lib/format";
 
@@ -30,6 +43,79 @@ export default async function PoliciesPage() {
             />
           </section>
         </PageSection>
+
+        {data.selectedTenant ? (
+          <PageSection kicker="Policy actions" title="Publish And Assign">
+            <div className="form-grid">
+              <ActionPanel title="Starter templates">
+                <form action={createStarterPoliciesAction} className="stacked-form">
+                  <input name="tenantId" type="hidden" value={data.selectedTenant.id} />
+                  <p className="form-help">
+                    Create the standard lockdown, supervised learning, homework,
+                    exam, lost device, maintenance, and default school policies.
+                  </p>
+                  <SubmitButton>Create missing templates</SubmitButton>
+                </form>
+              </ActionPanel>
+
+              {data.policies.length > 0 ? (
+                <>
+                  <ActionPanel title="Publish policy">
+                    <form action={publishPolicyAction} className="stacked-form">
+                      <input name="tenantId" type="hidden" value={data.selectedTenant.id} />
+                      <Field label="Policy">
+                        <select name="policyId" required>
+                          {data.policies.map((policy) => (
+                            <option key={policy.id} value={policy.id}>
+                              {policy.name}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      <Field label="Reason">
+                        <input name="reason" placeholder="Ready for class rollout" />
+                      </Field>
+                      <SubmitButton>Publish</SubmitButton>
+                    </form>
+                  </ActionPanel>
+
+                  <ActionPanel title="Assign policy">
+                    <form action={assignPolicyAction} className="stacked-form">
+                      <input name="tenantId" type="hidden" value={data.selectedTenant.id} />
+                      <Field label="Policy">
+                        <select name="policyId" required>
+                          {data.policies.map((policy) => (
+                            <option key={policy.id} value={policy.id}>
+                              {policy.name}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      <div className="form-row">
+                        <Field label="Scope">
+                          <select name="scope" defaultValue="TENANT">
+                            <option value="TENANT">Whole school</option>
+                            <option value="GRADE">Grade</option>
+                            <option value="CLASS">Class</option>
+                            <option value="STUDENT">Student</option>
+                            <option value="DEVICE">Device</option>
+                          </select>
+                        </Field>
+                        <Field label="Target ID">
+                          <input name="scopeId" placeholder="Omit for whole school" />
+                        </Field>
+                      </div>
+                      <Field label="Reason">
+                        <input name="reason" placeholder="Baseline learning mode" />
+                      </Field>
+                      <SubmitButton>Assign</SubmitButton>
+                    </form>
+                  </ActionPanel>
+                </>
+              ) : null}
+            </div>
+          </PageSection>
+        ) : null}
 
         <PageSection title="Policy Library">
           {data.policies.length > 0 ? (

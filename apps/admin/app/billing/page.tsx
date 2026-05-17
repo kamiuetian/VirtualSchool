@@ -1,5 +1,15 @@
 import { AppShell } from "../../components/app-shell";
-import { EmptyState, PageSection, ProgressBar, StatCard, StatusPill } from "../../components/ui";
+import {
+  ActionPanel,
+  EmptyState,
+  Field,
+  PageSection,
+  ProgressBar,
+  StatCard,
+  StatusPill,
+  SubmitButton,
+} from "../../components/ui";
+import { updateBillingAction } from "../../lib/actions";
 import { getAdminData } from "../../lib/api";
 import { formatCount, formatDate, percent } from "../../lib/format";
 
@@ -93,6 +103,81 @@ export default async function BillingPage() {
                   </StatusPill>
                 </div>
               </div>
+            </PageSection>
+
+            <PageSection kicker="Billing action" title="Update Subscription">
+              <ActionPanel title="Plan and usage limits">
+                <form action={updateBillingAction} className="stacked-form">
+                  <input name="tenantId" type="hidden" value={usage.tenantId} />
+                  <div className="form-row">
+                    <Field label="Plan">
+                      <select name="planKey" defaultValue={usage.subscription.planKey}>
+                        <option value="pilot">Pilot</option>
+                        <option value="starter">Starter</option>
+                        <option value="growth">Growth</option>
+                        <option value="enterprise">Enterprise</option>
+                      </select>
+                    </Field>
+                    <Field label="Status">
+                      <select name="status" defaultValue={usage.subscription.status}>
+                        <option value="TRIALING">Trialing</option>
+                        <option value="ACTIVE">Active</option>
+                        <option value="PAST_DUE">Past due</option>
+                        <option value="SUSPENDED">Suspended</option>
+                        <option value="CANCELED">Canceled</option>
+                      </select>
+                    </Field>
+                  </div>
+                  <Field label="Billing email">
+                    <input
+                      defaultValue={usage.subscription.billingEmail ?? ""}
+                      name="billingEmail"
+                      placeholder="billing@school.edu"
+                      type="email"
+                    />
+                  </Field>
+                  <div className="form-row">
+                    <Field label="Device limit">
+                      <input
+                        defaultValue={usage.subscription.overrides.devices ?? ""}
+                        min="1"
+                        name="deviceLimit"
+                        type="number"
+                      />
+                    </Field>
+                    <Field label="Student limit">
+                      <input
+                        defaultValue={usage.subscription.overrides.students ?? ""}
+                        min="1"
+                        name="studentLimit"
+                        type="number"
+                      />
+                    </Field>
+                  </div>
+                  <div className="form-row">
+                    <Field label="Staff limit">
+                      <input
+                        defaultValue={usage.subscription.overrides.staffUsers ?? ""}
+                        min="1"
+                        name="staffLimit"
+                        type="number"
+                      />
+                    </Field>
+                    <Field label="Branch limit">
+                      <input
+                        defaultValue={usage.subscription.overrides.branches ?? ""}
+                        min="1"
+                        name="branchLimit"
+                        type="number"
+                      />
+                    </Field>
+                  </div>
+                  <Field label="Notes">
+                    <textarea name="notes" placeholder="Commercial or support context" />
+                  </Field>
+                  <SubmitButton>Update subscription</SubmitButton>
+                </form>
+              </ActionPanel>
             </PageSection>
           </>
         ) : null}

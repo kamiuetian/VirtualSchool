@@ -117,6 +117,27 @@ export async function getAdminData(): Promise<AdminData> {
   };
 }
 
+export async function adminApiMutation(
+  method: "PATCH" | "POST",
+  path: string,
+  body: Record<string, unknown>,
+): Promise<void> {
+  const response = await fetch(`${baseUrl}${path}`, {
+    body: JSON.stringify(removeEmptyValues(body)),
+    cache: "no-store",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+    },
+    method,
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `API request failed with ${response.status}`);
+  }
+}
+
 async function apiGet<T>(
   path: string,
 ): Promise<{ data: T | null; failed: boolean }> {
@@ -150,4 +171,22 @@ function authHeaders(): HeadersInit {
     "x-dev-subject": process.env.ADMIN_API_SUBJECT ?? "admin-portal",
     "x-dev-tenant-id": process.env.ADMIN_API_TENANT_ID ?? "*",
   };
+}
+
+function removeEmptyValues(
+  body: Record<string, unknown>,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(body).filter(([, value]) => {
+      if (value === undefined || value === null) {
+        return false;
+      }
+
+      if (Array.isArray(value)) {
+        return value.length > 0;
+      }
+
+      return value !== "";
+    }),
+  );
 }

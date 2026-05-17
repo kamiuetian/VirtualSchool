@@ -1,5 +1,14 @@
 import { AppShell } from "../../components/app-shell";
-import { EmptyState, PageSection, StatCard, StatusPill } from "../../components/ui";
+import {
+  ActionPanel,
+  EmptyState,
+  Field,
+  PageSection,
+  StatCard,
+  StatusPill,
+  SubmitButton,
+} from "../../components/ui";
+import { assignDeviceAction } from "../../lib/actions";
 import { getAdminData } from "../../lib/api";
 import { formatCount, formatDateTime, humanize } from "../../lib/format";
 
@@ -36,6 +45,38 @@ export default async function DevicesPage() {
             />
           </section>
         </PageSection>
+
+        {data.selectedTenant && data.devices.length > 0 ? (
+          <PageSection kicker="Assignment" title="Assign Tablet">
+            <ActionPanel title="Student, class, or campus assignment">
+              <form action={assignDeviceAction} className="inline-form">
+                <input name="tenantId" type="hidden" value={data.selectedTenant.id} />
+                <Field label="Device">
+                  <select name="deviceId" required>
+                    {data.devices.map((device) => (
+                      <option key={device.id} value={device.id}>
+                        {device.serialNumber}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Student ID">
+                  <input name="studentId" placeholder="Optional" />
+                </Field>
+                <Field label="Class ID">
+                  <input name="classId" placeholder="Optional" />
+                </Field>
+                <Field label="Tags">
+                  <input name="tags" placeholder="pilot, grade-4" />
+                </Field>
+                <Field label="Reason">
+                  <input name="reason" placeholder="Assigned during rollout" />
+                </Field>
+                <SubmitButton>Save assignment</SubmitButton>
+              </form>
+            </ActionPanel>
+          </PageSection>
+        ) : null}
 
         <PageSection title="Managed Tablets">
           {data.devices.length > 0 ? (

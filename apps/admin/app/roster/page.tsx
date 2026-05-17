@@ -1,5 +1,14 @@
 import { AppShell } from "../../components/app-shell";
-import { EmptyState, PageSection, StatCard, StatusPill } from "../../components/ui";
+import {
+  ActionPanel,
+  EmptyState,
+  Field,
+  PageSection,
+  StatCard,
+  StatusPill,
+  SubmitButton,
+} from "../../components/ui";
+import { createClassAction, createStudentAction } from "../../lib/actions";
 import { getAdminData } from "../../lib/api";
 import { formatCount, humanize } from "../../lib/format";
 
@@ -25,6 +34,70 @@ export default async function RosterPage() {
             />
           </section>
         </PageSection>
+
+        {data.selectedTenant ? (
+          <PageSection kicker="Roster actions" title="Manual Roster Updates">
+            <div className="form-grid">
+              <ActionPanel title="Create class">
+                <form action={createClassAction} className="stacked-form">
+                  <input name="tenantId" type="hidden" value={data.selectedTenant.id} />
+                  <Field label="Class name">
+                    <input name="name" placeholder="Grade 4 Blue" required />
+                  </Field>
+                  <div className="form-row">
+                    <Field label="Grade">
+                      <input name="grade" placeholder="4" required />
+                    </Field>
+                    <Field label="Subject">
+                      <input name="subject" placeholder="Science" />
+                    </Field>
+                  </div>
+                  <SubmitButton>Create class</SubmitButton>
+                </form>
+              </ActionPanel>
+
+              <ActionPanel title="Create student">
+                <form action={createStudentAction} className="stacked-form">
+                  <input name="tenantId" type="hidden" value={data.selectedTenant.id} />
+                  <div className="form-row">
+                    <Field label="Student code">
+                      <input name="studentCode" placeholder="S-1001" required />
+                    </Field>
+                    <Field label="Status">
+                      <select name="status" defaultValue="ACTIVE">
+                        <option value="ACTIVE">Active</option>
+                        <option value="PENDING">Pending</option>
+                      </select>
+                    </Field>
+                  </div>
+                  <Field label="Student name">
+                    <input name="name" placeholder="Sara Ahmed" required />
+                  </Field>
+                  <div className="form-row">
+                    <Field label="Grade">
+                      <input name="grade" placeholder="4" required />
+                    </Field>
+                    <Field label="Section">
+                      <input name="section" placeholder="Blue" />
+                    </Field>
+                  </div>
+                  <Field label="Guardian name">
+                    <input name="guardianName" placeholder="Parent or guardian" />
+                  </Field>
+                  <div className="form-row">
+                    <Field label="Guardian email">
+                      <input name="guardianEmail" placeholder="guardian@example.com" type="email" />
+                    </Field>
+                    <Field label="Relationship">
+                      <input name="guardianRelationship" placeholder="Parent" />
+                    </Field>
+                  </div>
+                  <SubmitButton>Create student</SubmitButton>
+                </form>
+              </ActionPanel>
+            </div>
+          </PageSection>
+        ) : null}
 
         <PageSection title="Class Sections">
           {data.classes.length > 0 ? (

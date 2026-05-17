@@ -1,5 +1,12 @@
 import { AppShell } from "../../components/app-shell";
-import { EmptyState, PageSection, StatCard, StatusPill } from "../../components/ui";
+import {
+  EmptyState,
+  Field,
+  PageSection,
+  StatCard,
+  StatusPill,
+} from "../../components/ui";
+import { acknowledgeAlertAction, resolveAlertAction } from "../../lib/actions";
 import { getAdminData } from "../../lib/api";
 import { formatCount, formatDateTime, humanize } from "../../lib/format";
 
@@ -39,6 +46,30 @@ export default async function AlertsPage() {
                     <StatusPill tone={alert.status === "RESOLVED" ? "good" : "neutral"}>
                       {humanize(alert.status)}
                     </StatusPill>
+                    {data.selectedTenant && alert.status !== "RESOLVED" ? (
+                      <form action={acknowledgeAlertAction} className="row-form">
+                        <input name="tenantId" type="hidden" value={data.selectedTenant.id} />
+                        <input name="alertId" type="hidden" value={alert.id} />
+                        <Field label="Reason">
+                          <input name="reason" placeholder="Reviewed by IT" />
+                        </Field>
+                        <button className="small-button" type="submit">
+                          Acknowledge
+                        </button>
+                      </form>
+                    ) : null}
+                    {data.selectedTenant && alert.status !== "RESOLVED" ? (
+                      <form action={resolveAlertAction} className="row-form">
+                        <input name="tenantId" type="hidden" value={data.selectedTenant.id} />
+                        <input name="alertId" type="hidden" value={alert.id} />
+                        <Field label="Resolution">
+                          <input name="reason" placeholder="Issue resolved" />
+                        </Field>
+                        <button className="small-button primary" type="submit">
+                          Resolve
+                        </button>
+                      </form>
+                    ) : null}
                   </div>
                 </article>
               ))}
