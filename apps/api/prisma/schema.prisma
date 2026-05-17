@@ -1,0 +1,293 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+  PILOT
+  ARCHIVED
+}
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum StudentStatus {
+  ACTIVE
+  PENDING
+  SUSPENDED
+  GRADUATED
+  WITHDRAWN
+}
+
+enum DeviceStatus {
+  PENDING
+  ONLINE
+  OFFLINE
+  NON_COMPLIANT
+  LOCKED
+  LOST
+  RETIRED
+  ENROLLMENT_FAILED
+}
+
+enum LearningModeType {
+  LOST_DEVICE
+  EXAM
+  EMERGENCY_SUPPORT_OVERRIDE
+  TIMETABLE_CLASS
+  HOMEWORK_AFTER_SCHOOL
+  DEVICE_BASELINE
+  DEFAULT_SCHOOL
+}
+
+enum CommandStatus {
+  SUBMITTED
+  QUEUED
+  DELIVERED
+  EXECUTED
+  FAILED
+  EXPIRED
+}
+
+model Tenant {
+  id          String       @id @default(uuid())
+  name        String
+  domain      String?      @unique
+  country     String
+  timezone    String
+  language    String       @default("en")
+  planKey     String
+  status      TenantStatus @default(PILOT)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  branches    Branch[]
+  users       User[]
+  students    Student[]
+  guardians   Guardian[]
+  classes     ClassSection[]
+  devices     Device[]
+  policies    Policy[]
+  auditEvents AuditEvent[]
+}
+
+model Branch {
+  id        String   @id @default(uuid())
+  tenantId  String
+  name      String
+  timezone  String?
+  status    String   @default("ACTIVE")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  users     User[]
+  students  Student[]
+  classes   ClassSection[]
+  devices   Device[]
+
+  @@index([tenantId])
+}
+
+model User {
+  id           String     @id @default(uuid())
+  tenantId     String
+  branchId     String?
+  auth0Subject String?    @unique
+  email        String
+  name         String
+  role         String
+  status       UserStatus @default(INVITED)
+  mfaEnabled   Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  tenant       Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch       Branch?    @relation(fields: [branchId], references: [id])
+
+  @@unique([tenantId, email])
+  @@index([tenantId, role])
+}
+
+model Student {
+  id          String        @id @default(uuid())
+  tenantId    String
+  branchId    String?
+  studentCode String
+  name        String
+  grade       String
+  section     String?
+  status      StudentStatus @default(PENDING)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  tenant      Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch      Branch?       @relation(fields: [branchId], references: [id])
+  guardians   StudentGuardian[]
+  devices     Device[]
+  classes     ClassMembership[]
+
+  @@unique([tenantId, studentCode])
+  @@index([tenantId, grade, section])
+}
+
+model Guardian {
+  id        String   @id @default(uuid())
+  tenantId  String
+  name      String
+  email     String?
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  students  StudentGuardian[]
+
+  @@index([tenantId, email])
+}
+
+model StudentGuardian {
+  studentId    String
+  guardianId   String
+  relationship String
+  student      Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  guardian     Guardian @relation(fields: [guardianId], references: [id], onDelete: Cascade)
+
+  @@id([studentId, guardianId])
+}
+
+model ClassSection {
+  id        String   @id @default(uuid())
+  tenantId  String
+  branchId  String?
+  name      String
+  grade     String
+  subject   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch    Branch?  @relation(fields: [branchId], references: [id])
+  members   ClassMembership[]
+  devices   Device[]
+
+  @@index([tenantId, grade])
+}
+
+model ClassMembership {
+  classId   String
+  studentId String
+  class     ClassSection @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student   Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@id([classId, studentId])
+}
+
+model Device {
+  id             String       @id @default(uuid())
+  tenantId       String
+  branchId       String?
+  studentId      String?
+  classId        String?
+  serialNumber   String
+  manufacturer   String?
+  model          String?
+  androidVersion String?
+  enrollmentId   String?
+  status         DeviceStatus @default(PENDING)
+  lastCheckInAt  DateTime?
+  policyVersion  Int?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  tenant         Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch         Branch?      @relation(fields: [branchId], references: [id])
+  student        Student?     @relation(fields: [studentId], references: [id])
+  class          ClassSection? @relation(fields: [classId], references: [id])
+  commands       RemoteCommand[]
+
+  @@unique([tenantId, serialNumber])
+  @@index([tenantId, status])
+}
+
+model Policy {
+  id          String   @id @default(uuid())
+  tenantId    String
+  name        String
+  status      String   @default("DRAFT")
+  version     Int      @default(1)
+  rules       Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  versions    PolicyVersion[]
+
+  @@index([tenantId, status])
+}
+
+model PolicyVersion {
+  id        String   @id @default(uuid())
+  policyId  String
+  version   Int
+  snapshot  Json
+  summary   String
+  actorId   String?
+  createdAt DateTime @default(now())
+  policy    Policy   @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@unique([policyId, version])
+}
+
+model LearningMode {
+  id        String           @id @default(uuid())
+  tenantId  String
+  name      String
+  modeType  LearningModeType
+  priority  Int
+  rules     Json
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([tenantId, modeType])
+}
+
+model RemoteCommand {
+  id          String        @id @default(uuid())
+  tenantId    String
+  deviceId    String
+  type        String
+  status      CommandStatus @default(SUBMITTED)
+  reason      String?
+  requestedBy String?
+  result      Json?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  expiresAt   DateTime?
+  device      Device        @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@index([deviceId, createdAt])
+}
+
+model AuditEvent {
+  id        String   @id @default(uuid())
+  tenantId  String?
+  actorId   String?
+  action    String
+  object    String
+  objectId  String?
+  oldValue  Json?
+  newValue  Json?
+  ipAddress String?
+  reason    String?
+  outcome   String
+  createdAt DateTime @default(now())
+  tenant    Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([action, createdAt])
+}

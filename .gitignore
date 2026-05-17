@@ -1,0 +1,24 @@
+node_modules/
+.pnpm-store/
+.turbo/
+.next/
+dist/
+build/
+coverage/
+apps/api/src/generated/
+*.log
+.env
+.env.*
+!.env.example
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Android
+.gradle/
+local.properties
+*.apk
+*.aab

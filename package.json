@@ -1,0 +1,27 @@
+{
+  "name": "virtual-school-mdm",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Phase 1 Android Managed Learning Device Platform",
+  "packageManager": "pnpm@8.6.12",
+  "scripts": {
+    "build": "pnpm -r --if-present run build",
+    "dev": "pnpm --parallel --filter @virtual-school/admin --filter @virtual-school/api --filter @virtual-school/worker dev",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md,yml,yaml}\"",
+    "lint": "pnpm -r --if-present run lint",
+    "prisma:generate": "prisma generate --schema apps/api/prisma/schema.prisma",
+    "prisma:validate": "prisma validate --schema apps/api/prisma/schema.prisma",
+    "test": "pnpm -r --if-present run test",
+    "typecheck": "pnpm -r --if-present run typecheck"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "prettier": "^3.4.2",
+    "prisma": "^6.19.3",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  },
+  "dependencies": {
+    "@prisma/client": "6.19.3"
+  }
+}
