@@ -29,3 +29,20 @@ The Phase 1 API exposes this setup through:
 
 Duplicate package IDs are blocked per tenant. Deprecating or blocking an app should be
 done before policy assignment changes so admins have a clear audit trail.
+
+## Starter Policies
+
+Create the Phase 1 starter policies before pilot enrollment:
+
+- Grade 1-3 Lockdown
+- Grade 4-8 Supervised Learning
+- Homework Mode
+- Exam Starter Mode
+- Lost Device Mode
+- Maintenance Mode
+- Default School Mode
+
+Use `POST /api/v1/tenants/{tenantId}/policies/starter-templates` to create any missing
+templates. Use `POST /api/v1/tenants/{tenantId}/policies/{policyId}/publish` when a
+template is ready for pilot deployment. Publishing increments the policy version and
+writes a version snapshot for rollback and audit review.

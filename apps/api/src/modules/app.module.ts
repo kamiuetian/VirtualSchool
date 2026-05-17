@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { AppCatalogModule } from "./app-catalog/app-catalog.module";
 import { EnrollmentModule } from "./enrollment/enrollment.module";
 import { HealthModule } from "./health/health.module";
+import { PoliciesModule } from "./policies/policies.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { RosterModule } from "./roster/roster.module";
 import { TenantsModule } from "./tenants/tenants.module";
@@ -14,6 +15,7 @@ import { TenantsModule } from "./tenants/tenants.module";
     RosterModule,
     EnrollmentModule,
     AppCatalogModule,
+    PoliciesModule,
   ],
 })
 export class AppModule {}

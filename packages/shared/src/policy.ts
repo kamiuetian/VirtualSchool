@@ -5,7 +5,7 @@ export const learningModes = [
   "TIMETABLE_CLASS",
   "HOMEWORK_AFTER_SCHOOL",
   "DEVICE_BASELINE",
-  "DEFAULT_SCHOOL"
+  "DEFAULT_SCHOOL",
 ] as const;
 
 export type LearningMode = (typeof learningModes)[number];
@@ -17,7 +17,7 @@ export const policyPrecedence: Record<LearningMode, number> = {
   TIMETABLE_CLASS: 70,
   HOMEWORK_AFTER_SCHOOL: 60,
   DEVICE_BASELINE: 50,
-  DEFAULT_SCHOOL: 10
+  DEFAULT_SCHOOL: 10,
 };
 
 export type PolicyCandidate = {
@@ -35,13 +35,223 @@ export type PolicyResolution = {
   evaluated: PolicyCandidate[];
 };
 
+export type PolicyStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
+
+export type PolicyRuleSet = {
+  mode: LearningMode;
+  approvedAppPackageIds: string[];
+  webShortcuts: Array<{
+    title: string;
+    url: string;
+  }>;
+  urlAllowlist: string[];
+  urlBlocklist: string[];
+  defaultWebAccess: "ALLOW" | "DENY";
+  launcher: {
+    showMessages: boolean;
+    showSupportContact: boolean;
+  };
+  restrictions: {
+    blockSettings: boolean;
+    blockAppInstall: boolean;
+    blockSafeMode: boolean;
+  };
+};
+
+export type PolicySummary = {
+  id: string;
+  tenantId: string;
+  name: string;
+  status: PolicyStatus;
+  version: number;
+  rules: PolicyRuleSet;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PolicyVersionSummary = {
+  id: string;
+  policyId: string;
+  version: number;
+  snapshot: PolicyRuleSet;
+  summary: string;
+  actorId?: string | null;
+  createdAt: string;
+};
+
+export type StarterPolicyTemplateKey =
+  | "GRADE_1_3_LOCKDOWN"
+  | "GRADE_4_8_SUPERVISED"
+  | "HOMEWORK_MODE"
+  | "EXAM_STARTER"
+  | "LOST_DEVICE"
+  | "MAINTENANCE"
+  | "DEFAULT_SCHOOL";
+
+export type StarterPolicyTemplate = {
+  key: StarterPolicyTemplateKey;
+  name: string;
+  rules: PolicyRuleSet;
+};
+
+export const starterPolicyTemplates: StarterPolicyTemplate[] = [
+  {
+    key: "GRADE_1_3_LOCKDOWN",
+    name: "Grade 1-3 Lockdown",
+    rules: {
+      approvedAppPackageIds: [],
+      defaultWebAccess: "DENY",
+      launcher: {
+        showMessages: true,
+        showSupportContact: true,
+      },
+      mode: "DEFAULT_SCHOOL",
+      restrictions: {
+        blockAppInstall: true,
+        blockSafeMode: true,
+        blockSettings: true,
+      },
+      urlAllowlist: [],
+      urlBlocklist: [],
+      webShortcuts: [],
+    },
+  },
+  {
+    key: "GRADE_4_8_SUPERVISED",
+    name: "Grade 4-8 Supervised Learning",
+    rules: {
+      approvedAppPackageIds: [],
+      defaultWebAccess: "DENY",
+      launcher: {
+        showMessages: true,
+        showSupportContact: true,
+      },
+      mode: "TIMETABLE_CLASS",
+      restrictions: {
+        blockAppInstall: true,
+        blockSafeMode: true,
+        blockSettings: true,
+      },
+      urlAllowlist: [],
+      urlBlocklist: [],
+      webShortcuts: [],
+    },
+  },
+  {
+    key: "HOMEWORK_MODE",
+    name: "Homework Mode",
+    rules: {
+      approvedAppPackageIds: [],
+      defaultWebAccess: "DENY",
+      launcher: {
+        showMessages: true,
+        showSupportContact: true,
+      },
+      mode: "HOMEWORK_AFTER_SCHOOL",
+      restrictions: {
+        blockAppInstall: true,
+        blockSafeMode: true,
+        blockSettings: true,
+      },
+      urlAllowlist: [],
+      urlBlocklist: [],
+      webShortcuts: [],
+    },
+  },
+  {
+    key: "EXAM_STARTER",
+    name: "Exam Starter Mode",
+    rules: {
+      approvedAppPackageIds: [],
+      defaultWebAccess: "DENY",
+      launcher: {
+        showMessages: false,
+        showSupportContact: true,
+      },
+      mode: "EXAM",
+      restrictions: {
+        blockAppInstall: true,
+        blockSafeMode: true,
+        blockSettings: true,
+      },
+      urlAllowlist: [],
+      urlBlocklist: [],
+      webShortcuts: [],
+    },
+  },
+  {
+    key: "LOST_DEVICE",
+    name: "Lost Device Mode",
+    rules: {
+      approvedAppPackageIds: [],
+      defaultWebAccess: "DENY",
+      launcher: {
+        showMessages: true,
+        showSupportContact: true,
+      },
+      mode: "LOST_DEVICE",
+      restrictions: {
+        blockAppInstall: true,
+        blockSafeMode: true,
+        blockSettings: true,
+      },
+      urlAllowlist: [],
+      urlBlocklist: [],
+      webShortcuts: [],
+    },
+  },
+  {
+    key: "MAINTENANCE",
+    name: "Maintenance Mode",
+    rules: {
+      approvedAppPackageIds: [],
+      defaultWebAccess: "ALLOW",
+      launcher: {
+        showMessages: false,
+        showSupportContact: true,
+      },
+      mode: "EMERGENCY_SUPPORT_OVERRIDE",
+      restrictions: {
+        blockAppInstall: false,
+        blockSafeMode: false,
+        blockSettings: false,
+      },
+      urlAllowlist: [],
+      urlBlocklist: [],
+      webShortcuts: [],
+    },
+  },
+  {
+    key: "DEFAULT_SCHOOL",
+    name: "Default School Mode",
+    rules: {
+      approvedAppPackageIds: [],
+      defaultWebAccess: "DENY",
+      launcher: {
+        showMessages: true,
+        showSupportContact: true,
+      },
+      mode: "DEFAULT_SCHOOL",
+      restrictions: {
+        blockAppInstall: true,
+        blockSafeMode: true,
+        blockSettings: true,
+      },
+      urlAllowlist: [],
+      urlBlocklist: [],
+      webShortcuts: [],
+    },
+  },
+];
+
 export function resolvePolicy(candidates: PolicyCandidate[]): PolicyResolution {
   if (candidates.length === 0) {
     throw new Error("At least one policy candidate is required");
   }
 
   const sorted = [...candidates].sort((left, right) => {
-    const precedenceDiff = policyPrecedence[right.mode] - policyPrecedence[left.mode];
+    const precedenceDiff =
+      policyPrecedence[right.mode] - policyPrecedence[left.mode];
     if (precedenceDiff !== 0) {
       return precedenceDiff;
     }
@@ -58,6 +268,6 @@ export function resolvePolicy(candidates: PolicyCandidate[]): PolicyResolution {
   return {
     active,
     evaluated: sorted,
-    explanation: `${active.mode} from ${active.source} won with precedence ${policyPrecedence[active.mode]} and policy version ${active.policyVersion}.`
+    explanation: `${active.mode} from ${active.source} won with precedence ${policyPrecedence[active.mode]} and policy version ${active.policyVersion}.`,
   };
 }
