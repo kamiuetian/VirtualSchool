@@ -1,7 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { adminApiMutation } from "./api";
+import { redirect } from "next/navigation";
+import type { RosterImportSummary } from "@virtual-school/shared";
+import { adminApiJsonMutation, adminApiMutation } from "./api";
 
 export async function createTenantAction(formData: FormData): Promise<void> {
   await adminApiMutation("POST", "/tenants", {
@@ -102,6 +104,36 @@ export async function createStudentAction(formData: FormData): Promise<void> {
   revalidateAll();
 }
 
+export async function previewRosterImportAction(
+  formData: FormData,
+): Promise<void> {
+  const tenantId = required(formData, "tenantId");
+  const result = await adminApiJsonMutation<RosterImportSummary>(
+    "POST",
+    `/tenants/${tenantId}/roster-imports/preview`,
+    {
+      csv: text(formData, "csv"),
+      filename: text(formData, "filename") || "roster-import.csv",
+    },
+  );
+  revalidateAll();
+  redirect(`/roster?importId=${result.id}`);
+}
+
+export async function commitRosterImportAction(
+  formData: FormData,
+): Promise<void> {
+  const tenantId = required(formData, "tenantId");
+  const importId = required(formData, "importId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/roster-imports/${importId}/commit`,
+    {},
+  );
+  revalidateAll();
+  redirect("/roster");
+}
+
 export async function createEnrollmentBatchAction(
   formData: FormData,
 ): Promise<void> {
@@ -126,6 +158,42 @@ export async function assignDeviceAction(formData: FormData): Promise<void> {
       reason: text(formData, "reason"),
       studentId: text(formData, "studentId"),
       tags: splitList(text(formData, "tags")),
+    },
+  );
+  revalidateAll();
+}
+
+export async function queueDeviceCommandAction(
+  formData: FormData,
+): Promise<void> {
+  const tenantId = required(formData, "tenantId");
+  const deviceId = required(formData, "deviceId");
+  const type = required(formData, "type");
+  await adminApiMutation("POST", `/tenants/${tenantId}/devices/${deviceId}/commands`, {
+    confirmed: booleanValue(formData, "confirmed"),
+    maxAttempts: numberValue(formData, "maxAttempts"),
+    payload: commandPayload(type, formData),
+    reason: text(formData, "reason"),
+    ttlMinutes: numberValue(formData, "ttlMinutes"),
+    type,
+  });
+  revalidateAll();
+}
+
+export async function queueWipeDeviceAction(formData: FormData): Promise<void> {
+  const tenantId = required(formData, "tenantId");
+  const deviceId = required(formData, "deviceId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/devices/${deviceId}/commands/wipe`,
+    {
+      confirmationSerialNumber: text(formData, "confirmationSerialNumber"),
+      preserveFactoryResetProtection: booleanValue(
+        formData,
+        "preserveFactoryResetProtection",
+      ),
+      reason: text(formData, "reason"),
+      ttlMinutes: numberValue(formData, "ttlMinutes"),
     },
   );
   revalidateAll();
@@ -218,6 +286,20 @@ export async function createAppAction(formData: FormData): Promise<void> {
   revalidateAll();
 }
 
+export async function deployAppAction(formData: FormData): Promise<void> {
+  const tenantId = required(formData, "tenantId");
+  const appId = required(formData, "appId");
+  await adminApiMutation("POST", `/tenants/${tenantId}/apps/${appId}/deployments`, {
+    action: text(formData, "action"),
+    maxAttempts: numberValue(formData, "maxAttempts"),
+    reason: text(formData, "reason"),
+    scope: text(formData, "scope"),
+    scopeId: text(formData, "scopeId"),
+    ttlMinutes: numberValue(formData, "ttlMinutes"),
+  });
+  revalidateAll();
+}
+
 export async function createSupportNoteAction(formData: FormData): Promise<void> {
   const tenantId = required(formData, "tenantId");
   const deviceId = required(formData, "deviceId");
@@ -299,6 +381,16 @@ export async function resolveAlertAction(formData: FormData): Promise<void> {
   const alertId = required(formData, "alertId");
   await adminApiMutation("POST", `/tenants/${tenantId}/alerts/${alertId}/resolve`, {
     reason: text(formData, "reason"),
+  });
+  revalidateAll();
+}
+
+export async function scanOfflineAlertsAction(
+  formData: FormData,
+): Promise<void> {
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation("POST", `/tenants/${tenantId}/alerts/offline-scan`, {
+    offlineAfterMinutes: numberValue(formData, "offlineAfterMinutes"),
   });
   revalidateAll();
 }
@@ -389,6 +481,19 @@ function splitList(value: string): string[] {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function commandPayload(
+  type: string,
+  formData: FormData,
+): Record<string, unknown> | undefined {
+  if (type === "SEND_MESSAGE") {
+    return {
+      message: text(formData, "message"),
+    };
+  }
+
+  return undefined;
 }
 
 function timeToMinute(value: string): number {

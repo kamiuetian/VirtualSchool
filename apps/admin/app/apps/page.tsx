@@ -8,7 +8,7 @@ import {
   StatusPill,
   SubmitButton,
 } from "../../components/ui";
-import { createAppAction } from "../../lib/actions";
+import { createAppAction, deployAppAction } from "../../lib/actions";
 import { getAdminData } from "../../lib/api";
 import { formatCount, formatDateTime, humanize } from "../../lib/format";
 
@@ -16,11 +16,12 @@ export const dynamic = "force-dynamic";
 
 export default async function AppsPage() {
   const data = await getAdminData();
+  const selectedTenant = data.selectedTenant;
   const approved = data.apps.filter((app) => app.approvalStatus === "APPROVED");
   const blocked = data.apps.filter((app) => app.approvalStatus === "BLOCKED");
 
   return (
-    <AppShell connectionIssue={data.connectionIssue} tenant={data.selectedTenant}>
+    <AppShell connectionIssue={data.connectionIssue} tenant={selectedTenant}>
       <div className="content-stack">
         <PageSection kicker="Learning access" title="Apps And Web Catalog">
           <section className="stat-grid" aria-label="App catalog summary">
@@ -42,11 +43,11 @@ export default async function AppsPage() {
           </section>
         </PageSection>
 
-        {data.selectedTenant ? (
+        {selectedTenant ? (
           <PageSection kicker="Catalog action" title="Add Approved App">
             <ActionPanel title="Managed Google Play app">
               <form action={createAppAction} className="inline-form">
-                <input name="tenantId" type="hidden" value={data.selectedTenant.id} />
+                <input name="tenantId" type="hidden" value={selectedTenant.id} />
                 <Field label="App name">
                   <input name="name" placeholder="Google Classroom" required />
                 </Field>
@@ -79,6 +80,50 @@ export default async function AppsPage() {
                   </select>
                 </Field>
                 <SubmitButton>Add app</SubmitButton>
+              </form>
+            </ActionPanel>
+          </PageSection>
+        ) : null}
+
+        {selectedTenant && data.apps.length > 0 ? (
+          <PageSection kicker="Deployment" title="Install Or Remove Apps">
+            <ActionPanel title="Queue app deployment">
+              <form action={deployAppAction} className="inline-form wide">
+                <input name="tenantId" type="hidden" value={selectedTenant.id} />
+                <Field label="App">
+                  <select name="appId" required>
+                    {data.apps.map((app) => (
+                      <option key={app.id} value={app.id}>
+                        {app.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Action">
+                  <select name="action" defaultValue="INSTALL">
+                    <option value="INSTALL">Install</option>
+                    <option value="REMOVE">Remove</option>
+                  </select>
+                </Field>
+                <Field label="Scope">
+                  <select name="scope" defaultValue="CLASS">
+                    <option value="TENANT">Whole school</option>
+                    <option value="GRADE">Grade</option>
+                    <option value="CLASS">Class</option>
+                    <option value="STUDENT">Student</option>
+                    <option value="DEVICE">Device</option>
+                  </select>
+                </Field>
+                <Field label="Target ID">
+                  <input name="scopeId" placeholder="Omit for whole school" />
+                </Field>
+                <Field label="Reason">
+                  <input name="reason" placeholder="Curriculum app rollout" />
+                </Field>
+                <Field label="TTL minutes">
+                  <input defaultValue="120" min="1" name="ttlMinutes" type="number" />
+                </Field>
+                <SubmitButton>Queue deployment</SubmitButton>
               </form>
             </ActionPanel>
           </PageSection>

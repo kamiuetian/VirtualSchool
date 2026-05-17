@@ -5,8 +5,13 @@ import {
   PageSection,
   StatCard,
   StatusPill,
+  SubmitButton,
 } from "../../components/ui";
-import { acknowledgeAlertAction, resolveAlertAction } from "../../lib/actions";
+import {
+  acknowledgeAlertAction,
+  resolveAlertAction,
+  scanOfflineAlertsAction,
+} from "../../lib/actions";
 import { getAdminData } from "../../lib/api";
 import { formatCount, formatDateTime, humanize } from "../../lib/format";
 
@@ -14,11 +19,12 @@ export const dynamic = "force-dynamic";
 
 export default async function AlertsPage() {
   const data = await getAdminData();
+  const selectedTenant = data.selectedTenant;
   const open = data.alerts.filter((alert) => alert.status === "OPEN");
   const critical = data.alerts.filter((alert) => alert.severity === "CRITICAL");
 
   return (
-    <AppShell connectionIssue={data.connectionIssue} tenant={data.selectedTenant}>
+    <AppShell connectionIssue={data.connectionIssue} tenant={selectedTenant}>
       <div className="content-stack">
         <PageSection kicker="Supportability" title="Alerts And Diagnostics">
           <section className="stat-grid" aria-label="Alert summary">
@@ -28,6 +34,27 @@ export default async function AlertsPage() {
             <StatCard label="Offline devices" value={formatCount(data.devices.filter((device) => device.status === "OFFLINE").length)} />
           </section>
         </PageSection>
+
+        {selectedTenant ? (
+          <PageSection kicker="Alert action" title="Offline Detection">
+            <div className="action-panel">
+              <h3>Scan check-in threshold</h3>
+              <form action={scanOfflineAlertsAction} className="inline-form compact-action">
+                <input name="tenantId" type="hidden" value={selectedTenant.id} />
+                <Field label="Offline after minutes">
+                  <input
+                    defaultValue="60"
+                    max="10080"
+                    min="5"
+                    name="offlineAfterMinutes"
+                    type="number"
+                  />
+                </Field>
+                <SubmitButton>Run scan</SubmitButton>
+              </form>
+            </div>
+          </PageSection>
+        ) : null}
 
         <PageSection title="Alert Queue">
           {data.alerts.length > 0 ? (
@@ -46,9 +73,9 @@ export default async function AlertsPage() {
                     <StatusPill tone={alert.status === "RESOLVED" ? "good" : "neutral"}>
                       {humanize(alert.status)}
                     </StatusPill>
-                    {data.selectedTenant && alert.status !== "RESOLVED" ? (
+                    {selectedTenant && alert.status !== "RESOLVED" ? (
                       <form action={acknowledgeAlertAction} className="row-form">
-                        <input name="tenantId" type="hidden" value={data.selectedTenant.id} />
+                        <input name="tenantId" type="hidden" value={selectedTenant.id} />
                         <input name="alertId" type="hidden" value={alert.id} />
                         <Field label="Reason">
                           <input name="reason" placeholder="Reviewed by IT" />
@@ -58,9 +85,9 @@ export default async function AlertsPage() {
                         </button>
                       </form>
                     ) : null}
-                    {data.selectedTenant && alert.status !== "RESOLVED" ? (
+                    {selectedTenant && alert.status !== "RESOLVED" ? (
                       <form action={resolveAlertAction} className="row-form">
-                        <input name="tenantId" type="hidden" value={data.selectedTenant.id} />
+                        <input name="tenantId" type="hidden" value={selectedTenant.id} />
                         <input name="alertId" type="hidden" value={alert.id} />
                         <Field label="Resolution">
                           <input name="reason" placeholder="Issue resolved" />

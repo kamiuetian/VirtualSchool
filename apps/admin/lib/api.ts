@@ -4,6 +4,7 @@ import type {
   BillingUsageSummary,
   ClassSectionSummary,
   DeviceAlertSummary,
+  DeviceDiagnosticSummary,
   DeviceInventoryReport,
   DeviceSummary,
   EnrollmentBatchSummary,
@@ -12,6 +13,8 @@ import type {
   PolicyAssignmentSummary,
   PolicySummary,
   RetentionSettingsSummary,
+  RemoteCommandSummary,
+  RosterImportSummary,
   SupportNoteSummary,
   SupportTimelineEvent,
   StudentSummary,
@@ -159,6 +162,14 @@ export async function adminApiMutation(
   path: string,
   body: Record<string, unknown>,
 ): Promise<void> {
+  await adminApiJsonMutation<unknown>(method, path, body);
+}
+
+export async function adminApiJsonMutation<T>(
+  method: "PATCH" | "POST",
+  path: string,
+  body: Record<string, unknown>,
+): Promise<T> {
   const response = await fetch(`${baseUrl}${path}`, {
     body: JSON.stringify(removeEmptyValues(body)),
     cache: "no-store",
@@ -173,6 +184,8 @@ export async function adminApiMutation(
     const text = await response.text();
     throw new Error(text || `API request failed with ${response.status}`);
   }
+
+  return (await response.json()) as T;
 }
 
 export async function getDeviceSupportData(
@@ -194,6 +207,44 @@ export async function getDeviceSupportData(
     connectionIssue: notes.failed || timeline.failed,
     notes: notes.data ?? [],
     timeline: timeline.data ?? [],
+  };
+}
+
+export async function getRosterImport(
+  tenantId: string,
+  importId: string,
+): Promise<{ importPreview: RosterImportSummary | null; connectionIssue: boolean }> {
+  const result = await apiGet<RosterImportSummary>(
+    `/tenants/${tenantId}/roster-imports/${importId}`,
+  );
+
+  return {
+    connectionIssue: result.failed,
+    importPreview: result.data,
+  };
+}
+
+export async function getDeviceOperationsData(
+  tenantId: string,
+  deviceId: string,
+): Promise<{
+  commands: RemoteCommandSummary[];
+  diagnostics: DeviceDiagnosticSummary[];
+  connectionIssue: boolean;
+}> {
+  const [commands, diagnostics] = await Promise.all([
+    apiGet<RemoteCommandSummary[]>(
+      `/tenants/${tenantId}/devices/${deviceId}/commands`,
+    ),
+    apiGet<DeviceDiagnosticSummary[]>(
+      `/tenants/${tenantId}/devices/${deviceId}/diagnostics?limit=8`,
+    ),
+  ]);
+
+  return {
+    commands: commands.data ?? [],
+    connectionIssue: commands.failed || diagnostics.failed,
+    diagnostics: diagnostics.data ?? [],
   };
 }
 
