@@ -1,8 +1,13 @@
 import { UnauthorizedException } from "@nestjs/common";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { AuthService } from "./auth.service";
+import type { AuthenticatedUser } from "./types/authenticated-request";
 
 describe("AuthService", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("builds a development user from explicit dev headers", async () => {
     vi.stubEnv("AUTH_MODE", "development");
     const service = new AuthService();
@@ -31,4 +36,77 @@ describe("AuthService", () => {
       }),
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
+
+  it("rejects development authentication in production by default", async () => {
+    vi.stubEnv("AUTH_MODE", "development");
+    vi.stubEnv("NODE_ENV", "production");
+    const service = new AuthService();
+
+    await expect(service.authenticate({})).rejects.toThrow(
+      "Development authentication is disabled in production",
+    );
+  });
+
+  it("rejects Auth0 users that are not active in stored staff state", async () => {
+    const service = new AuthService({
+      user: {
+        findFirst: vi.fn().mockResolvedValue({
+          forcedLogoutAt: null,
+          status: "SUSPENDED",
+        }),
+      },
+    } as never);
+    const enforce = storedStateEnforcer(service);
+
+    await expect(enforce(auth0User())).rejects.toThrow(
+      "User account is not active",
+    );
+  });
+
+  it("rejects Auth0 tokens issued before a forced logout", async () => {
+    const service = new AuthService({
+      user: {
+        findFirst: vi.fn().mockResolvedValue({
+          forcedLogoutAt: new Date("2026-01-01T12:00:00.000Z"),
+          status: "ACTIVE",
+        }),
+      },
+    } as never);
+    const enforce = storedStateEnforcer(service);
+
+    await expect(
+      enforce(
+        auth0User({
+          tokenIssuedAt: new Date("2026-01-01T11:59:59.000Z"),
+        }),
+      ),
+    ).rejects.toThrow("User session has been revoked");
+  });
 });
+
+function storedStateEnforcer(
+  service: AuthService,
+): (user: AuthenticatedUser) => Promise<AuthenticatedUser> {
+  return (
+    service as unknown as {
+      enforceStoredUserState(
+        user: AuthenticatedUser,
+      ): Promise<AuthenticatedUser>;
+    }
+  ).enforceStoredUserState.bind(service);
+}
+
+function auth0User(
+  overrides: Partial<AuthenticatedUser> = {},
+): AuthenticatedUser {
+  return {
+    authMode: "auth0",
+    email: "admin@example.com",
+    permissions: ["tenant:read"],
+    role: "SCHOOL_ADMIN",
+    subject: "auth0|admin",
+    tenantIds: ["tenant-1"],
+    tokenIssuedAt: new Date("2026-01-01T12:00:01.000Z"),
+    ...overrides,
+  };
+}

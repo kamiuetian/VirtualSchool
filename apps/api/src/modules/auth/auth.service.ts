@@ -1,6 +1,7 @@
-import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { Injectable, Optional, UnauthorizedException } from "@nestjs/common";
 import type { Role } from "@virtual-school/shared";
 import type { JWTPayload } from "jose";
+import { PrismaService } from "../prisma/prisma.service";
 import { apiRolePermissions, apiRoles } from "./rbac";
 import type { AuthenticatedUser } from "./types/authenticated-request";
 
@@ -16,7 +17,7 @@ export class AuthService {
   private readonly config: AuthConfig;
   private jwks?: unknown;
 
-  constructor() {
+  constructor(@Optional() private readonly prisma?: PrismaService) {
     const mode = (process.env.AUTH_MODE ?? "development").toLowerCase();
     const issuer =
       process.env.AUTH0_ISSUER_BASE_URL ??
@@ -71,7 +72,7 @@ export class AuthService {
       },
     );
 
-    return this.userFromJwtPayload(payload);
+    return this.enforceStoredUserState(this.userFromJwtPayload(payload));
   }
 
   private async getJwks(): Promise<unknown> {
@@ -99,6 +100,15 @@ export class AuthService {
   private authenticateDevelopment(
     headers: Record<string, string | string[] | undefined>,
   ): AuthenticatedUser {
+    if (
+      process.env.NODE_ENV === "production" &&
+      process.env.ALLOW_DEVELOPMENT_AUTH_IN_PRODUCTION !== "true"
+    ) {
+      throw new UnauthorizedException(
+        "Development authentication is disabled in production",
+      );
+    }
+
     const role = this.parseRole(
       this.headerValue(headers["x-dev-role"]) ?? "PLATFORM_SUPER_ADMIN",
     );
@@ -138,8 +148,57 @@ export class AuthService {
       permissions: apiRolePermissions[role],
       role,
       subject: payload.sub ?? "unknown",
+      tokenIssuedAt:
+        typeof payload.iat === "number"
+          ? new Date(payload.iat * 1000)
+          : undefined,
       tenantIds: role === "PLATFORM_SUPER_ADMIN" ? ["*"] : tenantIds,
     };
+  }
+
+  private async enforceStoredUserState(
+    user: AuthenticatedUser,
+  ): Promise<AuthenticatedUser> {
+    if (!this.prisma) {
+      return user;
+    }
+
+    const storedUser = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { auth0Subject: user.subject },
+          ...(user.email && !user.tenantIds.includes("*")
+            ? [
+                {
+                  email: user.email,
+                  tenantId: { in: user.tenantIds },
+                },
+              ]
+            : []),
+        ],
+      },
+      select: {
+        forcedLogoutAt: true,
+        status: true,
+      },
+    });
+
+    if (!storedUser) {
+      return user;
+    }
+
+    if (storedUser.status !== "ACTIVE") {
+      throw new UnauthorizedException("User account is not active");
+    }
+
+    if (
+      storedUser.forcedLogoutAt &&
+      (!user.tokenIssuedAt || user.tokenIssuedAt <= storedUser.forcedLogoutAt)
+    ) {
+      throw new UnauthorizedException("User session has been revoked");
+    }
+
+    return user;
   }
 
   private parseRole(value: string): Role {

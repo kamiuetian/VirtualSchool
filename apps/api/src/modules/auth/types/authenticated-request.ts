@@ -8,6 +8,7 @@ export type AuthenticatedUser = {
   role: Role;
   permissions: string[];
   authMode: "auth0" | "development";
+  tokenIssuedAt?: Date;
 };
 
 export type AuthenticatedRequest = Request & {
