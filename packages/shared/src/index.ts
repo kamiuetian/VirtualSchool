@@ -7,3 +7,4 @@ export * from "./roster";
 export * from "./tenant";
 export * from "./device";
 export * from "./user";
+export * from "./timetable";

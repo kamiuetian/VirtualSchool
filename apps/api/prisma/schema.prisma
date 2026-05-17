@@ -88,22 +88,24 @@ model Tenant {
   appCatalogItems   AppCatalogItem[]
   policies          Policy[]
   policyAssignments PolicyAssignment[]
+  timetableBlocks   TimetableBlock[]
   auditEvents       AuditEvent[]
 }
 
 model Branch {
-  id        String         @id @default(uuid())
-  tenantId  String
-  name      String
-  timezone  String?
-  status    String         @default("ACTIVE")
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
-  tenant    Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  users     User[]
-  students  Student[]
-  classes   ClassSection[]
-  devices   Device[]
+  id              String           @id @default(uuid())
+  tenantId        String
+  name            String
+  timezone        String?
+  status          String           @default("ACTIVE")
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  users           User[]
+  students        Student[]
+  classes         ClassSection[]
+  devices         Device[]
+  timetableBlocks TimetableBlock[]
 
   @@index([tenantId])
 }
@@ -179,18 +181,19 @@ model StudentGuardian {
 }
 
 model ClassSection {
-  id        String            @id @default(uuid())
-  tenantId  String
-  branchId  String?
-  name      String
-  grade     String
-  subject   String?
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
-  tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branch    Branch?           @relation(fields: [branchId], references: [id])
-  members   ClassMembership[]
-  devices   Device[]
+  id              String            @id @default(uuid())
+  tenantId        String
+  branchId        String?
+  name            String
+  grade           String
+  subject         String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch          Branch?           @relation(fields: [branchId], references: [id])
+  members         ClassMembership[]
+  devices         Device[]
+  timetableBlocks TimetableBlock[]
 
   @@index([tenantId, grade])
 }
@@ -300,19 +303,53 @@ model AppCatalogItem {
 }
 
 model Policy {
-  id          String             @id @default(uuid())
-  tenantId    String
-  name        String
-  status      String             @default("DRAFT")
-  version     Int                @default(1)
-  rules       Json
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  versions    PolicyVersion[]
-  assignments PolicyAssignment[]
+  id              String             @id @default(uuid())
+  tenantId        String
+  name            String
+  status          String             @default("DRAFT")
+  version         Int                @default(1)
+  rules           Json
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  tenant          Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  versions        PolicyVersion[]
+  assignments     PolicyAssignment[]
+  timetableBlocks TimetableBlock[]
 
   @@index([tenantId, status])
+}
+
+model TimetableBlock {
+  id             String        @id @default(uuid())
+  tenantId       String
+  branchId       String?
+  policyId       String
+  scope          String
+  scopeId        String?
+  classId        String?
+  grade          String?
+  name           String
+  subject        String?
+  dayOfWeek      Int
+  startMinute    Int
+  endMinute      Int
+  timezone       String?
+  effectiveFrom  DateTime?
+  effectiveUntil DateTime?
+  active         Boolean       @default(true)
+  actorId        String?
+  reason         String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch         Branch?       @relation(fields: [branchId], references: [id])
+  policy         Policy        @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  class          ClassSection? @relation(fields: [classId], references: [id])
+
+  @@index([tenantId, active, dayOfWeek])
+  @@index([tenantId, scope, scopeId])
+  @@index([tenantId, classId])
+  @@index([policyId])
 }
 
 model PolicyAssignment {

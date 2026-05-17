@@ -11,6 +11,7 @@ import { RemoteCommandsModule } from "./remote-commands/remote-commands.module";
 import { ReportsModule } from "./reports/reports.module";
 import { RosterModule } from "./roster/roster.module";
 import { TenantsModule } from "./tenants/tenants.module";
+import { TimetableModule } from "./timetable/timetable.module";
 import { UsersModule } from "./users/users.module";
 
 @Module({
@@ -28,6 +29,7 @@ import { UsersModule } from "./users/users.module";
     AuditModule,
     ReportsModule,
     UsersModule,
+    TimetableModule,
   ],
 })
 export class AppModule {}
