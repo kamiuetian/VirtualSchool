@@ -68,5 +68,11 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Install Playwright Chromium
+        run: pnpm --filter @virtual-school/admin exec playwright install --with-deps chromium
+
+      - name: Admin browser regression
+        run: pnpm --filter @virtual-school/admin test:e2e
+
       - name: Build
         run: pnpm build

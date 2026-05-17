@@ -5,6 +5,10 @@ node_modules/
 dist/
 build/
 coverage/
+playwright-report/
+test-results/
+apps/admin/playwright-report/
+apps/admin/test-results/
 apps/api/src/generated/
 *.log
 .env
