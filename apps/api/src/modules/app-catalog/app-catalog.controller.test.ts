@@ -12,6 +12,7 @@ describe("AppCatalogController", () => {
     });
     const controller = new AppCatalogController({
       createApp,
+      deployApp: vi.fn(),
       listApps: vi.fn(),
       updateApp: vi.fn(),
     } as never);
@@ -34,6 +35,7 @@ describe("AppCatalogController", () => {
     });
     const controller = new AppCatalogController({
       createApp: vi.fn(),
+      deployApp: vi.fn(),
       listApps: vi.fn(),
       updateApp,
     } as never);
@@ -46,5 +48,45 @@ describe("AppCatalogController", () => {
       approvalStatus: "DEPRECATED",
     });
     expect(updateApp).toHaveBeenCalledOnce();
+  });
+
+  it("delegates app deployment with authenticated actor", async () => {
+    const deployApp = vi.fn().mockResolvedValue({
+      appId: "app-1",
+      queuedCommands: 2,
+    });
+    const controller = new AppCatalogController({
+      createApp: vi.fn(),
+      deployApp,
+      listApps: vi.fn(),
+      updateApp: vi.fn(),
+    } as never);
+
+    await expect(
+      controller.deployApp(
+        "tenant-1",
+        "app-1",
+        {
+          action: "INSTALL",
+          scope: "CLASS",
+          scopeId: "class-1",
+        },
+        {
+          user: {
+            subject: "admin-1",
+          },
+        } as never,
+      ),
+    ).resolves.toMatchObject({
+      queuedCommands: 2,
+    });
+    expect(deployApp).toHaveBeenCalledWith(
+      "tenant-1",
+      "app-1",
+      expect.objectContaining({
+        scopeId: "class-1",
+      }),
+      "admin-1",
+    );
   });
 });

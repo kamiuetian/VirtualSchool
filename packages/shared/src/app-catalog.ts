@@ -24,3 +24,30 @@ export type AppCatalogItemSummary = {
   createdAt: string;
   updatedAt: string;
 };
+
+export const appDeploymentActions = ["INSTALL", "REMOVE"] as const;
+
+export type AppDeploymentAction = (typeof appDeploymentActions)[number];
+
+export const appDeploymentScopes = [
+  "TENANT",
+  "GRADE",
+  "CLASS",
+  "STUDENT",
+  "DEVICE",
+] as const;
+
+export type AppDeploymentScope = (typeof appDeploymentScopes)[number];
+
+export type AppDeploymentSummary = {
+  tenantId: string;
+  appId: string;
+  packageId: string;
+  action: AppDeploymentAction;
+  scope: AppDeploymentScope;
+  scopeId?: string | null;
+  targetedDevices: number;
+  queuedCommands: number;
+  skippedDevices: number;
+  commandIds: string[];
+};

@@ -168,4 +168,40 @@ describe("CommandDispatchService", () => {
       ],
     });
   });
+
+  it("leaves app deployment commands for device-side claim instead of MDM issueCommand", async () => {
+    const dispatchCommand = vi.fn();
+    const findMany = vi.fn().mockResolvedValueOnce([]);
+    const service = new CommandDispatchService(
+      {
+        remoteCommand: {
+          findMany,
+          updateMany: vi.fn(),
+        },
+      } as never,
+      {
+        getActiveConnector: () => ({
+          dispatchCommand,
+          key: "ANDROID_MANAGEMENT_API",
+        }),
+      } as never,
+    );
+
+    await expect(
+      service.dispatchQueuedCommands("tenant-1", 10),
+    ).resolves.toMatchObject({
+      attempted: 0,
+      commands: [],
+    });
+    expect(dispatchCommand).not.toHaveBeenCalled();
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          type: {
+            in: ["LOCK", "WIPE"],
+          },
+        }),
+      }),
+    );
+  });
 });

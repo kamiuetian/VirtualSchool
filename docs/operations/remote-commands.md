@@ -76,7 +76,7 @@ The direct Android connector maps Phase 1 commands to `enterprises.devices.issue
 - `WIPE` maps to Android Management API `WIPE` with `wipeParams.wipeReason`.
 - `preserveFactoryResetProtection=true` maps to `PRESERVE_RESET_PROTECTION_DATA`.
 
-Commands such as `APP_INSTALL`, `APP_REMOVE`, `POLICY_REFRESH`, `SEND_MESSAGE`, and `UNLOCK` are not direct Android Management API commands in Phase 1. They remain queued domain commands until policy publishing, launcher messaging, or a later connector path handles them.
+Commands such as `APP_INSTALL`, `APP_REMOVE`, `POLICY_REFRESH`, `SEND_MESSAGE`, and `UNLOCK` are not direct Android Management API `issueCommand` commands in Phase 1. They remain queued domain commands for device-side claim, policy publishing, launcher messaging, or later connector-specific handling.
 
 Production mode requires:
 

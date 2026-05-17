@@ -6,12 +6,18 @@ import {
   Param,
   Patch,
   Post,
+  Req,
 } from "@nestjs/common";
 import { ApiCreatedResponse, ApiOkResponse, ApiTags } from "@nestjs/swagger";
-import type { AppCatalogItemSummary } from "@virtual-school/shared";
+import type {
+  AppCatalogItemSummary,
+  AppDeploymentSummary,
+} from "@virtual-school/shared";
 import { RequirePermissions } from "../auth/decorators/require-permissions.decorator";
+import type { AuthenticatedRequest } from "../auth/types/authenticated-request";
 import { AppCatalogService } from "./app-catalog.service";
 import { CreateAppCatalogItemDto } from "./dto/create-app-catalog-item.dto";
+import { DeployAppDto } from "./dto/deploy-app.dto";
 import { UpdateAppCatalogItemDto } from "./dto/update-app-catalog-item.dto";
 
 @ApiTags("app-catalog")
@@ -53,5 +59,25 @@ export class AppCatalogController {
     @Body() body: UpdateAppCatalogItemDto,
   ): Promise<AppCatalogItemSummary> {
     return this.appCatalogService.updateApp(tenantId, appId, body);
+  }
+
+  @Post(":appId/deployments")
+  @RequirePermissions("device:command")
+  @ApiCreatedResponse({
+    description:
+      "Queue app install or remove deployment commands for matching devices",
+  })
+  deployApp(
+    @Param("tenantId") tenantId: string,
+    @Param("appId") appId: string,
+    @Body() body: DeployAppDto,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<AppDeploymentSummary> {
+    return this.appCatalogService.deployApp(
+      tenantId,
+      appId,
+      body,
+      request.user?.subject,
+    );
   }
 }

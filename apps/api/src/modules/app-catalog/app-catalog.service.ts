@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Inject,
   Injectable,
@@ -7,12 +8,29 @@ import {
 import type {
   AppApprovalStatus,
   AppCatalogItemSummary,
+  AppDeploymentAction,
+  AppDeploymentScope,
+  AppDeploymentSummary,
   AppInstallRule,
+  RemoteCommandType,
 } from "@virtual-school/shared";
-import { type AppCatalogItem, Prisma } from "../../generated/prisma";
+import {
+  type AppCatalogItem,
+  type Device,
+  Prisma,
+} from "../../generated/prisma";
 import { PrismaService } from "../prisma/prisma.service";
 import type { CreateAppCatalogItemDto } from "./dto/create-app-catalog-item.dto";
+import type { DeployAppDto } from "./dto/deploy-app.dto";
 import type { UpdateAppCatalogItemDto } from "./dto/update-app-catalog-item.dto";
+
+const deployableDeviceStatuses: Device["status"][] = [
+  "ONLINE",
+  "OFFLINE",
+  "LOCKED",
+  "NON_COMPLIANT",
+  "PENDING",
+];
 
 @Injectable()
 export class AppCatalogService {
@@ -154,6 +172,106 @@ export class AppCatalogService {
     return this.toSummary(updated);
   }
 
+  async deployApp(
+    tenantId: string,
+    appId: string,
+    input: DeployAppDto,
+    actorId: string | undefined,
+  ): Promise<AppDeploymentSummary> {
+    const app = await this.prisma.appCatalogItem.findFirst({
+      where: {
+        id: appId,
+        tenantId,
+      },
+    });
+
+    if (!app) {
+      throw new NotFoundException(
+        `App ${appId} was not found for tenant ${tenantId}`,
+      );
+    }
+
+    if (input.action === "INSTALL" && app.approvalStatus !== "APPROVED") {
+      throw new BadRequestException(
+        "Only approved apps can be deployed for installation",
+      );
+    }
+
+    this.validateDeploymentScope(input.scope, input.scopeId);
+    await this.ensureDeploymentTargetExists(
+      tenantId,
+      input.scope,
+      input.scopeId,
+    );
+
+    const devices = await this.findDeploymentDevices(
+      tenantId,
+      input.scope,
+      input.scopeId,
+    );
+    const expiresAt = new Date(Date.now() + (input.ttlMinutes ?? 120) * 60_000);
+    const commandType: RemoteCommandType =
+      input.action === "INSTALL" ? "APP_INSTALL" : "APP_REMOVE";
+    const payload = this.deploymentPayload(app, input.action, input);
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const commandIds: string[] = [];
+
+      for (const device of devices) {
+        const created = await tx.remoteCommand.create({
+          data: {
+            deviceId: device.id,
+            expiresAt,
+            maxAttempts: input.maxAttempts ?? 3,
+            payload: payload as Prisma.InputJsonValue,
+            reason: input.reason,
+            requestedBy: actorId,
+            status: "QUEUED",
+            tenantId,
+            type: commandType,
+          },
+        });
+
+        commandIds.push(created.id);
+      }
+
+      await tx.auditEvent.create({
+        data: {
+          action: "app_deployment.queue",
+          actorId,
+          newValue: {
+            action: input.action,
+            commandType,
+            packageId: app.packageId,
+            queuedCommands: commandIds.length,
+            scope: input.scope,
+            scopeId: input.scopeId,
+          },
+          object: "AppCatalogItem",
+          objectId: app.id,
+          outcome: "QUEUED",
+          reason: input.reason,
+          tenantId,
+        },
+      });
+
+      return commandIds;
+    });
+
+    return {
+      action: input.action,
+      appId: app.id,
+      commandIds: result,
+      packageId: app.packageId,
+      queuedCommands: result.length,
+      scope: input.scope,
+      scopeId: input.scope === "TENANT" ? null : input.scopeId,
+      skippedDevices: 0,
+      targetedDevices: devices.length,
+      tenantId,
+    };
+  }
+
   private async ensureTenantExists(tenantId: string): Promise<void> {
     const tenant = await this.prisma.tenant.findUnique({
       select: {
@@ -183,6 +301,194 @@ export class AppCatalogService {
       packageId: app.packageId,
       tenantId: app.tenantId,
       updatedAt: app.updatedAt.toISOString(),
+    };
+  }
+
+  private validateDeploymentScope(
+    scope: AppDeploymentScope,
+    scopeId: string | undefined,
+  ): void {
+    if (scope === "TENANT" && scopeId) {
+      throw new BadRequestException(
+        "Tenant deployments must not include scopeId",
+      );
+    }
+
+    if (scope !== "TENANT" && !scopeId) {
+      throw new BadRequestException(`${scope} deployments require scopeId`);
+    }
+  }
+
+  private async ensureDeploymentTargetExists(
+    tenantId: string,
+    scope: AppDeploymentScope,
+    scopeId: string | undefined,
+  ): Promise<void> {
+    if (scope === "TENANT") {
+      await this.ensureTenantExists(tenantId);
+      return;
+    }
+
+    if (scope === "GRADE") {
+      const student = await this.prisma.student.findFirst({
+        select: {
+          id: true,
+        },
+        where: {
+          grade: scopeId,
+          tenantId,
+        },
+      });
+
+      if (!student) {
+        throw new NotFoundException(
+          `Grade ${scopeId} was not found for tenant ${tenantId}`,
+        );
+      }
+      return;
+    }
+
+    if (scope === "CLASS") {
+      const classSection = await this.prisma.classSection.findFirst({
+        select: {
+          id: true,
+        },
+        where: {
+          id: scopeId,
+          tenantId,
+        },
+      });
+
+      if (!classSection) {
+        throw new NotFoundException(
+          `Class ${scopeId} was not found for tenant ${tenantId}`,
+        );
+      }
+      return;
+    }
+
+    if (scope === "STUDENT") {
+      const student = await this.prisma.student.findFirst({
+        select: {
+          id: true,
+        },
+        where: {
+          id: scopeId,
+          tenantId,
+        },
+      });
+
+      if (!student) {
+        throw new NotFoundException(
+          `Student ${scopeId} was not found for tenant ${tenantId}`,
+        );
+      }
+      return;
+    }
+
+    const device = await this.prisma.device.findFirst({
+      select: {
+        id: true,
+      },
+      where: {
+        id: scopeId,
+        tenantId,
+      },
+    });
+
+    if (!device) {
+      throw new NotFoundException(
+        `Device ${scopeId} was not found for tenant ${tenantId}`,
+      );
+    }
+  }
+
+  private async findDeploymentDevices(
+    tenantId: string,
+    scope: AppDeploymentScope,
+    scopeId: string | undefined,
+  ): Promise<Array<Pick<Device, "id">>> {
+    const baseWhere = {
+      status: {
+        in: deployableDeviceStatuses,
+      },
+      tenantId,
+    };
+
+    if (scope === "TENANT") {
+      return this.prisma.device.findMany({
+        select: {
+          id: true,
+        },
+        where: baseWhere,
+      });
+    }
+
+    if (scope === "GRADE") {
+      return this.prisma.device.findMany({
+        select: {
+          id: true,
+        },
+        where: {
+          ...baseWhere,
+          student: {
+            grade: scopeId,
+          },
+        },
+      });
+    }
+
+    if (scope === "CLASS") {
+      return this.prisma.device.findMany({
+        select: {
+          id: true,
+        },
+        where: {
+          ...baseWhere,
+          classId: scopeId,
+        },
+      });
+    }
+
+    if (scope === "STUDENT") {
+      return this.prisma.device.findMany({
+        select: {
+          id: true,
+        },
+        where: {
+          ...baseWhere,
+          studentId: scopeId,
+        },
+      });
+    }
+
+    return this.prisma.device.findMany({
+      select: {
+        id: true,
+      },
+      where: {
+        ...baseWhere,
+        id: scopeId,
+      },
+    });
+  }
+
+  private deploymentPayload(
+    app: AppCatalogItem,
+    action: AppDeploymentAction,
+    input: DeployAppDto,
+  ): Record<string, unknown> {
+    const installRules = app.installRules as AppInstallRule | null;
+
+    return {
+      action,
+      appId: app.id,
+      appName: app.name,
+      installRules,
+      packageId: app.packageId,
+      scope: input.scope,
+      scopeId: input.scope === "TENANT" ? null : input.scopeId,
+      source: "APP_DEPLOYMENT",
     };
   }
 }

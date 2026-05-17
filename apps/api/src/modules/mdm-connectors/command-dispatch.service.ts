@@ -20,6 +20,8 @@ type DispatchableCommand = RemoteCommand & {
   >;
 };
 
+const mdmConnectorCommandTypes: RemoteCommandType[] = ["LOCK", "WIPE"];
+
 @Injectable()
 export class CommandDispatchService {
   constructor(
@@ -52,6 +54,9 @@ export class CommandDispatchService {
       },
       take: limit * 3,
       where: {
+        type: {
+          in: mdmConnectorCommandTypes,
+        },
         status: "QUEUED",
         tenantId,
         OR: [
