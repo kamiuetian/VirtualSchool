@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "Virtual School MDM",
-  description: "Phase 1 Android managed learning device platform"
+  title: "Virtual School Device Management",
+  description: "School operations console for managed Android learning tablets"
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
