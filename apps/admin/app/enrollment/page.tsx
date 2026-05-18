@@ -18,7 +18,7 @@ import { formatCount, formatDate, humanize } from "../../lib/format";
 export const dynamic = "force-dynamic";
 
 export default async function EnrollmentPage() {
-  const data = await getAdminData();
+  const data = await getAdminData("/enrollment");
   const batchesWithQr = await Promise.all(
     data.enrollmentBatches.map(async (batch) => ({
       batch,

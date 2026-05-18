@@ -17,6 +17,7 @@ import {
   updateSupportNoteAction,
 } from "../../lib/actions";
 import { getAdminData, getDeviceSupportData } from "../../lib/api";
+import { roleCan } from "../../lib/auth/portal-access";
 import { formatCount, formatDateTime, humanize } from "../../lib/format";
 
 export const dynamic = "force-dynamic";
@@ -27,8 +28,10 @@ export default async function SupportPage({
   searchParams?: Promise<{ deviceId?: string }>;
 }) {
   const params = await searchParams;
-  const data = await getAdminData();
+  const data = await getAdminData("/support");
   const selectedTenant = data.selectedTenant;
+  const canManageSupport = roleCan(data.session.role, "device:command");
+  const canManageRetention = roleCan(data.session.role, "tenant:update");
   const selectedDevice =
     data.devices.find((device) => device.id === params?.deviceId) ??
     data.devices[0] ??
@@ -86,47 +89,49 @@ export default async function SupportPage({
                 </div>
               </ActionPanel>
 
-              <ActionPanel title="Create support note">
-                <form action={createSupportNoteAction} className="stacked-form">
-                  <input name="tenantId" type="hidden" value={selectedTenant.id} />
-                  <input name="deviceId" type="hidden" value={selectedDevice.id} />
-                  <div className="form-row">
-                    <Field label="Category">
-                      <select name="category" defaultValue="GENERAL">
-                        <option value="GENERAL">General</option>
-                        <option value="INCIDENT">Incident</option>
-                        <option value="ESCALATION">Escalation</option>
-                        <option value="DEPLOYMENT">Deployment</option>
-                        <option value="ENROLLMENT">Enrollment</option>
-                        <option value="PRIVACY">Privacy</option>
+              {canManageSupport ? (
+                <ActionPanel title="Create support note">
+                  <form action={createSupportNoteAction} className="stacked-form">
+                    <input name="tenantId" type="hidden" value={selectedTenant.id} />
+                    <input name="deviceId" type="hidden" value={selectedDevice.id} />
+                    <div className="form-row">
+                      <Field label="Category">
+                        <select name="category" defaultValue="GENERAL">
+                          <option value="GENERAL">General</option>
+                          <option value="INCIDENT">Incident</option>
+                          <option value="ESCALATION">Escalation</option>
+                          <option value="DEPLOYMENT">Deployment</option>
+                          <option value="ENROLLMENT">Enrollment</option>
+                          <option value="PRIVACY">Privacy</option>
+                        </select>
+                      </Field>
+                      <Field label="Severity">
+                        <select name="severity" defaultValue="S3">
+                          <option value="S1">S1</option>
+                          <option value="S2">S2</option>
+                          <option value="S3">S3</option>
+                          <option value="S4">S4</option>
+                        </select>
+                      </Field>
+                    </div>
+                    <Field label="Visibility">
+                      <select name="visibility" defaultValue="INTERNAL">
+                        <option value="INTERNAL">Internal</option>
+                        <option value="SCHOOL">School visible</option>
                       </select>
                     </Field>
-                    <Field label="Severity">
-                      <select name="severity" defaultValue="S3">
-                        <option value="S1">S1</option>
-                        <option value="S2">S2</option>
-                        <option value="S3">S3</option>
-                        <option value="S4">S4</option>
-                      </select>
+                    <Field label="Note">
+                      <textarea name="body" placeholder="Record the support finding or next action" required />
                     </Field>
-                  </div>
-                  <Field label="Visibility">
-                    <select name="visibility" defaultValue="INTERNAL">
-                      <option value="INTERNAL">Internal</option>
-                      <option value="SCHOOL">School visible</option>
-                    </select>
-                  </Field>
-                  <Field label="Note">
-                    <textarea name="body" placeholder="Record the support finding or next action" required />
-                  </Field>
-                  <label className="check-field">
-                    <input name="pinned" type="checkbox" />
-                    <span>Pin note to device record</span>
-                  </label>
-                  <input name="status" type="hidden" value="OPEN" />
-                  <SubmitButton>Add note</SubmitButton>
-                </form>
-              </ActionPanel>
+                    <label className="check-field">
+                      <input name="pinned" type="checkbox" />
+                      <span>Pin note to device record</span>
+                    </label>
+                    <input name="status" type="hidden" value="OPEN" />
+                    <SubmitButton>Add note</SubmitButton>
+                  </form>
+                </ActionPanel>
+              ) : null}
             </div>
           ) : (
             <EmptyState
@@ -150,20 +155,22 @@ export default async function SupportPage({
                     <StatusPill tone={note.status === "RESOLVED" ? "good" : "warning"}>
                       {humanize(note.status)}
                     </StatusPill>
-                    <form action={updateSupportNoteAction} className="row-form">
-                      <input name="tenantId" type="hidden" value={selectedTenant.id} />
-                      <input name="noteId" type="hidden" value={note.id} />
-                      <Field label="Status">
-                        <select name="status" defaultValue={note.status}>
-                          <option value="OPEN">Open</option>
-                          <option value="IN_PROGRESS">In progress</option>
-                          <option value="RESOLVED">Resolved</option>
-                        </select>
-                      </Field>
-                      <button className="small-button primary" type="submit">
-                        Save
-                      </button>
-                    </form>
+                    {canManageSupport ? (
+                      <form action={updateSupportNoteAction} className="row-form">
+                        <input name="tenantId" type="hidden" value={selectedTenant.id} />
+                        <input name="noteId" type="hidden" value={note.id} />
+                        <Field label="Status">
+                          <select name="status" defaultValue={note.status}>
+                            <option value="OPEN">Open</option>
+                            <option value="IN_PROGRESS">In progress</option>
+                            <option value="RESOLVED">Resolved</option>
+                          </select>
+                        </Field>
+                        <button className="small-button primary" type="submit">
+                          Save
+                        </button>
+                      </form>
+                    ) : null}
                   </div>
                 </article>
               ))}
@@ -198,7 +205,7 @@ export default async function SupportPage({
           )}
         </PageSection>
 
-        {selectedTenant && data.retentionSettings ? (
+        {selectedTenant && canManageRetention && data.retentionSettings ? (
           <PageSection kicker="Privacy operations" title="Retention Settings">
             <div className="form-grid two">
               <ActionPanel title="Data retention windows">

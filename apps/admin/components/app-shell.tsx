@@ -19,22 +19,26 @@ import {
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { TenantSummary } from "@virtual-school/shared";
+import {
+  type PortalHref,
+  visiblePortalNavigation,
+} from "../lib/auth/portal-access";
 import { getAdminSession, logoutHref } from "../lib/auth/session";
 
-const navigation = [
-  { href: "/", icon: LayoutDashboard, label: "Overview" },
-  { href: "/tenants", icon: GraduationCap, label: "Schools" },
-  { href: "/roster", icon: Users, label: "Roster" },
-  { href: "/enrollment", icon: QrCode, label: "Enrollment" },
-  { href: "/devices", icon: Laptop, label: "Devices" },
-  { href: "/policies", icon: ShieldCheck, label: "Policies" },
-  { href: "/timetable", icon: CalendarClock, label: "Timetable" },
-  { href: "/apps", icon: AppWindow, label: "Apps & Web" },
-  { href: "/alerts", icon: AlertTriangle, label: "Alerts" },
-  { href: "/support", icon: Headset, label: "Support" },
-  { href: "/reports", icon: FileBarChart, label: "Reports" },
-  { href: "/billing", icon: ReceiptText, label: "Billing" },
-] as const;
+const navigationIcons = {
+  "/": LayoutDashboard,
+  "/alerts": AlertTriangle,
+  "/apps": AppWindow,
+  "/billing": ReceiptText,
+  "/devices": Laptop,
+  "/enrollment": QrCode,
+  "/policies": ShieldCheck,
+  "/reports": FileBarChart,
+  "/roster": Users,
+  "/support": Headset,
+  "/tenants": GraduationCap,
+  "/timetable": CalendarClock,
+} satisfies Record<PortalHref, typeof LayoutDashboard>;
 
 const roleLabels: Record<string, string> = {
   ACADEMIC_ADMIN: "Academic admin",
@@ -57,6 +61,7 @@ export async function AppShell({
   tenant: TenantSummary | null;
 }) {
   const session = await getAdminSession();
+  const navigation = session ? visiblePortalNavigation(session.role) : [];
 
   return (
     <div className="app-shell">
@@ -73,7 +78,7 @@ export async function AppShell({
 
         <nav className="sidebar-nav" aria-label="Primary">
           {navigation.map((item) => {
-            const Icon = item.icon;
+            const Icon = navigationIcons[item.href];
             return (
               <Link href={item.href} key={item.href}>
                 <Icon size={18} />

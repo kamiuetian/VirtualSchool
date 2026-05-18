@@ -3,7 +3,7 @@ import { adminApiRawGet, getAdminData } from "../../../lib/api";
 export const dynamic = "force-dynamic";
 
 export async function GET(): Promise<Response> {
-  const data = await getAdminData();
+  const data = await getAdminData("/reports");
 
   if (!data.selectedTenant) {
     return new Response("No school tenant selected", { status: 404 });

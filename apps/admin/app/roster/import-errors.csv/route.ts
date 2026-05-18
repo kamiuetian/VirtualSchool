@@ -3,7 +3,7 @@ import { adminApiRawGet, getAdminData } from "../../../lib/api";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request): Promise<Response> {
-  const data = await getAdminData();
+  const data = await getAdminData("/roster");
   const importId = new URL(request.url).searchParams.get("importId");
 
   if (!data.selectedTenant || !importId) {

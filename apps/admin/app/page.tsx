@@ -6,7 +6,7 @@ import { formatCount, formatDateTime, humanize } from "../lib/format";
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const data = await getAdminData();
+  const data = await getAdminData("/");
   const openAlerts = data.alerts.filter((alert) => alert.status !== "RESOLVED");
   const onlineDevices = data.devices.filter((device) => device.status === "ONLINE");
   const policyCompletion = data.onboarding

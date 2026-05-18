@@ -22,6 +22,12 @@ import type {
   TimetableBlockSummary,
   UserSummary,
 } from "@virtual-school/shared";
+import {
+  requirePortalRouteAccess,
+  roleCan,
+  type PortalHref,
+} from "./auth/portal-access";
+import type { AdminPortalSession } from "./auth/session";
 import { adminSessionHeaders, requireAdminSession } from "./auth/session";
 
 const baseUrl =
@@ -48,11 +54,16 @@ export type AdminData = {
   timetableBlocks: TimetableBlockSummary[];
   retentionSettings: RetentionSettingsSummary | null;
   billingUsage: BillingUsageSummary | null;
+  session: AdminPortalSession;
   connectionIssue: boolean;
 };
 
-export async function getAdminData(): Promise<AdminData> {
-  await requireAdminSession();
+type ApiGetResult<T> = { data: T | null; failed: boolean };
+
+export async function getAdminData(requiredPath: PortalHref = "/"): Promise<AdminData> {
+  const session = await requirePortalRouteAccess(requiredPath);
+  const can = (permission: Parameters<typeof roleCan>[1]) =>
+    roleCan(session.role, permission);
 
   const tenantsResult = await apiGet<TenantSummary[]>("/tenants");
   const tenants = tenantsResult.data ?? [];
@@ -79,6 +90,7 @@ export async function getAdminData(): Promise<AdminData> {
       users: [],
       appDeploymentReport: null,
       retentionSettings: null,
+      session,
     };
   }
 
@@ -102,21 +114,49 @@ export async function getAdminData(): Promise<AdminData> {
     billingUsage,
   ] = await Promise.all([
     apiGet<OnboardingChecklist>(`${tenantPath}/onboarding-checklist`),
-    apiGet<DeviceSummary[]>(`${tenantPath}/devices`),
-    apiGet<DeviceInventoryReport>(`${tenantPath}/reports/device-inventory`),
-    apiGet<DeviceAlertSummary[]>(`${tenantPath}/alerts?limit=8`),
-    apiGet<EnrollmentBatchSummary[]>(`${tenantPath}/enrollment-batches`),
-    apiGet<PolicySummary[]>(`${tenantPath}/policies`),
-    apiGet<PolicyAssignmentSummary[]>(`${tenantPath}/policies/assignments`),
-    apiGet<PolicyDeploymentReport>(`${tenantPath}/reports/policy-deployments`),
-    apiGet<AppCatalogItemSummary[]>(`${tenantPath}/apps`),
-    apiGet<AppDeploymentReport>(`${tenantPath}/reports/app-deployments`),
-    apiGet<StudentSummary[]>(`${tenantPath}/students`),
-    apiGet<ClassSectionSummary[]>(`${tenantPath}/classes`),
-    apiGet<UserSummary[]>(`${tenantPath}/users`),
-    apiGet<TimetableBlockSummary[]>(`${tenantPath}/timetable-blocks`),
-    apiGet<RetentionSettingsSummary>(`${tenantPath}/retention-settings`),
-    apiGet<BillingUsageSummary>(`${tenantPath}/billing/usage`),
+    can("device:read") ? apiGet<DeviceSummary[]>(`${tenantPath}/devices`) : skipped([]),
+    can("report:export")
+      ? apiGet<DeviceInventoryReport>(`${tenantPath}/reports/device-inventory`)
+      : skipped<DeviceInventoryReport>(),
+    can("device:read")
+      ? apiGet<DeviceAlertSummary[]>(`${tenantPath}/alerts?limit=8`)
+      : skipped([]),
+    can("device:enroll")
+      ? apiGet<EnrollmentBatchSummary[]>(`${tenantPath}/enrollment-batches`)
+      : skipped([]),
+    can("policy:manage")
+      ? apiGet<PolicySummary[]>(`${tenantPath}/policies`)
+      : skipped([]),
+    can("policy:manage")
+      ? apiGet<PolicyAssignmentSummary[]>(`${tenantPath}/policies/assignments`)
+      : skipped([]),
+    can("report:export")
+      ? apiGet<PolicyDeploymentReport>(`${tenantPath}/reports/policy-deployments`)
+      : skipped<PolicyDeploymentReport>(),
+    can("policy:manage")
+      ? apiGet<AppCatalogItemSummary[]>(`${tenantPath}/apps`)
+      : skipped([]),
+    can("report:export")
+      ? apiGet<AppDeploymentReport>(`${tenantPath}/reports/app-deployments`)
+      : skipped<AppDeploymentReport>(),
+    can("roster:manage") || can("class:manage")
+      ? apiGet<StudentSummary[]>(`${tenantPath}/students`)
+      : skipped([]),
+    can("roster:manage") || can("class:manage")
+      ? apiGet<ClassSectionSummary[]>(`${tenantPath}/classes`)
+      : skipped([]),
+    can("user:invite") || can("user:suspend")
+      ? apiGet<UserSummary[]>(`${tenantPath}/users`)
+      : skipped([]),
+    can("policy:manage")
+      ? apiGet<TimetableBlockSummary[]>(`${tenantPath}/timetable-blocks`)
+      : skipped([]),
+    can("tenant:update")
+      ? apiGet<RetentionSettingsSummary>(`${tenantPath}/retention-settings`)
+      : skipped<RetentionSettingsSummary>(),
+    can("billing:read")
+      ? apiGet<BillingUsageSummary>(`${tenantPath}/billing/usage`)
+      : skipped<BillingUsageSummary>(),
   ]);
 
   return {
@@ -157,6 +197,7 @@ export async function getAdminData(): Promise<AdminData> {
     users: users.data ?? [],
     appDeploymentReport: appDeploymentReport.data ?? null,
     retentionSettings: retentionSettings.data ?? null,
+    session,
   };
 }
 
@@ -260,7 +301,7 @@ export async function adminApiRawGet(path: string): Promise<Response> {
 
 async function apiGet<T>(
   path: string,
-): Promise<{ data: T | null; failed: boolean }> {
+): Promise<ApiGetResult<T>> {
   try {
     const response = await fetch(`${baseUrl}${path}`, {
       cache: "no-store",
@@ -276,6 +317,10 @@ async function apiGet<T>(
   } catch {
     return { data: null, failed: true };
   }
+}
+
+function skipped<T>(data: T | null = null): Promise<ApiGetResult<T>> {
+  return Promise.resolve({ data, failed: false });
 }
 
 async function authHeaders(): Promise<HeadersInit> {

@@ -28,7 +28,7 @@ const weekdays = [
 ] as const;
 
 export default async function TimetablePage() {
-  const data = await getAdminData();
+  const data = await getAdminData("/timetable");
   const activeBlocks = data.timetableBlocks.filter((block) => block.active);
   const classBlocks = data.timetableBlocks.filter((block) => block.scope === "CLASS");
 

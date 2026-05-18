@@ -10,13 +10,15 @@ import {
 } from "../../components/ui";
 import { createAppAction, deployAppAction } from "../../lib/actions";
 import { getAdminData } from "../../lib/api";
+import { roleCan } from "../../lib/auth/portal-access";
 import { formatCount, formatDateTime, humanize } from "../../lib/format";
 
 export const dynamic = "force-dynamic";
 
 export default async function AppsPage() {
-  const data = await getAdminData();
+  const data = await getAdminData("/apps");
   const selectedTenant = data.selectedTenant;
+  const canDeployApps = roleCan(data.session.role, "device:command");
   const approved = data.apps.filter((app) => app.approvalStatus === "APPROVED");
   const blocked = data.apps.filter((app) => app.approvalStatus === "BLOCKED");
 
@@ -85,7 +87,7 @@ export default async function AppsPage() {
           </PageSection>
         ) : null}
 
-        {selectedTenant && data.apps.length > 0 ? (
+        {selectedTenant && canDeployApps && data.apps.length > 0 ? (
           <PageSection kicker="Deployment" title="Install Or Remove Apps">
             <ActionPanel title="Queue app deployment">
               <form action={deployAppAction} className="inline-form wide">

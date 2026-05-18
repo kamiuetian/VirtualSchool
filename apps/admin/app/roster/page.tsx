@@ -25,7 +25,7 @@ export default async function RosterPage({
   searchParams?: Promise<{ importId?: string }>;
 }) {
   const params = await searchParams;
-  const data = await getAdminData();
+  const data = await getAdminData("/roster");
   const selectedTenant = data.selectedTenant;
   const rosterImport =
     selectedTenant && params?.importId

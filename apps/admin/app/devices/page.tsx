@@ -14,6 +14,7 @@ import {
   queueWipeDeviceAction,
 } from "../../lib/actions";
 import { getAdminData, getDeviceOperationsData } from "../../lib/api";
+import { roleCan } from "../../lib/auth/portal-access";
 import { formatCount, formatDateTime, humanize } from "../../lib/format";
 
 export const dynamic = "force-dynamic";
@@ -24,8 +25,11 @@ export default async function DevicesPage({
   searchParams?: Promise<{ deviceId?: string }>;
 }) {
   const params = await searchParams;
-  const data = await getAdminData();
+  const data = await getAdminData("/devices");
   const selectedTenant = data.selectedTenant;
+  const canAssignDevices = roleCan(data.session.role, "device:enroll");
+  const canQueueCommands = roleCan(data.session.role, "device:command");
+  const canWipeDevices = roleCan(data.session.role, "device:wipe");
   const selectedDevice =
     data.devices.find((device) => device.id === params?.deviceId) ??
     data.devices[0] ??
@@ -67,7 +71,7 @@ export default async function DevicesPage({
           </section>
         </PageSection>
 
-        {selectedTenant && data.devices.length > 0 ? (
+        {selectedTenant && canAssignDevices && data.devices.length > 0 ? (
           <PageSection kicker="Assignment" title="Assign Tablet">
             <ActionPanel title="Student, class, or campus assignment">
               <form action={assignDeviceAction} className="inline-form">
@@ -102,78 +106,82 @@ export default async function DevicesPage({
         {selectedTenant && selectedDevice ? (
           <PageSection kicker="Remote operations" title="Command Center">
             <div className="form-grid">
-              <ActionPanel title="Queue device command">
-                <form action={queueDeviceCommandAction} className="stacked-form">
-                  <input name="tenantId" type="hidden" value={selectedTenant.id} />
-                  <input name="deviceId" type="hidden" value={selectedDevice.id} />
-                  <Field label="Selected tablet">
-                    <select defaultValue={selectedDevice.id} disabled>
-                      {data.devices.map((device) => (
-                        <option key={device.id} value={device.id}>
-                          {device.serialNumber}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                  <Field label="Command">
-                    <select name="type" defaultValue="REQUEST_CHECK_IN">
-                      <option value="REQUEST_CHECK_IN">Request check-in</option>
-                      <option value="POLICY_REFRESH">Refresh policy</option>
-                      <option value="LOCK">Lock</option>
-                      <option value="UNLOCK">Unlock</option>
-                      <option value="SEND_MESSAGE">Send message</option>
-                      <option value="RETIRE">Retire device</option>
-                    </select>
-                  </Field>
-                  <Field label="Message">
-                    <input name="message" placeholder="Shown only for message commands" />
-                  </Field>
-                  <div className="form-row">
-                    <Field label="TTL minutes">
-                      <input defaultValue="60" min="1" name="ttlMinutes" type="number" />
+              {canQueueCommands ? (
+                <ActionPanel title="Queue device command">
+                  <form action={queueDeviceCommandAction} className="stacked-form">
+                    <input name="tenantId" type="hidden" value={selectedTenant.id} />
+                    <input name="deviceId" type="hidden" value={selectedDevice.id} />
+                    <Field label="Selected tablet">
+                      <select defaultValue={selectedDevice.id} disabled>
+                        {data.devices.map((device) => (
+                          <option key={device.id} value={device.id}>
+                            {device.serialNumber}
+                          </option>
+                        ))}
+                      </select>
                     </Field>
-                    <Field label="Attempts">
-                      <input defaultValue="3" min="1" name="maxAttempts" type="number" />
+                    <Field label="Command">
+                      <select name="type" defaultValue="REQUEST_CHECK_IN">
+                        <option value="REQUEST_CHECK_IN">Request check-in</option>
+                        <option value="POLICY_REFRESH">Refresh policy</option>
+                        <option value="LOCK">Lock</option>
+                        <option value="UNLOCK">Unlock</option>
+                        <option value="SEND_MESSAGE">Send message</option>
+                        <option value="RETIRE">Retire device</option>
+                      </select>
                     </Field>
-                  </div>
-                  <label className="check-field">
-                    <input name="confirmed" type="checkbox" />
-                    <span>Confirm high-impact operation</span>
-                  </label>
-                  <Field label="Reason">
-                    <input name="reason" placeholder="Support or classroom operation" />
-                  </Field>
-                  <SubmitButton>Queue command</SubmitButton>
-                </form>
-              </ActionPanel>
+                    <Field label="Message">
+                      <input name="message" placeholder="Shown only for message commands" />
+                    </Field>
+                    <div className="form-row">
+                      <Field label="TTL minutes">
+                        <input defaultValue="60" min="1" name="ttlMinutes" type="number" />
+                      </Field>
+                      <Field label="Attempts">
+                        <input defaultValue="3" min="1" name="maxAttempts" type="number" />
+                      </Field>
+                    </div>
+                    <label className="check-field">
+                      <input name="confirmed" type="checkbox" />
+                      <span>Confirm high-impact operation</span>
+                    </label>
+                    <Field label="Reason">
+                      <input name="reason" placeholder="Support or classroom operation" />
+                    </Field>
+                    <SubmitButton>Queue command</SubmitButton>
+                  </form>
+                </ActionPanel>
+              ) : null}
 
-              <ActionPanel title="Confirmed wipe">
-                <form action={queueWipeDeviceAction} className="stacked-form">
-                  <input name="tenantId" type="hidden" value={selectedTenant.id} />
-                  <input name="deviceId" type="hidden" value={selectedDevice.id} />
-                  <p className="form-help">
-                    Destructive reset requires the exact serial number and a
-                    reason. Use only for approved lost-device or redeployment cases.
-                  </p>
-                  <Field label="Serial confirmation">
-                    <input
-                      name="confirmationSerialNumber"
-                      placeholder={selectedDevice.serialNumber}
-                      required
-                    />
-                  </Field>
-                  <Field label="Reason">
-                    <input name="reason" placeholder="Approved wipe request" required />
-                  </Field>
-                  <label className="check-field">
-                    <input name="preserveFactoryResetProtection" type="checkbox" />
-                    <span>Preserve factory reset protection</span>
-                  </label>
-                  <button className="submit-button danger" type="submit">
-                    Queue wipe
-                  </button>
-                </form>
-              </ActionPanel>
+              {canWipeDevices ? (
+                <ActionPanel title="Confirmed wipe">
+                  <form action={queueWipeDeviceAction} className="stacked-form">
+                    <input name="tenantId" type="hidden" value={selectedTenant.id} />
+                    <input name="deviceId" type="hidden" value={selectedDevice.id} />
+                    <p className="form-help">
+                      Destructive reset requires the exact serial number and a
+                      reason. Use only for approved lost-device or redeployment cases.
+                    </p>
+                    <Field label="Serial confirmation">
+                      <input
+                        name="confirmationSerialNumber"
+                        placeholder={selectedDevice.serialNumber}
+                        required
+                      />
+                    </Field>
+                    <Field label="Reason">
+                      <input name="reason" placeholder="Approved wipe request" required />
+                    </Field>
+                    <label className="check-field">
+                      <input name="preserveFactoryResetProtection" type="checkbox" />
+                      <span>Preserve factory reset protection</span>
+                    </label>
+                    <button className="submit-button danger" type="submit">
+                      Queue wipe
+                    </button>
+                  </form>
+                </ActionPanel>
+              ) : null}
 
               <ActionPanel title="Selected tablet">
                 <div className="profile-grid single">

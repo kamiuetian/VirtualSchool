@@ -19,7 +19,7 @@ import { formatCount, formatDateTime, humanize } from "../../lib/format";
 export const dynamic = "force-dynamic";
 
 export default async function PoliciesPage() {
-  const data = await getAdminData();
+  const data = await getAdminData("/policies");
   const published = data.policies.filter((policy) => policy.status === "PUBLISHED");
 
   return (

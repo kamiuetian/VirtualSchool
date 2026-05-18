@@ -11,7 +11,7 @@ import { formatCount, formatDateTime, humanize } from "../../lib/format";
 export const dynamic = "force-dynamic";
 
 export default async function ReportsPage() {
-  const data = await getAdminData();
+  const data = await getAdminData("/reports");
   const deviceTotals = data.deviceInventory?.totals;
   const policyTotals = data.policyDeploymentReport?.totals;
   const appTotals = data.appDeploymentReport?.totals;

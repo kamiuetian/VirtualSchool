@@ -13,13 +13,15 @@ import {
   scanOfflineAlertsAction,
 } from "../../lib/actions";
 import { getAdminData } from "../../lib/api";
+import { roleCan } from "../../lib/auth/portal-access";
 import { formatCount, formatDateTime, humanize } from "../../lib/format";
 
 export const dynamic = "force-dynamic";
 
 export default async function AlertsPage() {
-  const data = await getAdminData();
+  const data = await getAdminData("/alerts");
   const selectedTenant = data.selectedTenant;
+  const canManageAlerts = roleCan(data.session.role, "device:command");
   const open = data.alerts.filter((alert) => alert.status === "OPEN");
   const critical = data.alerts.filter((alert) => alert.severity === "CRITICAL");
 
@@ -35,7 +37,7 @@ export default async function AlertsPage() {
           </section>
         </PageSection>
 
-        {selectedTenant ? (
+        {selectedTenant && canManageAlerts ? (
           <PageSection kicker="Alert action" title="Offline Detection">
             <div className="action-panel">
               <h3>Scan check-in threshold</h3>
@@ -73,7 +75,7 @@ export default async function AlertsPage() {
                     <StatusPill tone={alert.status === "RESOLVED" ? "good" : "neutral"}>
                       {humanize(alert.status)}
                     </StatusPill>
-                    {selectedTenant && alert.status !== "RESOLVED" ? (
+                    {selectedTenant && canManageAlerts && alert.status !== "RESOLVED" ? (
                       <form action={acknowledgeAlertAction} className="row-form">
                         <input name="tenantId" type="hidden" value={selectedTenant.id} />
                         <input name="alertId" type="hidden" value={alert.id} />
@@ -85,7 +87,7 @@ export default async function AlertsPage() {
                         </button>
                       </form>
                     ) : null}
-                    {selectedTenant && alert.status !== "RESOLVED" ? (
+                    {selectedTenant && canManageAlerts && alert.status !== "RESOLVED" ? (
                       <form action={resolveAlertAction} className="row-form">
                         <input name="tenantId" type="hidden" value={selectedTenant.id} />
                         <input name="alertId" type="hidden" value={alert.id} />

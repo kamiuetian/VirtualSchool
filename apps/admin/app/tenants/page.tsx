@@ -20,13 +20,18 @@ import {
   updateStaffRoleAction,
 } from "../../lib/actions";
 import { getAdminData } from "../../lib/api";
+import { roleCan } from "../../lib/auth/portal-access";
 import { formatCount, humanize } from "../../lib/format";
 
 export const dynamic = "force-dynamic";
 
 export default async function TenantsPage() {
-  const data = await getAdminData();
+  const data = await getAdminData("/tenants");
   const selectedTenant = data.selectedTenant;
+  const canCreateTenant = roleCan(data.session.role, "tenant:create");
+  const canUpdateTenant = roleCan(data.session.role, "tenant:update");
+  const canInviteUsers = roleCan(data.session.role, "user:invite");
+  const canSuspendUsers = roleCan(data.session.role, "user:suspend");
 
   return (
     <AppShell connectionIssue={data.connectionIssue} tenant={selectedTenant}>
@@ -49,83 +54,89 @@ export default async function TenantsPage() {
 
         <PageSection kicker="Setup" title="School Administration">
           <div className="form-grid">
-            <ActionPanel title="Create school">
-              <form action={createTenantAction} className="stacked-form">
-                <Field label="School name">
-                  <input name="name" placeholder="Northview Primary School" required />
-                </Field>
-                <div className="form-row">
-                  <Field label="Country">
-                    <input name="country" placeholder="US" required />
+            {canCreateTenant ? (
+              <ActionPanel title="Create school">
+                <form action={createTenantAction} className="stacked-form">
+                  <Field label="School name">
+                    <input name="name" placeholder="Northview Primary School" required />
                   </Field>
-                  <Field label="Timezone">
-                    <input name="timezone" placeholder="America/New_York" required />
+                  <div className="form-row">
+                    <Field label="Country">
+                      <input name="country" placeholder="US" required />
+                    </Field>
+                    <Field label="Timezone">
+                      <input name="timezone" placeholder="America/New_York" required />
+                    </Field>
+                  </div>
+                  <div className="form-row">
+                    <Field label="Plan">
+                      <select name="planKey" defaultValue="pilot">
+                        <option value="pilot">Pilot</option>
+                        <option value="starter">Starter</option>
+                        <option value="growth">Growth</option>
+                        <option value="enterprise">Enterprise</option>
+                      </select>
+                    </Field>
+                    <Field label="Status">
+                      <select name="status" defaultValue="PILOT">
+                        <option value="PILOT">Pilot</option>
+                        <option value="ACTIVE">Active</option>
+                      </select>
+                    </Field>
+                  </div>
+                  <Field label="Billing contact">
+                    <input name="primaryContactEmail" placeholder="admin@school.edu" type="email" />
                   </Field>
-                </div>
-                <div className="form-row">
-                  <Field label="Plan">
-                    <select name="planKey" defaultValue="pilot">
-                      <option value="pilot">Pilot</option>
-                      <option value="starter">Starter</option>
-                      <option value="growth">Growth</option>
-                      <option value="enterprise">Enterprise</option>
-                    </select>
-                  </Field>
-                  <Field label="Status">
-                    <select name="status" defaultValue="PILOT">
-                      <option value="PILOT">Pilot</option>
-                      <option value="ACTIVE">Active</option>
-                    </select>
-                  </Field>
-                </div>
-                <Field label="Billing contact">
-                  <input name="primaryContactEmail" placeholder="admin@school.edu" type="email" />
-                </Field>
-                <SubmitButton>Create school</SubmitButton>
-              </form>
-            </ActionPanel>
+                  <SubmitButton>Create school</SubmitButton>
+                </form>
+              </ActionPanel>
+            ) : null}
 
             {selectedTenant ? (
               <>
-                <ActionPanel title="Add campus">
-                  <form action={createBranchAction} className="stacked-form">
-                    <input name="tenantId" type="hidden" value={selectedTenant.id} />
-                    <Field label="Campus name">
-                      <input name="name" placeholder="Main Campus" required />
-                    </Field>
-                    <Field label="Timezone">
-                      <input
-                        name="timezone"
-                        placeholder={selectedTenant.timezone}
-                      />
-                    </Field>
-                    <SubmitButton>Add campus</SubmitButton>
-                  </form>
-                </ActionPanel>
+                {canUpdateTenant ? (
+                  <ActionPanel title="Add campus">
+                    <form action={createBranchAction} className="stacked-form">
+                      <input name="tenantId" type="hidden" value={selectedTenant.id} />
+                      <Field label="Campus name">
+                        <input name="name" placeholder="Main Campus" required />
+                      </Field>
+                      <Field label="Timezone">
+                        <input
+                          name="timezone"
+                          placeholder={selectedTenant.timezone}
+                        />
+                      </Field>
+                      <SubmitButton>Add campus</SubmitButton>
+                    </form>
+                  </ActionPanel>
+                ) : null}
 
-                <ActionPanel title="Invite staff">
-                  <form action={inviteStaffAction} className="stacked-form">
-                    <input name="tenantId" type="hidden" value={selectedTenant.id} />
-                    <Field label="Name">
-                      <input name="name" placeholder="Aisha Khan" required />
-                    </Field>
-                    <Field label="Email">
-                      <input name="email" placeholder="staff@school.edu" required type="email" />
-                    </Field>
-                    <Field label="Role">
-                      <select name="role" defaultValue="TEACHER">
-                        <option value="SCHOOL_ADMIN">School admin</option>
-                        <option value="IT_ADMIN">IT admin</option>
-                        <option value="ACADEMIC_ADMIN">Academic admin</option>
-                        <option value="TEACHER">Teacher</option>
-                        <option value="SUPPORT_AGENT">Support agent</option>
-                        <option value="BILLING_ADMIN">Billing admin</option>
-                        <option value="AUDITOR">Auditor</option>
-                      </select>
-                    </Field>
-                    <SubmitButton>Send invite</SubmitButton>
-                  </form>
-                </ActionPanel>
+                {canInviteUsers ? (
+                  <ActionPanel title="Invite staff">
+                    <form action={inviteStaffAction} className="stacked-form">
+                      <input name="tenantId" type="hidden" value={selectedTenant.id} />
+                      <Field label="Name">
+                        <input name="name" placeholder="Aisha Khan" required />
+                      </Field>
+                      <Field label="Email">
+                        <input name="email" placeholder="staff@school.edu" required type="email" />
+                      </Field>
+                      <Field label="Role">
+                        <select name="role" defaultValue="TEACHER">
+                          <option value="SCHOOL_ADMIN">School admin</option>
+                          <option value="IT_ADMIN">IT admin</option>
+                          <option value="ACADEMIC_ADMIN">Academic admin</option>
+                          <option value="TEACHER">Teacher</option>
+                          <option value="SUPPORT_AGENT">Support agent</option>
+                          <option value="BILLING_ADMIN">Billing admin</option>
+                          <option value="AUDITOR">Auditor</option>
+                        </select>
+                      </Field>
+                      <SubmitButton>Send invite</SubmitButton>
+                    </form>
+                  </ActionPanel>
+                ) : null}
               </>
             ) : null}
           </div>
@@ -186,70 +197,76 @@ export default async function TenantsPage() {
                       <StatusPill tone={userStatusTone(user.status)}>
                         {humanize(user.status)}
                       </StatusPill>
-                      <form action={updateStaffRoleAction} className="row-form">
-                        <input name="tenantId" type="hidden" value={selectedTenant.id} />
-                        <input name="userId" type="hidden" value={user.id} />
-                        <Field label="Role">
-                          <select name="role" defaultValue={user.role}>
-                            <option value="SCHOOL_ADMIN">School admin</option>
-                            <option value="IT_ADMIN">IT admin</option>
-                            <option value="ACADEMIC_ADMIN">Academic admin</option>
-                            <option value="TEACHER">Teacher</option>
-                            <option value="SUPPORT_AGENT">Support agent</option>
-                            <option value="BILLING_ADMIN">Billing admin</option>
-                            <option value="AUDITOR">Auditor</option>
-                          </select>
-                        </Field>
-                        <button className="small-button" type="submit">
-                          Update role
-                        </button>
-                      </form>
-                      <form action={setStaffMfaAction} className="button-form">
-                        <input name="tenantId" type="hidden" value={selectedTenant.id} />
-                        <input name="userId" type="hidden" value={user.id} />
-                        <input name="mfaEnabled" type="hidden" value={user.mfaEnabled ? "false" : "true"} />
-                        <input name="reason" type="hidden" value="Updated from school admin console" />
-                        <button className="small-button" type="submit">
-                          {user.mfaEnabled ? "Clear MFA" : "Mark MFA"}
-                        </button>
-                      </form>
-                      {user.status === "SUSPENDED" || user.status === "DEACTIVATED" ? (
-                        <form action={reactivateStaffAction} className="button-form">
+                      {canInviteUsers ? (
+                        <form action={updateStaffRoleAction} className="row-form">
                           <input name="tenantId" type="hidden" value={selectedTenant.id} />
                           <input name="userId" type="hidden" value={user.id} />
-                          <input name="reason" type="hidden" value="Access restored by administrator" />
-                          <button className="small-button primary" type="submit">
-                            Reactivate
+                          <Field label="Role">
+                            <select name="role" defaultValue={user.role}>
+                              <option value="SCHOOL_ADMIN">School admin</option>
+                              <option value="IT_ADMIN">IT admin</option>
+                              <option value="ACADEMIC_ADMIN">Academic admin</option>
+                              <option value="TEACHER">Teacher</option>
+                              <option value="SUPPORT_AGENT">Support agent</option>
+                              <option value="BILLING_ADMIN">Billing admin</option>
+                              <option value="AUDITOR">Auditor</option>
+                            </select>
+                          </Field>
+                          <button className="small-button" type="submit">
+                            Update role
                           </button>
                         </form>
-                      ) : (
+                      ) : null}
+                      {canSuspendUsers ? (
                         <>
-                          <form action={suspendStaffAction} className="button-form">
+                          <form action={setStaffMfaAction} className="button-form">
                             <input name="tenantId" type="hidden" value={selectedTenant.id} />
                             <input name="userId" type="hidden" value={user.id} />
-                            <input name="reason" type="hidden" value="Suspended by administrator" />
+                            <input name="mfaEnabled" type="hidden" value={user.mfaEnabled ? "false" : "true"} />
+                            <input name="reason" type="hidden" value="Updated from school admin console" />
                             <button className="small-button" type="submit">
-                              Suspend
+                              {user.mfaEnabled ? "Clear MFA" : "Mark MFA"}
                             </button>
                           </form>
-                          <form action={deactivateStaffAction} className="button-form">
+                          {user.status === "SUSPENDED" || user.status === "DEACTIVATED" ? (
+                            <form action={reactivateStaffAction} className="button-form">
+                              <input name="tenantId" type="hidden" value={selectedTenant.id} />
+                              <input name="userId" type="hidden" value={user.id} />
+                              <input name="reason" type="hidden" value="Access restored by administrator" />
+                              <button className="small-button primary" type="submit">
+                                Reactivate
+                              </button>
+                            </form>
+                          ) : (
+                            <>
+                              <form action={suspendStaffAction} className="button-form">
+                                <input name="tenantId" type="hidden" value={selectedTenant.id} />
+                                <input name="userId" type="hidden" value={user.id} />
+                                <input name="reason" type="hidden" value="Suspended by administrator" />
+                                <button className="small-button" type="submit">
+                                  Suspend
+                                </button>
+                              </form>
+                              <form action={deactivateStaffAction} className="button-form">
+                                <input name="tenantId" type="hidden" value={selectedTenant.id} />
+                                <input name="userId" type="hidden" value={user.id} />
+                                <input name="reason" type="hidden" value="Deactivated by administrator" />
+                                <button className="small-button danger" type="submit">
+                                  Deactivate
+                                </button>
+                              </form>
+                            </>
+                          )}
+                          <form action={forceLogoutStaffAction} className="button-form">
                             <input name="tenantId" type="hidden" value={selectedTenant.id} />
                             <input name="userId" type="hidden" value={user.id} />
-                            <input name="reason" type="hidden" value="Deactivated by administrator" />
-                            <button className="small-button danger" type="submit">
-                              Deactivate
+                            <input name="reason" type="hidden" value="Session reset by administrator" />
+                            <button className="small-button" type="submit">
+                              Force logout
                             </button>
                           </form>
                         </>
-                      )}
-                      <form action={forceLogoutStaffAction} className="button-form">
-                        <input name="tenantId" type="hidden" value={selectedTenant.id} />
-                        <input name="userId" type="hidden" value={user.id} />
-                        <input name="reason" type="hidden" value="Session reset by administrator" />
-                        <button className="small-button" type="submit">
-                          Force logout
-                        </button>
-                      </form>
+                      ) : null}
                     </div>
                   </article>
                 ))}
