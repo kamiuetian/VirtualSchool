@@ -83,6 +83,12 @@ model Tenant {
   language            String               @default("en")
   planKey             String
   status              TenantStatus         @default(PILOT)
+  logoUrl             String?
+  primaryColor        String?
+  accentColor         String?
+  websiteUrl          String?
+  supportEmail        String?
+  supportPhone        String?
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   branches            Branch[]

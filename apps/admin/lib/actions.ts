@@ -30,6 +30,25 @@ export async function createBranchAction(formData: FormData): Promise<void> {
   revalidateAll();
 }
 
+export async function updateTenantProfileAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation("PATCH", `/tenants/${tenantId}`, {
+    accentColor: text(formData, "accentColor"),
+    country: text(formData, "country"),
+    logoUrl: text(formData, "logoUrl"),
+    name: text(formData, "name"),
+    primaryColor: text(formData, "primaryColor"),
+    supportEmail: text(formData, "supportEmail"),
+    supportPhone: text(formData, "supportPhone"),
+    timezone: text(formData, "timezone"),
+    websiteUrl: text(formData, "websiteUrl"),
+  });
+  revalidateAll();
+}
+
 export async function inviteStaffAction(formData: FormData): Promise<void> {
   await requireActionPermission("user:invite");
   const tenantId = required(formData, "tenantId");
@@ -64,7 +83,9 @@ export async function reactivateStaffAction(formData: FormData): Promise<void> {
   await staffLifecycleAction(formData, "reactivate");
 }
 
-export async function forceLogoutStaffAction(formData: FormData): Promise<void> {
+export async function forceLogoutStaffAction(
+  formData: FormData,
+): Promise<void> {
   await staffLifecycleAction(formData, "force-logout");
 }
 
@@ -118,12 +139,21 @@ export async function previewRosterImportAction(
 ): Promise<void> {
   await requireActionPermission("roster:manage");
   const tenantId = required(formData, "tenantId");
+  const uploadedCsv = await fileText(formData, "csvFile");
+  const pastedCsv = text(formData, "csv");
+  const csv = uploadedCsv || pastedCsv;
+  if (!csv) {
+    throw new Error("CSV file or pasted rows are required");
+  }
   const result = await adminApiJsonMutation<RosterImportSummary>(
     "POST",
     `/tenants/${tenantId}/roster-imports/preview`,
     {
-      csv: text(formData, "csv"),
-      filename: text(formData, "filename") || "roster-import.csv",
+      csv,
+      filename:
+        fileName(formData, "csvFile") ||
+        text(formData, "filename") ||
+        "roster-import.csv",
     },
   );
   revalidateAll();
@@ -183,14 +213,18 @@ export async function queueDeviceCommandAction(
   const tenantId = required(formData, "tenantId");
   const deviceId = required(formData, "deviceId");
   const type = required(formData, "type");
-  await adminApiMutation("POST", `/tenants/${tenantId}/devices/${deviceId}/commands`, {
-    confirmed: booleanValue(formData, "confirmed"),
-    maxAttempts: numberValue(formData, "maxAttempts"),
-    payload: commandPayload(type, formData),
-    reason: text(formData, "reason"),
-    ttlMinutes: numberValue(formData, "ttlMinutes"),
-    type,
-  });
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/devices/${deviceId}/commands`,
+    {
+      confirmed: booleanValue(formData, "confirmed"),
+      maxAttempts: numberValue(formData, "maxAttempts"),
+      payload: commandPayload(type, formData),
+      reason: text(formData, "reason"),
+      ttlMinutes: numberValue(formData, "ttlMinutes"),
+      type,
+    },
+  );
   revalidateAll();
 }
 
@@ -219,7 +253,11 @@ export async function createStarterPoliciesAction(
 ): Promise<void> {
   await requireActionPermission("policy:manage");
   const tenantId = required(formData, "tenantId");
-  await adminApiMutation("POST", `/tenants/${tenantId}/policies/starter-templates`, {});
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/policies/starter-templates`,
+    {},
+  );
   revalidateAll();
 }
 
@@ -227,9 +265,13 @@ export async function publishPolicyAction(formData: FormData): Promise<void> {
   await requireActionPermission("policy:manage");
   const tenantId = required(formData, "tenantId");
   const policyId = required(formData, "policyId");
-  await adminApiMutation("POST", `/tenants/${tenantId}/policies/${policyId}/publish`, {
-    reason: text(formData, "reason"),
-  });
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/policies/${policyId}/publish`,
+    {
+      reason: text(formData, "reason"),
+    },
+  );
   revalidateAll();
 }
 
@@ -311,41 +353,57 @@ export async function deployAppAction(formData: FormData): Promise<void> {
   await requireActionPermission("device:command");
   const tenantId = required(formData, "tenantId");
   const appId = required(formData, "appId");
-  await adminApiMutation("POST", `/tenants/${tenantId}/apps/${appId}/deployments`, {
-    action: text(formData, "action"),
-    maxAttempts: numberValue(formData, "maxAttempts"),
-    reason: text(formData, "reason"),
-    scope: text(formData, "scope"),
-    scopeId: text(formData, "scopeId"),
-    ttlMinutes: numberValue(formData, "ttlMinutes"),
-  });
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/apps/${appId}/deployments`,
+    {
+      action: text(formData, "action"),
+      maxAttempts: numberValue(formData, "maxAttempts"),
+      reason: text(formData, "reason"),
+      scope: text(formData, "scope"),
+      scopeId: text(formData, "scopeId"),
+      ttlMinutes: numberValue(formData, "ttlMinutes"),
+    },
+  );
   revalidateAll();
 }
 
-export async function createSupportNoteAction(formData: FormData): Promise<void> {
+export async function createSupportNoteAction(
+  formData: FormData,
+): Promise<void> {
   await requireActionPermission("device:command");
   const tenantId = required(formData, "tenantId");
   const deviceId = required(formData, "deviceId");
-  await adminApiMutation("POST", `/tenants/${tenantId}/support/devices/${deviceId}/notes`, {
-    body: text(formData, "body"),
-    category: text(formData, "category"),
-    pinned: booleanValue(formData, "pinned"),
-    severity: text(formData, "severity"),
-    status: text(formData, "status"),
-    visibility: text(formData, "visibility"),
-  });
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/support/devices/${deviceId}/notes`,
+    {
+      body: text(formData, "body"),
+      category: text(formData, "category"),
+      pinned: booleanValue(formData, "pinned"),
+      severity: text(formData, "severity"),
+      status: text(formData, "status"),
+      visibility: text(formData, "visibility"),
+    },
+  );
   revalidateAll();
 }
 
-export async function updateSupportNoteAction(formData: FormData): Promise<void> {
+export async function updateSupportNoteAction(
+  formData: FormData,
+): Promise<void> {
   await requireActionPermission("device:command");
   const tenantId = required(formData, "tenantId");
   const noteId = required(formData, "noteId");
-  await adminApiMutation("PATCH", `/tenants/${tenantId}/support/notes/${noteId}`, {
-    pinned: optionalBooleanValue(formData, "pinned"),
-    resolution: text(formData, "resolution"),
-    status: text(formData, "status"),
-  });
+  await adminApiMutation(
+    "PATCH",
+    `/tenants/${tenantId}/support/notes/${noteId}`,
+    {
+      pinned: optionalBooleanValue(formData, "pinned"),
+      resolution: text(formData, "resolution"),
+      status: text(formData, "status"),
+    },
+  );
   revalidateAll();
 }
 
@@ -377,9 +435,13 @@ export async function updateRetentionSettingsAction(
 export async function dryRunRetentionAction(formData: FormData): Promise<void> {
   await requireActionPermission("tenant:update");
   const tenantId = required(formData, "tenantId");
-  await adminApiMutation("POST", `/tenants/${tenantId}/retention-runs/dry-run`, {
-    reason: text(formData, "reason"),
-  });
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/retention-runs/dry-run`,
+    {
+      reason: text(formData, "reason"),
+    },
+  );
   revalidateAll();
 }
 
@@ -398,9 +460,13 @@ export async function acknowledgeAlertAction(
   await requireActionPermission("device:command");
   const tenantId = required(formData, "tenantId");
   const alertId = required(formData, "alertId");
-  await adminApiMutation("POST", `/tenants/${tenantId}/alerts/${alertId}/acknowledge`, {
-    reason: text(formData, "reason"),
-  });
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/alerts/${alertId}/acknowledge`,
+    {
+      reason: text(formData, "reason"),
+    },
+  );
   revalidateAll();
 }
 
@@ -408,9 +474,13 @@ export async function resolveAlertAction(formData: FormData): Promise<void> {
   await requireActionPermission("device:command");
   const tenantId = required(formData, "tenantId");
   const alertId = required(formData, "alertId");
-  await adminApiMutation("POST", `/tenants/${tenantId}/alerts/${alertId}/resolve`, {
-    reason: text(formData, "reason"),
-  });
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/alerts/${alertId}/resolve`,
+    {
+      reason: text(formData, "reason"),
+    },
+  );
   revalidateAll();
 }
 
@@ -468,9 +538,13 @@ async function staffLifecycleAction(
   await requireActionPermission("user:suspend");
   const tenantId = required(formData, "tenantId");
   const userId = required(formData, "userId");
-  await adminApiMutation("POST", `/tenants/${tenantId}/users/${userId}/${action}`, {
-    reason: text(formData, "reason"),
-  });
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/users/${userId}/${action}`,
+    {
+      reason: text(formData, "reason"),
+    },
+  );
   revalidateAll();
 }
 
@@ -494,6 +568,20 @@ function required(formData: FormData, key: string): string {
 function text(formData: FormData, key: string): string {
   const value = formData.get(key);
   return typeof value === "string" ? value.trim() : "";
+}
+
+async function fileText(formData: FormData, key: string): Promise<string> {
+  const value = formData.get(key);
+  if (!(value instanceof File) || value.size === 0) {
+    return "";
+  }
+
+  return (await value.text()).trim();
+}
+
+function fileName(formData: FormData, key: string): string {
+  const value = formData.get(key);
+  return value instanceof File && value.size > 0 ? value.name : "";
 }
 
 function numberValue(formData: FormData, key: string): number | undefined {

@@ -4,10 +4,11 @@ import type {
   OnboardingChecklist,
   TenantSummary,
 } from "@virtual-school/shared";
-import type { Branch, TenantStatus } from "../../generated/prisma";
+import { Prisma, type Branch, type TenantStatus } from "../../generated/prisma";
 import { PrismaService } from "../prisma/prisma.service";
 import type { CreateBranchDto } from "./dto/create-branch.dto";
 import type { CreateTenantDto } from "./dto/create-tenant.dto";
+import type { UpdateTenantProfileDto } from "./dto/update-tenant-profile.dto";
 
 @Injectable()
 export class TenantsService {
@@ -105,6 +106,49 @@ export class TenantsService {
     });
 
     return this.toBranchSummary(branch);
+  }
+
+  async updateProfile(
+    tenantId: string,
+    input: UpdateTenantProfileDto,
+    actorId: string | undefined,
+  ): Promise<TenantSummary> {
+    const existing = await this.prisma.tenant.findUnique({
+      where: {
+        id: tenantId,
+      },
+    });
+
+    if (!existing) {
+      throw new NotFoundException(`Tenant ${tenantId} was not found`);
+    }
+
+    const updateData = this.profileUpdateData(input);
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const tenant = await tx.tenant.update({
+        data: updateData,
+        where: {
+          id: tenantId,
+        },
+      });
+
+      await tx.auditEvent.create({
+        data: {
+          action: "tenant.profile_update",
+          actorId,
+          newValue: this.profileAuditValue(tenant),
+          object: "Tenant",
+          objectId: tenant.id,
+          oldValue: this.profileAuditValue(existing),
+          outcome: "SUCCESS",
+          tenantId,
+        },
+      });
+
+      return tenant;
+    });
+
+    return this.toSummary(updated);
   }
 
   async getOnboardingChecklist(tenantId: string): Promise<OnboardingChecklist> {
@@ -260,20 +304,64 @@ export class TenantsService {
   }
 
   private toSummary(tenant: {
+    accentColor?: string | null;
     country: string;
     id: string;
+    logoUrl?: string | null;
     name: string;
     planKey: string;
+    primaryColor?: string | null;
     status: TenantStatus;
+    supportEmail?: string | null;
+    supportPhone?: string | null;
     timezone: string;
+    websiteUrl?: string | null;
   }): TenantSummary {
     return {
+      accentColor: tenant.accentColor,
       country: tenant.country,
       id: tenant.id,
+      logoUrl: tenant.logoUrl,
       name: tenant.name,
       planKey: tenant.planKey,
+      primaryColor: tenant.primaryColor,
       status: tenant.status,
+      supportEmail: tenant.supportEmail,
+      supportPhone: tenant.supportPhone,
       timezone: tenant.timezone,
+      websiteUrl: tenant.websiteUrl,
+    };
+  }
+
+  private profileUpdateData(
+    input: UpdateTenantProfileDto,
+  ): Prisma.TenantUpdateInput {
+    return Object.fromEntries(
+      Object.entries(input).filter(([, value]) => value !== undefined),
+    ) as Prisma.TenantUpdateInput;
+  }
+
+  private profileAuditValue(tenant: {
+    accentColor?: string | null;
+    country: string;
+    logoUrl?: string | null;
+    name: string;
+    primaryColor?: string | null;
+    supportEmail?: string | null;
+    supportPhone?: string | null;
+    timezone: string;
+    websiteUrl?: string | null;
+  }): Prisma.InputJsonObject {
+    return {
+      accentColor: tenant.accentColor ?? null,
+      country: tenant.country,
+      logoUrl: tenant.logoUrl ?? null,
+      name: tenant.name,
+      primaryColor: tenant.primaryColor ?? null,
+      supportEmail: tenant.supportEmail ?? null,
+      supportPhone: tenant.supportPhone ?? null,
+      timezone: tenant.timezone,
+      websiteUrl: tenant.websiteUrl ?? null,
     };
   }
 }

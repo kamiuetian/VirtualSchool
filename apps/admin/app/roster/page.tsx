@@ -31,7 +31,9 @@ export default async function RosterPage({
     selectedTenant && params?.importId
       ? await getRosterImport(selectedTenant.id, params.importId)
       : { connectionIssue: false, importPreview: null };
-  const activeStudents = data.students.filter((student) => student.status === "ACTIVE");
+  const activeStudents = data.students.filter(
+    (student) => student.status === "ACTIVE",
+  );
 
   return (
     <AppShell
@@ -41,13 +43,26 @@ export default async function RosterPage({
       <div className="content-stack">
         <PageSection kicker="Academic structure" title="Roster And Classes">
           <section className="stat-grid" aria-label="Roster summary">
-            <StatCard label="Students" value={formatCount(data.students.length)} />
-            <StatCard label="Active students" tone="good" value={formatCount(activeStudents.length)} />
-            <StatCard label="Classes" value={formatCount(data.classes.length)} />
+            <StatCard
+              label="Students"
+              value={formatCount(data.students.length)}
+            />
+            <StatCard
+              label="Active students"
+              tone="good"
+              value={formatCount(activeStudents.length)}
+            />
+            <StatCard
+              label="Classes"
+              value={formatCount(data.classes.length)}
+            />
             <StatCard
               label="Guardian links"
               value={formatCount(
-                data.students.reduce((total, student) => total + student.guardianCount, 0),
+                data.students.reduce(
+                  (total, student) => total + student.guardianCount,
+                  0,
+                ),
               )}
             />
           </section>
@@ -58,7 +73,11 @@ export default async function RosterPage({
             <div className="form-grid">
               <ActionPanel title="Create class">
                 <form action={createClassAction} className="stacked-form">
-                  <input name="tenantId" type="hidden" value={selectedTenant.id} />
+                  <input
+                    name="tenantId"
+                    type="hidden"
+                    value={selectedTenant.id}
+                  />
                   <Field label="Class name">
                     <input name="name" placeholder="Grade 4 Blue" required />
                   </Field>
@@ -76,7 +95,11 @@ export default async function RosterPage({
 
               <ActionPanel title="Create student">
                 <form action={createStudentAction} className="stacked-form">
-                  <input name="tenantId" type="hidden" value={selectedTenant.id} />
+                  <input
+                    name="tenantId"
+                    type="hidden"
+                    value={selectedTenant.id}
+                  />
                   <div className="form-row">
                     <Field label="Student code">
                       <input name="studentCode" placeholder="S-1001" required />
@@ -100,11 +123,18 @@ export default async function RosterPage({
                     </Field>
                   </div>
                   <Field label="Guardian name">
-                    <input name="guardianName" placeholder="Parent or guardian" />
+                    <input
+                      name="guardianName"
+                      placeholder="Parent or guardian"
+                    />
                   </Field>
                   <div className="form-row">
                     <Field label="Guardian email">
-                      <input name="guardianEmail" placeholder="guardian@example.com" type="email" />
+                      <input
+                        name="guardianEmail"
+                        placeholder="guardian@example.com"
+                        type="email"
+                      />
                     </Field>
                     <Field label="Relationship">
                       <input name="guardianRelationship" placeholder="Parent" />
@@ -115,22 +145,35 @@ export default async function RosterPage({
               </ActionPanel>
 
               <ActionPanel title="Preview CSV import">
-                <form action={previewRosterImportAction} className="stacked-form">
-                  <input name="tenantId" type="hidden" value={selectedTenant.id} />
+                <form
+                  action={previewRosterImportAction}
+                  className="stacked-form"
+                >
+                  <input
+                    name="tenantId"
+                    type="hidden"
+                    value={selectedTenant.id}
+                  />
                   <Field label="Filename">
                     <input name="filename" placeholder="grade-4-roster.csv" />
+                  </Field>
+                  <Field label="CSV file">
+                    <input name="csvFile" accept=".csv,text/csv" type="file" />
                   </Field>
                   <Field label="CSV rows">
                     <textarea
                       name="csv"
                       placeholder="studentCode,name,grade,section,status,guardianName,guardianEmail,className"
-                      required
                     />
                   </Field>
                   <p className="form-help">
-                    Paste CSV content to validate students, guardians, classes,
-                    and memberships before committing roster changes.
+                    Upload a CSV file or paste rows to validate students,
+                    guardians, classes, and memberships before committing roster
+                    changes.
                   </p>
+                  <a className="small-button" href="/roster/sample.csv">
+                    Download sample CSV
+                  </a>
                   <SubmitButton>Validate import</SubmitButton>
                 </form>
               </ActionPanel>
@@ -152,14 +195,23 @@ export default async function RosterPage({
               />
               <StatCard
                 label="Errors"
-                tone={rosterImport.importPreview.errorRows > 0 ? "critical" : "good"}
+                tone={
+                  rosterImport.importPreview.errorRows > 0 ? "critical" : "good"
+                }
                 value={formatCount(rosterImport.importPreview.errorRows)}
               />
               <div className="action-panel">
                 <h3>Commit controls</h3>
                 <div className="row-actions left">
-                  <form action={commitRosterImportAction} className="button-form">
-                    <input name="tenantId" type="hidden" value={selectedTenant.id} />
+                  <form
+                    action={commitRosterImportAction}
+                    className="button-form"
+                  >
+                    <input
+                      name="tenantId"
+                      type="hidden"
+                      value={selectedTenant.id}
+                    />
                     <input
                       name="importId"
                       type="hidden"
@@ -204,10 +256,14 @@ export default async function RosterPage({
                         {row.errors.length > 0 ? (
                           <>
                             <StatusPill tone="critical">Rejected</StatusPill>
-                            <span className="cell-note">{row.errors.join("; ")}</span>
+                            <span className="cell-note">
+                              {row.errors.join("; ")}
+                            </span>
                           </>
                         ) : (
-                          <StatusPill tone="good">{humanize(row.action)}</StatusPill>
+                          <StatusPill tone="good">
+                            {humanize(row.action)}
+                          </StatusPill>
                         )}
                       </td>
                     </tr>
@@ -230,7 +286,9 @@ export default async function RosterPage({
                       {classSection.subject ? `, ${classSection.subject}` : ""}
                     </span>
                   </div>
-                  <StatusPill>{formatCount(classSection.studentCount)} students</StatusPill>
+                  <StatusPill>
+                    {formatCount(classSection.studentCount)} students
+                  </StatusPill>
                 </article>
               ))}
             </div>
@@ -265,7 +323,11 @@ export default async function RosterPage({
                       <td>{student.section ?? "Unassigned"}</td>
                       <td>{formatCount(student.guardianCount)}</td>
                       <td>
-                        <StatusPill tone={student.status === "ACTIVE" ? "good" : "neutral"}>
+                        <StatusPill
+                          tone={
+                            student.status === "ACTIVE" ? "good" : "neutral"
+                          }
+                        >
                           {humanize(student.status)}
                         </StatusPill>
                       </td>

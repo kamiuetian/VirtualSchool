@@ -4,6 +4,7 @@ import {
   Get,
   Inject,
   Param,
+  Patch,
   Post,
   Req,
 } from "@nestjs/common";
@@ -17,6 +18,7 @@ import { RequirePermissions } from "../auth/decorators/require-permissions.decor
 import type { AuthenticatedRequest } from "../auth/types/authenticated-request";
 import { CreateBranchDto } from "./dto/create-branch.dto";
 import { CreateTenantDto } from "./dto/create-tenant.dto";
+import { UpdateTenantProfileDto } from "./dto/update-tenant-profile.dto";
 import { TenantsService } from "./tenants.service";
 
 @ApiTags("tenants")
@@ -40,6 +42,21 @@ export class TenantsController {
   @ApiOkResponse({ description: "Tenant details" })
   getById(@Param("tenantId") tenantId: string): Promise<TenantSummary> {
     return this.tenantsService.getById(tenantId);
+  }
+
+  @Patch(":tenantId")
+  @RequirePermissions("tenant:update")
+  @ApiOkResponse({ description: "Update tenant school profile and branding" })
+  updateProfile(
+    @Param("tenantId") tenantId: string,
+    @Body() body: UpdateTenantProfileDto,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<TenantSummary> {
+    return this.tenantsService.updateProfile(
+      tenantId,
+      body,
+      request.user?.subject,
+    );
   }
 
   @Get(":tenantId/branches")

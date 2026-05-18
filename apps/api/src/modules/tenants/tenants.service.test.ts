@@ -11,12 +11,18 @@ describe("TenantsService", () => {
       createdAt: new Date(),
       id: "tenant-1",
       language: "en",
+      logoUrl: null,
       name: "Pilot School",
       planKey: "starter",
+      primaryColor: null,
+      accentColor: null,
       status: "PILOT",
+      supportEmail: null,
+      supportPhone: null,
       timezone: "America/New_York",
       updatedAt: new Date(),
       domain: null,
+      websiteUrl: null,
     };
     const prisma = {
       $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
@@ -71,6 +77,73 @@ describe("TenantsService", () => {
     ]);
     expect(auditEvents[0]).toMatchObject({
       action: "tenant.create",
+      object: "Tenant",
+      outcome: "SUCCESS",
+      tenantId: "tenant-1",
+    });
+  });
+
+  it("updates tenant profile branding and records an audit event", async () => {
+    const auditEvents: unknown[] = [];
+    const existing = {
+      accentColor: null,
+      country: "US",
+      id: "tenant-1",
+      logoUrl: null,
+      name: "Pilot School",
+      planKey: "starter",
+      primaryColor: null,
+      status: "PILOT",
+      supportEmail: null,
+      supportPhone: null,
+      timezone: "America/New_York",
+      websiteUrl: null,
+    };
+    const prisma = {
+      $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
+        callback({
+          auditEvent: {
+            create: async ({ data }: { data: unknown }) => {
+              auditEvents.push(data);
+              return data;
+            },
+          },
+          tenant: {
+            update: async ({ data }: { data: Record<string, unknown> }) => ({
+              ...existing,
+              ...data,
+            }),
+          },
+        }),
+      tenant: {
+        findUnique: async () => existing,
+      },
+    } as never;
+
+    const service = new TenantsService(prisma);
+
+    await expect(
+      service.updateProfile(
+        "tenant-1",
+        {
+          accentColor: "#f5c65f",
+          logoUrl: "https://assets.example.edu/logo.png",
+          primaryColor: "#116b5f",
+          supportEmail: "support@example.edu",
+          websiteUrl: "https://example.edu",
+        },
+        "auth0|admin",
+      ),
+    ).resolves.toMatchObject({
+      accentColor: "#f5c65f",
+      logoUrl: "https://assets.example.edu/logo.png",
+      primaryColor: "#116b5f",
+      supportEmail: "support@example.edu",
+      websiteUrl: "https://example.edu",
+    });
+    expect(auditEvents[0]).toMatchObject({
+      action: "tenant.profile_update",
+      actorId: "auth0|admin",
       object: "Tenant",
       outcome: "SUCCESS",
       tenantId: "tenant-1",

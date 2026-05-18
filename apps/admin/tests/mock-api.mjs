@@ -11,11 +11,17 @@ const now = "2026-05-17T10:00:00.000Z";
 
 const tenant = {
   id: tenantId,
+  accentColor: "#f5c65f",
   country: "US",
+  logoUrl: "https://assets.example.edu/northview-logo.png",
   name: "Northview Primary School",
   planKey: "growth",
+  primaryColor: "#116b5f",
   status: "ACTIVE",
+  supportEmail: "support@northview.edu",
+  supportPhone: "+1 555 0100",
   timezone: "America/New_York",
+  websiteUrl: "https://northview.example.edu",
 };
 
 const device = {
@@ -211,7 +217,11 @@ const routes = [
           { completed: true, key: "roster", label: "Roster imported" },
           { completed: true, key: "policies", label: "Policies created" },
           { completed: true, key: "apps", label: "App catalog ready" },
-          { completed: true, key: "enrollment", label: "Enrollment batch created" },
+          {
+            completed: true,
+            key: "enrollment",
+            label: "Enrollment batch created",
+          },
           { completed: true, key: "device", label: "First device enrolled" },
         ],
         tenantId,
@@ -400,10 +410,38 @@ const routes = [
     () =>
       json({
         metrics: [
-          { key: "devices", label: "Devices", limit: 500, overLimit: false, percentUsed: 1, used: 5 },
-          { key: "students", label: "Students", limit: 1000, overLimit: false, percentUsed: 2, used: 24 },
-          { key: "staffUsers", label: "Staff users", limit: 100, overLimit: false, percentUsed: 1, used: 1 },
-          { key: "commandsPerBillingPeriod", label: "Commands this billing period", limit: 25000, overLimit: false, percentUsed: 1, used: 30 },
+          {
+            key: "devices",
+            label: "Devices",
+            limit: 500,
+            overLimit: false,
+            percentUsed: 1,
+            used: 5,
+          },
+          {
+            key: "students",
+            label: "Students",
+            limit: 1000,
+            overLimit: false,
+            percentUsed: 2,
+            used: 24,
+          },
+          {
+            key: "staffUsers",
+            label: "Staff users",
+            limit: 100,
+            overLimit: false,
+            percentUsed: 1,
+            used: 1,
+          },
+          {
+            key: "commandsPerBillingPeriod",
+            label: "Commands this billing period",
+            limit: 25000,
+            overLimit: false,
+            percentUsed: 1,
+            used: 30,
+          },
         ],
         plan: {
           key: "growth",
@@ -532,7 +570,9 @@ const server = createServer(async (request, response) => {
 
   if (request.method !== "GET") {
     request.resume();
-    response.writeHead(201, { "content-type": "application/json; charset=utf-8" });
+    response.writeHead(201, {
+      "content-type": "application/json; charset=utf-8",
+    });
     response.end(JSON.stringify({ ok: true, id: "mutation-ok" }));
     return;
   }
@@ -542,8 +582,14 @@ const server = createServer(async (request, response) => {
   });
 
   if (!match) {
-    response.writeHead(404, { "content-type": "application/json; charset=utf-8" });
-    response.end(JSON.stringify({ error: `No mock route for ${request.method} ${pathname}` }));
+    response.writeHead(404, {
+      "content-type": "application/json; charset=utf-8",
+    });
+    response.end(
+      JSON.stringify({
+        error: `No mock route for ${request.method} ${pathname}`,
+      }),
+    );
     return;
   }
 

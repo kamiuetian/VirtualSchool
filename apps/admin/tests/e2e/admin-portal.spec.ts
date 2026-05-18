@@ -45,23 +45,54 @@ test.describe("admin portal regression", () => {
 
   test("exposes core action surfaces", async ({ page }) => {
     await page.goto("/devices");
-    await expect(page.getByRole("heading", { name: "Command Center" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Queue command" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Queue wipe" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Command History" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Recent Diagnostics" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Command Center" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Queue command" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Queue wipe" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Command History" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Recent Diagnostics" }),
+    ).toBeVisible();
 
     await page.goto("/roster?importId=import-preview-1");
-    await expect(page.getByRole("heading", { name: "CSV Validation Result" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "CSV Validation Result" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Download sample CSV" }),
+    ).toBeVisible();
     await expect(page.getByText("studentCode is required")).toBeVisible();
-    await expect(page.getByRole("link", { name: "Download error CSV" })).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Download error CSV" }),
+    ).toBeVisible();
+
+    await page.goto("/tenants");
+    await expect(
+      page.getByRole("heading", { name: "School profile and branding" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Save profile" }),
+    ).toBeVisible();
 
     await page.goto("/apps");
-    await expect(page.getByRole("heading", { name: "Install Or Remove Apps" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Queue deployment" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Install Or Remove Apps" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Queue deployment" }),
+    ).toBeVisible();
 
     await page.goto("/alerts");
-    await expect(page.getByRole("heading", { name: "Offline Detection" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Offline Detection" }),
+    ).toBeVisible();
     await expect(page.getByRole("button", { name: "Run scan" })).toBeVisible();
 
     await page.goto("/enrollment");
@@ -70,7 +101,9 @@ test.describe("admin portal regression", () => {
     ).toBeVisible();
     await expect(page.getByRole("link", { name: "Download QR" })).toBeVisible();
     await expect(page.getByText("Payload")).toHaveCount(0);
-    await expect(page.getByText('"connector":"android-management-api"')).toHaveCount(0);
+    await expect(
+      page.getByText('"connector":"android-management-api"'),
+    ).toHaveCount(0);
   });
 
   test("downloads CSV exports through portal routes", async ({ page }) => {
@@ -82,6 +115,11 @@ test.describe("admin portal regression", () => {
     expect(inventory.suggestedFilename()).toBe("device-inventory.csv");
 
     await page.goto("/roster?importId=import-preview-1");
+    const sampleDownload = page.waitForEvent("download");
+    await page.getByRole("link", { name: "Download sample CSV" }).click();
+    const sample = await sampleDownload;
+    expect(sample.suggestedFilename()).toBe("roster-import-sample.csv");
+
     const errorDownload = page.waitForEvent("download");
     await page.getByRole("link", { name: "Download error CSV" }).click();
     const errors = await errorDownload;
@@ -114,23 +152,43 @@ test.describe("role-aware admin portal", () => {
     await signInAs(context, baseURL, "TEACHER");
 
     await page.goto("/");
-    await expect(page.locator(".sidebar-nav").getByRole("link", { name: "Overview" })).toBeVisible();
-    await expect(page.locator(".sidebar-nav").getByRole("link", { name: "Devices" })).toBeVisible();
-    await expect(page.locator(".sidebar-nav").getByRole("link", { name: "Alerts" })).toBeVisible();
-    await expect(page.locator(".sidebar-nav").getByRole("link", { name: "Support" })).toBeVisible();
-    await expect(page.locator(".sidebar-nav").getByRole("link", { name: "Roster" })).toHaveCount(0);
-    await expect(page.locator(".sidebar-nav").getByRole("link", { name: "Billing" })).toHaveCount(0);
+    await expect(
+      page.locator(".sidebar-nav").getByRole("link", { name: "Overview" }),
+    ).toBeVisible();
+    await expect(
+      page.locator(".sidebar-nav").getByRole("link", { name: "Devices" }),
+    ).toBeVisible();
+    await expect(
+      page.locator(".sidebar-nav").getByRole("link", { name: "Alerts" }),
+    ).toBeVisible();
+    await expect(
+      page.locator(".sidebar-nav").getByRole("link", { name: "Support" }),
+    ).toBeVisible();
+    await expect(
+      page.locator(".sidebar-nav").getByRole("link", { name: "Roster" }),
+    ).toHaveCount(0);
+    await expect(
+      page.locator(".sidebar-nav").getByRole("link", { name: "Billing" }),
+    ).toHaveCount(0);
 
     await page.goto("/roster");
     await expect(page).toHaveURL("/");
     await expect(
-      page.getByRole("heading", { name: "Keep every school tablet ready for class." }),
+      page.getByRole("heading", {
+        name: "Keep every school tablet ready for class.",
+      }),
     ).toBeVisible();
 
     await page.goto("/devices");
-    await expect(page.getByRole("heading", { name: "Device Inventory" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Queue command" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Queue wipe" })).toHaveCount(0);
+    await expect(
+      page.getByRole("heading", { name: "Device Inventory" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Queue command" }),
+    ).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Queue wipe" })).toHaveCount(
+      0,
+    );
   });
 
   test("keeps billing admins limited to billing and overview", async ({
@@ -141,11 +199,21 @@ test.describe("role-aware admin portal", () => {
     await signInAs(context, baseURL, "BILLING_ADMIN");
 
     await page.goto("/billing");
-    await expect(page.getByRole("heading", { name: "Plan Usage" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Update subscription" })).toBeVisible();
-    await expect(page.locator(".sidebar-nav").getByRole("link", { name: "Billing" })).toBeVisible();
-    await expect(page.locator(".sidebar-nav").getByRole("link", { name: "Devices" })).toHaveCount(0);
-    await expect(page.locator(".sidebar-nav").getByRole("link", { name: "Schools" })).toHaveCount(0);
+    await expect(
+      page.getByRole("heading", { name: "Plan Usage" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Update subscription" }),
+    ).toBeVisible();
+    await expect(
+      page.locator(".sidebar-nav").getByRole("link", { name: "Billing" }),
+    ).toBeVisible();
+    await expect(
+      page.locator(".sidebar-nav").getByRole("link", { name: "Devices" }),
+    ).toHaveCount(0);
+    await expect(
+      page.locator(".sidebar-nav").getByRole("link", { name: "Schools" }),
+    ).toHaveCount(0);
 
     await page.goto("/devices");
     await expect(page).toHaveURL("/");
@@ -159,15 +227,29 @@ test.describe("role-aware admin portal", () => {
     await signInAs(context, baseURL, "SCHOOL_ADMIN");
 
     await page.goto("/devices");
-    await expect(page.getByRole("heading", { name: "Device Inventory" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Assign Tablet" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Queue command" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Queue wipe" })).toHaveCount(0);
+    await expect(
+      page.getByRole("heading", { name: "Device Inventory" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Assign Tablet" }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Queue command" }),
+    ).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Queue wipe" })).toHaveCount(
+      0,
+    );
 
     await page.goto("/apps");
-    await expect(page.getByRole("heading", { name: "Apps And Web Catalog" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Add Approved App" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Queue deployment" })).toHaveCount(0);
+    await expect(
+      page.getByRole("heading", { name: "Apps And Web Catalog" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Add Approved App" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Queue deployment" }),
+    ).toHaveCount(0);
 
     await page.goto("/enrollment");
     await expect(page).toHaveURL("/");

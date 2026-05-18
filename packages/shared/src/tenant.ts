@@ -7,6 +7,12 @@ export type TenantSummary = {
   timezone: string;
   status: TenantStatus;
   planKey: string;
+  logoUrl?: string | null;
+  primaryColor?: string | null;
+  accentColor?: string | null;
+  websiteUrl?: string | null;
+  supportEmail?: string | null;
+  supportPhone?: string | null;
 };
 
 export type BranchSummary = {

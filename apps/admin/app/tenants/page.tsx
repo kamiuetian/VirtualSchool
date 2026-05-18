@@ -18,6 +18,7 @@ import {
   setStaffMfaAction,
   suspendStaffAction,
   updateStaffRoleAction,
+  updateTenantProfileAction,
 } from "../../lib/actions";
 import { getAdminData } from "../../lib/api";
 import { roleCan } from "../../lib/auth/portal-access";
@@ -38,17 +39,31 @@ export default async function TenantsPage() {
       <div className="content-stack">
         <PageSection kicker="Schools" title="Tenant Directory">
           <section className="stat-grid" aria-label="School tenant summary">
-            <StatCard label="Schools" value={formatCount(data.tenants.length)} />
+            <StatCard
+              label="Schools"
+              value={formatCount(data.tenants.length)}
+            />
             <StatCard
               label="Active"
               tone="good"
-              value={formatCount(data.tenants.filter((tenant) => tenant.status === "ACTIVE").length)}
+              value={formatCount(
+                data.tenants.filter((tenant) => tenant.status === "ACTIVE")
+                  .length,
+              )}
             />
             <StatCard
               label="Pilot"
-              value={formatCount(data.tenants.filter((tenant) => tenant.status === "PILOT").length)}
+              value={formatCount(
+                data.tenants.filter((tenant) => tenant.status === "PILOT")
+                  .length,
+              )}
             />
-            <StatCard label="Plans" value={formatCount(new Set(data.tenants.map((tenant) => tenant.planKey)).size)} />
+            <StatCard
+              label="Plans"
+              value={formatCount(
+                new Set(data.tenants.map((tenant) => tenant.planKey)).size,
+              )}
+            />
           </section>
         </PageSection>
 
@@ -58,14 +73,22 @@ export default async function TenantsPage() {
               <ActionPanel title="Create school">
                 <form action={createTenantAction} className="stacked-form">
                   <Field label="School name">
-                    <input name="name" placeholder="Northview Primary School" required />
+                    <input
+                      name="name"
+                      placeholder="Northview Primary School"
+                      required
+                    />
                   </Field>
                   <div className="form-row">
                     <Field label="Country">
                       <input name="country" placeholder="US" required />
                     </Field>
                     <Field label="Timezone">
-                      <input name="timezone" placeholder="America/New_York" required />
+                      <input
+                        name="timezone"
+                        placeholder="America/New_York"
+                        required
+                      />
                     </Field>
                   </div>
                   <div className="form-row">
@@ -85,7 +108,11 @@ export default async function TenantsPage() {
                     </Field>
                   </div>
                   <Field label="Billing contact">
-                    <input name="primaryContactEmail" placeholder="admin@school.edu" type="email" />
+                    <input
+                      name="primaryContactEmail"
+                      placeholder="admin@school.edu"
+                      type="email"
+                    />
                   </Field>
                   <SubmitButton>Create school</SubmitButton>
                 </form>
@@ -95,9 +122,108 @@ export default async function TenantsPage() {
             {selectedTenant ? (
               <>
                 {canUpdateTenant ? (
+                  <ActionPanel title="School profile and branding">
+                    <form
+                      action={updateTenantProfileAction}
+                      className="stacked-form"
+                    >
+                      <input
+                        name="tenantId"
+                        type="hidden"
+                        value={selectedTenant.id}
+                      />
+                      <Field label="School name">
+                        <input
+                          name="name"
+                          defaultValue={selectedTenant.name}
+                          placeholder="Northview Primary School"
+                          required
+                        />
+                      </Field>
+                      <div className="form-row">
+                        <Field label="Country">
+                          <input
+                            name="country"
+                            defaultValue={selectedTenant.country}
+                            placeholder="US"
+                            required
+                          />
+                        </Field>
+                        <Field label="Timezone">
+                          <input
+                            name="timezone"
+                            defaultValue={selectedTenant.timezone}
+                            placeholder="America/New_York"
+                            required
+                          />
+                        </Field>
+                      </div>
+                      <Field label="Logo URL">
+                        <input
+                          name="logoUrl"
+                          defaultValue={selectedTenant.logoUrl ?? ""}
+                          placeholder="https://school.edu/logo.png"
+                          type="url"
+                        />
+                      </Field>
+                      <div className="form-row">
+                        <Field label="Primary color">
+                          <input
+                            name="primaryColor"
+                            defaultValue={
+                              selectedTenant.primaryColor ?? "#116b5f"
+                            }
+                            type="color"
+                          />
+                        </Field>
+                        <Field label="Accent color">
+                          <input
+                            name="accentColor"
+                            defaultValue={
+                              selectedTenant.accentColor ?? "#315f91"
+                            }
+                            type="color"
+                          />
+                        </Field>
+                      </div>
+                      <Field label="Website">
+                        <input
+                          name="websiteUrl"
+                          defaultValue={selectedTenant.websiteUrl ?? ""}
+                          placeholder="https://school.edu"
+                          type="url"
+                        />
+                      </Field>
+                      <div className="form-row">
+                        <Field label="Support email">
+                          <input
+                            name="supportEmail"
+                            defaultValue={selectedTenant.supportEmail ?? ""}
+                            placeholder="support@school.edu"
+                            type="email"
+                          />
+                        </Field>
+                        <Field label="Support phone">
+                          <input
+                            name="supportPhone"
+                            defaultValue={selectedTenant.supportPhone ?? ""}
+                            placeholder="+1 555 0100"
+                          />
+                        </Field>
+                      </div>
+                      <SubmitButton>Save profile</SubmitButton>
+                    </form>
+                  </ActionPanel>
+                ) : null}
+
+                {canUpdateTenant ? (
                   <ActionPanel title="Add campus">
                     <form action={createBranchAction} className="stacked-form">
-                      <input name="tenantId" type="hidden" value={selectedTenant.id} />
+                      <input
+                        name="tenantId"
+                        type="hidden"
+                        value={selectedTenant.id}
+                      />
                       <Field label="Campus name">
                         <input name="name" placeholder="Main Campus" required />
                       </Field>
@@ -115,12 +241,21 @@ export default async function TenantsPage() {
                 {canInviteUsers ? (
                   <ActionPanel title="Invite staff">
                     <form action={inviteStaffAction} className="stacked-form">
-                      <input name="tenantId" type="hidden" value={selectedTenant.id} />
+                      <input
+                        name="tenantId"
+                        type="hidden"
+                        value={selectedTenant.id}
+                      />
                       <Field label="Name">
                         <input name="name" placeholder="Aisha Khan" required />
                       </Field>
                       <Field label="Email">
-                        <input name="email" placeholder="staff@school.edu" required type="email" />
+                        <input
+                          name="email"
+                          placeholder="staff@school.edu"
+                          required
+                          type="email"
+                        />
                       </Field>
                       <Field label="Role">
                         <select name="role" defaultValue="TEACHER">
@@ -149,9 +284,11 @@ export default async function TenantsPage() {
                 <thead>
                   <tr>
                     <th>School</th>
+                    <th>Brand</th>
                     <th>Country</th>
                     <th>Timezone</th>
                     <th>Plan</th>
+                    <th>Support</th>
                     <th>Status</th>
                   </tr>
                 </thead>
@@ -159,11 +296,34 @@ export default async function TenantsPage() {
                   {data.tenants.map((tenant) => (
                     <tr key={tenant.id}>
                       <td>{tenant.name}</td>
+                      <td>
+                        <span className="brand-swatch-row">
+                          <span
+                            aria-label="Primary brand color"
+                            className="brand-swatch"
+                            style={{
+                              background: tenant.primaryColor ?? "#116b5f",
+                            }}
+                          />
+                          <span
+                            aria-label="Accent brand color"
+                            className="brand-swatch"
+                            style={{
+                              background: tenant.accentColor ?? "#315f91",
+                            }}
+                          />
+                        </span>
+                      </td>
                       <td>{tenant.country}</td>
                       <td>{tenant.timezone}</td>
                       <td>{tenant.planKey}</td>
                       <td>
-                        <StatusPill tone={tenant.status === "ACTIVE" ? "good" : "neutral"}>
+                        {tenant.supportEmail ?? tenant.websiteUrl ?? "Not set"}
+                      </td>
+                      <td>
+                        <StatusPill
+                          tone={tenant.status === "ACTIVE" ? "good" : "neutral"}
+                        >
                           {humanize(tenant.status)}
                         </StatusPill>
                       </td>
@@ -190,7 +350,8 @@ export default async function TenantsPage() {
                       <strong>{user.name}</strong>
                       <span>{user.email}</span>
                       <small>
-                        {humanize(user.role)} - MFA {user.mfaEnabled ? "enabled" : "not enabled"}
+                        {humanize(user.role)} - MFA{" "}
+                        {user.mfaEnabled ? "enabled" : "not enabled"}
                       </small>
                     </div>
                     <div className="row-actions">
@@ -198,17 +359,30 @@ export default async function TenantsPage() {
                         {humanize(user.status)}
                       </StatusPill>
                       {canInviteUsers ? (
-                        <form action={updateStaffRoleAction} className="row-form">
-                          <input name="tenantId" type="hidden" value={selectedTenant.id} />
+                        <form
+                          action={updateStaffRoleAction}
+                          className="row-form"
+                        >
+                          <input
+                            name="tenantId"
+                            type="hidden"
+                            value={selectedTenant.id}
+                          />
                           <input name="userId" type="hidden" value={user.id} />
                           <Field label="Role">
                             <select name="role" defaultValue={user.role}>
                               <option value="SCHOOL_ADMIN">School admin</option>
                               <option value="IT_ADMIN">IT admin</option>
-                              <option value="ACADEMIC_ADMIN">Academic admin</option>
+                              <option value="ACADEMIC_ADMIN">
+                                Academic admin
+                              </option>
                               <option value="TEACHER">Teacher</option>
-                              <option value="SUPPORT_AGENT">Support agent</option>
-                              <option value="BILLING_ADMIN">Billing admin</option>
+                              <option value="SUPPORT_AGENT">
+                                Support agent
+                              </option>
+                              <option value="BILLING_ADMIN">
+                                Billing admin
+                              </option>
                               <option value="AUDITOR">Auditor</option>
                             </select>
                           </Field>
@@ -219,48 +393,134 @@ export default async function TenantsPage() {
                       ) : null}
                       {canSuspendUsers ? (
                         <>
-                          <form action={setStaffMfaAction} className="button-form">
-                            <input name="tenantId" type="hidden" value={selectedTenant.id} />
-                            <input name="userId" type="hidden" value={user.id} />
-                            <input name="mfaEnabled" type="hidden" value={user.mfaEnabled ? "false" : "true"} />
-                            <input name="reason" type="hidden" value="Updated from school admin console" />
+                          <form
+                            action={setStaffMfaAction}
+                            className="button-form"
+                          >
+                            <input
+                              name="tenantId"
+                              type="hidden"
+                              value={selectedTenant.id}
+                            />
+                            <input
+                              name="userId"
+                              type="hidden"
+                              value={user.id}
+                            />
+                            <input
+                              name="mfaEnabled"
+                              type="hidden"
+                              value={user.mfaEnabled ? "false" : "true"}
+                            />
+                            <input
+                              name="reason"
+                              type="hidden"
+                              value="Updated from school admin console"
+                            />
                             <button className="small-button" type="submit">
                               {user.mfaEnabled ? "Clear MFA" : "Mark MFA"}
                             </button>
                           </form>
-                          {user.status === "SUSPENDED" || user.status === "DEACTIVATED" ? (
-                            <form action={reactivateStaffAction} className="button-form">
-                              <input name="tenantId" type="hidden" value={selectedTenant.id} />
-                              <input name="userId" type="hidden" value={user.id} />
-                              <input name="reason" type="hidden" value="Access restored by administrator" />
-                              <button className="small-button primary" type="submit">
+                          {user.status === "SUSPENDED" ||
+                          user.status === "DEACTIVATED" ? (
+                            <form
+                              action={reactivateStaffAction}
+                              className="button-form"
+                            >
+                              <input
+                                name="tenantId"
+                                type="hidden"
+                                value={selectedTenant.id}
+                              />
+                              <input
+                                name="userId"
+                                type="hidden"
+                                value={user.id}
+                              />
+                              <input
+                                name="reason"
+                                type="hidden"
+                                value="Access restored by administrator"
+                              />
+                              <button
+                                className="small-button primary"
+                                type="submit"
+                              >
                                 Reactivate
                               </button>
                             </form>
                           ) : (
                             <>
-                              <form action={suspendStaffAction} className="button-form">
-                                <input name="tenantId" type="hidden" value={selectedTenant.id} />
-                                <input name="userId" type="hidden" value={user.id} />
-                                <input name="reason" type="hidden" value="Suspended by administrator" />
+                              <form
+                                action={suspendStaffAction}
+                                className="button-form"
+                              >
+                                <input
+                                  name="tenantId"
+                                  type="hidden"
+                                  value={selectedTenant.id}
+                                />
+                                <input
+                                  name="userId"
+                                  type="hidden"
+                                  value={user.id}
+                                />
+                                <input
+                                  name="reason"
+                                  type="hidden"
+                                  value="Suspended by administrator"
+                                />
                                 <button className="small-button" type="submit">
                                   Suspend
                                 </button>
                               </form>
-                              <form action={deactivateStaffAction} className="button-form">
-                                <input name="tenantId" type="hidden" value={selectedTenant.id} />
-                                <input name="userId" type="hidden" value={user.id} />
-                                <input name="reason" type="hidden" value="Deactivated by administrator" />
-                                <button className="small-button danger" type="submit">
+                              <form
+                                action={deactivateStaffAction}
+                                className="button-form"
+                              >
+                                <input
+                                  name="tenantId"
+                                  type="hidden"
+                                  value={selectedTenant.id}
+                                />
+                                <input
+                                  name="userId"
+                                  type="hidden"
+                                  value={user.id}
+                                />
+                                <input
+                                  name="reason"
+                                  type="hidden"
+                                  value="Deactivated by administrator"
+                                />
+                                <button
+                                  className="small-button danger"
+                                  type="submit"
+                                >
                                   Deactivate
                                 </button>
                               </form>
                             </>
                           )}
-                          <form action={forceLogoutStaffAction} className="button-form">
-                            <input name="tenantId" type="hidden" value={selectedTenant.id} />
-                            <input name="userId" type="hidden" value={user.id} />
-                            <input name="reason" type="hidden" value="Session reset by administrator" />
+                          <form
+                            action={forceLogoutStaffAction}
+                            className="button-form"
+                          >
+                            <input
+                              name="tenantId"
+                              type="hidden"
+                              value={selectedTenant.id}
+                            />
+                            <input
+                              name="userId"
+                              type="hidden"
+                              value={user.id}
+                            />
+                            <input
+                              name="reason"
+                              type="hidden"
+                              value="Session reset by administrator"
+                            />
                             <button className="small-button" type="submit">
                               Force logout
                             </button>
@@ -284,7 +544,9 @@ export default async function TenantsPage() {
   );
 }
 
-function userStatusTone(status: string): "neutral" | "good" | "warning" | "critical" {
+function userStatusTone(
+  status: string,
+): "neutral" | "good" | "warning" | "critical" {
   if (status === "ACTIVE") return "good";
   if (status === "SUSPENDED") return "warning";
   if (status === "DEACTIVATED") return "critical";
