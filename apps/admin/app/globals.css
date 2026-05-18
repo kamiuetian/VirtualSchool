@@ -275,6 +275,11 @@ textarea {
   width: 100%;
 }
 
+.auth-panel-single {
+  grid-template-columns: 1fr;
+  max-width: 680px;
+}
+
 .auth-intro {
   align-content: space-between;
   background:
@@ -372,6 +377,19 @@ textarea {
   color: var(--muted);
   font-weight: 600;
   line-height: 1.45;
+}
+
+.auth-error-summary {
+  align-items: center;
+  background: var(--red-soft);
+  border: 1px solid #f8b4ad;
+  border-radius: 8px;
+  color: var(--red);
+  display: flex;
+  font-size: 13px;
+  gap: 10px;
+  line-height: 1.45;
+  padding: 12px;
 }
 
 .primary-action {
