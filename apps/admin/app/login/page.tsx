@@ -6,6 +6,17 @@ import { signInAction } from "../../lib/auth/actions";
 
 export const dynamic = "force-dynamic";
 
+const accessProfiles = [
+  ["PLATFORM_SUPER_ADMIN", "Platform super admin"],
+  ["SCHOOL_ADMIN", "School admin"],
+  ["IT_ADMIN", "IT admin"],
+  ["ACADEMIC_ADMIN", "Academic admin"],
+  ["TEACHER", "Teacher"],
+  ["SUPPORT_AGENT", "Support agent"],
+  ["BILLING_ADMIN", "Billing admin"],
+  ["AUDITOR", "Auditor"],
+] as const;
+
 export default async function LoginPage() {
   const session = await getAdminSession();
 
@@ -44,7 +55,60 @@ export default async function LoginPage() {
               Sign in
             </a>
           ) : (
-            <form action={signInAction}>
+            <form className="auth-form" action={signInAction}>
+              <div className="auth-form-grid">
+                <label className="auth-field">
+                  <span>Email address</span>
+                  <input
+                    autoComplete="email"
+                    defaultValue="admin@example.edu"
+                    name="email"
+                    required
+                    type="email"
+                  />
+                </label>
+
+                <label className="auth-field">
+                  <span>Password</span>
+                  <input
+                    autoComplete="current-password"
+                    name="password"
+                    placeholder="Enter password"
+                    required
+                    type="password"
+                  />
+                </label>
+
+                <label className="auth-field">
+                  <span>Full name</span>
+                  <input
+                    autoComplete="name"
+                    defaultValue="School Administrator"
+                    name="name"
+                    type="text"
+                  />
+                </label>
+
+                <label className="auth-field">
+                  <span>Access profile</span>
+                  <select defaultValue="PLATFORM_SUPER_ADMIN" name="role">
+                    {accessProfiles.map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <label className="auth-field">
+                <span>School scope</span>
+                <input defaultValue="*" name="tenantIds" type="text" />
+                <small>
+                  Use * for platform access or tenant IDs separated by commas.
+                </small>
+              </label>
+
               <button className="primary-action" type="submit">
                 <LockKeyhole size={18} />
                 Sign in

@@ -36,6 +36,17 @@ const navigation = [
   { href: "/billing", icon: ReceiptText, label: "Billing" },
 ] as const;
 
+const roleLabels: Record<string, string> = {
+  ACADEMIC_ADMIN: "Academic admin",
+  AUDITOR: "Auditor",
+  BILLING_ADMIN: "Billing admin",
+  IT_ADMIN: "IT admin",
+  PLATFORM_SUPER_ADMIN: "Platform super admin",
+  SCHOOL_ADMIN: "School admin",
+  SUPPORT_AGENT: "Support agent",
+  TEACHER: "Teacher",
+};
+
 export async function AppShell({
   children,
   connectionIssue,
@@ -93,6 +104,7 @@ export async function AppShell({
               <div className="user-menu">
                 <span>
                   <strong>{session.name}</strong>
+                  <small>{roleLabels[session.role] ?? session.role}</small>
                   <small>{session.email}</small>
                 </span>
                 <a aria-label="Sign out" className="icon-action" href={logoutHref()}>

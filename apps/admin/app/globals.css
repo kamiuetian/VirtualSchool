@@ -308,8 +308,54 @@ textarea {
   margin: 0;
 }
 
-.auth-actions form {
-  display: contents;
+.auth-actions {
+  display: grid;
+}
+
+.auth-form {
+  display: grid;
+  gap: 16px;
+}
+
+.auth-form-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.auth-field {
+  color: var(--ink);
+  display: grid;
+  font-size: 13px;
+  font-weight: 800;
+  gap: 7px;
+}
+
+.auth-field input,
+.auth-field select {
+  appearance: none;
+  background: #f8fbfb;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  min-height: 44px;
+  padding: 10px 12px;
+  width: 100%;
+}
+
+.auth-field input:focus,
+.auth-field select:focus {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px rgba(17, 107, 95, 0.13);
+  outline: 0;
+}
+
+.auth-field small {
+  color: var(--muted);
+  font-weight: 600;
+  line-height: 1.45;
 }
 
 .primary-action {
@@ -341,6 +387,24 @@ textarea {
   font-size: 13px;
   gap: 10px;
   padding: 12px;
+}
+
+@media (max-width: 640px) {
+  .auth-page {
+    padding: 16px;
+  }
+
+  .auth-panel {
+    padding: 24px;
+  }
+
+  .auth-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-copy h1 {
+    font-size: 29px;
+  }
 }
 
 .hero-panel {

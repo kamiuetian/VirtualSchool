@@ -4,6 +4,7 @@ import { roles, type Role } from "@virtual-school/shared";
 import { isAuth0Configured } from "./config";
 
 const developmentSessionCookie = "vs_admin_session";
+const developmentSessionMaxAgeSeconds = 60 * 60 * 8;
 
 export type AdminPortalSession = {
   accessToken?: string;
@@ -12,6 +13,13 @@ export type AdminPortalSession = {
   name: string;
   role: Role;
   tenantIds: string[];
+};
+
+export type DevelopmentSessionInput = {
+  email: string;
+  name?: string;
+  role?: string;
+  tenantIds?: string | string[];
 };
 
 export async function getAdminSession(): Promise<AdminPortalSession | null> {
@@ -28,11 +36,9 @@ export async function getAdminSession(): Promise<AdminPortalSession | null> {
   }
 
   const cookieStore = await cookies();
-  if (cookieStore.get(developmentSessionCookie)?.value !== "active") {
-    return null;
-  }
-
-  return developmentSession();
+  return sessionFromDevelopmentCookie(
+    cookieStore.get(developmentSessionCookie)?.value,
+  );
 }
 
 export async function requireAdminSession(): Promise<AdminPortalSession> {
@@ -45,7 +51,9 @@ export async function requireAdminSession(): Promise<AdminPortalSession> {
   return session;
 }
 
-export async function signInDevelopmentSession(): Promise<void> {
+export async function signInDevelopmentSession(
+  input: DevelopmentSessionInput,
+): Promise<void> {
   if (isAuth0Configured()) {
     redirect("/auth/login");
   }
@@ -54,9 +62,11 @@ export async function signInDevelopmentSession(): Promise<void> {
     throw new Error("Auth0 must be configured before production sign-in");
   }
 
+  const session = normalizeDevelopmentSession(input);
   const cookieStore = await cookies();
-  cookieStore.set(developmentSessionCookie, "active", {
+  cookieStore.set(developmentSessionCookie, encodeDevelopmentSession(session), {
     httpOnly: true,
+    maxAge: developmentSessionMaxAgeSeconds,
     sameSite: "lax",
     secure: false,
     path: "/",
@@ -130,6 +140,48 @@ function developmentSession(): AdminPortalSession {
       .split(",")
       .map((tenantId) => tenantId.trim())
       .filter(Boolean),
+  };
+}
+
+function sessionFromDevelopmentCookie(
+  value: string | undefined,
+): AdminPortalSession | null {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const decoded = JSON.parse(
+      Buffer.from(value, "base64url").toString("utf8"),
+    ) as Partial<DevelopmentSessionInput>;
+    return normalizeDevelopmentSession(decoded);
+  } catch {
+    return null;
+  }
+}
+
+function encodeDevelopmentSession(session: AdminPortalSession): string {
+  return Buffer.from(
+    JSON.stringify({
+      email: session.email,
+      name: session.name,
+      role: session.role,
+      tenantIds: session.tenantIds,
+    }),
+    "utf8",
+  ).toString("base64url");
+}
+
+function normalizeDevelopmentSession(
+  input: Partial<DevelopmentSessionInput>,
+): AdminPortalSession {
+  const email = stringClaim(input.email) ?? "admin@example.edu";
+  return {
+    authMode: "development",
+    email,
+    name: stringClaim(input.name) ?? email,
+    role: roleClaim(input.role ?? "PLATFORM_SUPER_ADMIN"),
+    tenantIds: tenantClaims(input.tenantIds ?? "*"),
   };
 }
 

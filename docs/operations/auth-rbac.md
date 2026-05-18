@@ -37,9 +37,27 @@ out through `/auth/logout`, and sends the server-side access token to the API as
 a Bearer token.
 
 For local development only, when Auth0 is not configured, the portal exposes a
-cookie-backed sign-in button at `/login` and forwards development auth headers
-to the API. CI can set `ADMIN_AUTH_BYPASS=true` to avoid an external Auth0
-dependency during browser regression tests.
+cookie-backed sign-in form at `/login` and forwards development auth headers to
+the API. The local form captures email, name, role, and tenant scope so browser
+testing can exercise both platform and school-scoped access. CI can set
+`ADMIN_AUTH_BYPASS=true` to avoid an external Auth0 dependency during browser
+regression tests.
+
+## Administrative Scope Model
+
+The product has two administrative layers:
+
+- Platform super admin: a SaaS operator role for creating schools, reviewing
+  plan usage, assisting support workflows, and performing cross-tenant
+  operations. This role uses `PLATFORM_SUPER_ADMIN` and tenant scope `*`.
+- School administrators and staff: tenant-scoped roles for a specific school or
+  set of schools. These roles include `SCHOOL_ADMIN`, `IT_ADMIN`,
+  `ACADEMIC_ADMIN`, `TEACHER`, `SUPPORT_AGENT`, `BILLING_ADMIN`, and `AUDITOR`.
+
+The backend enforces this scope through role and tenant claims on every API
+request. The admin portal should progressively expose platform-wide controls
+only to platform super admins and school controls only to users with matching
+tenant access.
 
 ## Token Claims
 
