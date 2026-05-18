@@ -1,0 +1,68 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Deployment environment"
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-${{ github.workflow }}-${{ github.ref }}-${{ inputs.environment || 'staging' }}
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    name: Deployment readiness
+    runs-on: ubuntu-latest
+    outputs:
+      configured: ${{ steps.config.outputs.configured }}
+      target: ${{ steps.target.outputs.target }}
+    steps:
+      - id: target
+        name: Resolve target environment
+        run: echo "target=${{ inputs.environment || 'staging' }}" >> "$GITHUB_OUTPUT"
+
+      - id: config
+        name: Check required deployment variables
+        run: |
+          if [ -n "${{ vars.AWS_ROLE_TO_ASSUME }}" ] && [ -n "${{ vars.AWS_REGION }}" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "AWS deployment variables are not configured yet; skipping deployment."
+          fi
+
+  deploy:
+    name: Deploy to AWS ECS
+    needs: guard
+    if: needs.guard.outputs.configured == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ needs.guard.outputs.target }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ vars.AWS_REGION }}
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+
+      - name: Deployment scaffold
+        run: |
+          echo "AWS credentials configured for ${{ needs.guard.outputs.target }}."
+          echo "Next step: add Terraform outputs, ECR repository names, ECS services, and task definition templates."

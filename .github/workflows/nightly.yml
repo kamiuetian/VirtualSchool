@@ -1,0 +1,15 @@
+name: Nightly Regression
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  full-regression:
+    name: Full regression
+    uses: ./.github/workflows/ci.yml
