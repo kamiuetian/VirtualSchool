@@ -60,6 +60,23 @@ export async function inviteStaffAction(formData: FormData): Promise<void> {
   revalidateAll();
 }
 
+export async function bulkInviteStaffAction(formData: FormData): Promise<void> {
+  await requireActionPermission("user:invite");
+  const tenantId = required(formData, "tenantId");
+  const rows = await csvRowsFromForm(formData, ["name", "email", "role"]);
+
+  for (const row of rows) {
+    await adminApiMutation("POST", `/tenants/${tenantId}/users/invitations`, {
+      branchId: row.branchid,
+      email: row.email,
+      name: row.name,
+      role: row.role,
+    });
+  }
+
+  revalidateAll();
+}
+
 export async function updateStaffRoleAction(formData: FormData): Promise<void> {
   await requireActionPermission("user:invite");
   const tenantId = required(formData, "tenantId");
@@ -104,10 +121,30 @@ export async function createClassAction(formData: FormData): Promise<void> {
   await requireActionPermission("class:manage");
   const tenantId = required(formData, "tenantId");
   await adminApiMutation("POST", `/tenants/${tenantId}/classes`, {
+    branchId: text(formData, "branchId"),
     grade: text(formData, "grade"),
     name: text(formData, "name"),
     subject: text(formData, "subject"),
   });
+  revalidateAll();
+}
+
+export async function bulkCreateClassesAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("class:manage");
+  const tenantId = required(formData, "tenantId");
+  const rows = await csvRowsFromForm(formData, ["name", "grade"]);
+
+  for (const row of rows) {
+    await adminApiMutation("POST", `/tenants/${tenantId}/classes`, {
+      branchId: row.branchid,
+      grade: row.grade,
+      name: row.name,
+      subject: row.subject,
+    });
+  }
+
   revalidateAll();
 }
 
@@ -203,6 +240,30 @@ export async function assignDeviceAction(formData: FormData): Promise<void> {
       tags: splitList(text(formData, "tags")),
     },
   );
+  revalidateAll();
+}
+
+export async function bulkAssignDevicesAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("device:enroll");
+  const tenantId = required(formData, "tenantId");
+  const rows = await csvRowsFromForm(formData, ["deviceid"]);
+
+  for (const row of rows) {
+    await adminApiMutation(
+      "POST",
+      `/tenants/${tenantId}/devices/${row.deviceid}/assignments`,
+      {
+        branchId: row.branchid,
+        classId: row.classid,
+        reason: row.reason || "Bulk assignment import",
+        studentId: row.studentid,
+        tags: splitList(row.tags ?? ""),
+      },
+    );
+  }
+
   revalidateAll();
 }
 
@@ -346,6 +407,29 @@ export async function createAppAction(formData: FormData): Promise<void> {
     name: text(formData, "name"),
     packageId: text(formData, "packageId"),
   });
+  revalidateAll();
+}
+
+export async function bulkCreateAppsAction(formData: FormData): Promise<void> {
+  await requireActionPermission("policy:manage");
+  const tenantId = required(formData, "tenantId");
+  const rows = await csvRowsFromForm(formData, ["name", "packageid"]);
+
+  for (const row of rows) {
+    await adminApiMutation("POST", `/tenants/${tenantId}/apps`, {
+      approvalStatus: row.approvalstatus || "APPROVED",
+      approvedGrades: splitList(row.approvedgrades ?? ""),
+      category: row.category,
+      description: row.description,
+      iconUrl: row.iconurl,
+      installRules: {
+        installType: row.installtype || "AVAILABLE",
+      },
+      name: row.name,
+      packageId: row.packageid,
+    });
+  }
+
   revalidateAll();
 }
 
@@ -609,6 +693,99 @@ function splitList(value: string): string[] {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+async function csvRowsFromForm(
+  formData: FormData,
+  requiredHeaders: string[],
+): Promise<Array<Record<string, string>>> {
+  const csv = await readCsvInput(formData);
+  const records = parseCsvRecords(csv);
+
+  if (records.length === 0) {
+    throw new Error("CSV must include a header row");
+  }
+
+  const headers = records[0]?.map((header) => normalizeCsvHeader(header)) ?? [];
+  const missingHeaders = requiredHeaders.filter(
+    (header) => !headers.includes(header),
+  );
+
+  if (missingHeaders.length > 0) {
+    throw new Error(`CSV is missing headers: ${missingHeaders.join(", ")}`);
+  }
+
+  return records
+    .slice(1)
+    .filter((record) => record.some((cell) => cell.trim()))
+    .map((record) => {
+      return Object.fromEntries(
+        headers.map((header, index) => [header, record[index]?.trim() ?? ""]),
+      );
+    });
+}
+
+async function readCsvInput(formData: FormData): Promise<string> {
+  const uploadedCsv = await fileText(formData, "csvFile");
+  const pastedCsv = text(formData, "csv");
+  const csv = uploadedCsv || pastedCsv;
+
+  if (!csv) {
+    throw new Error("CSV file or pasted rows are required");
+  }
+
+  return csv;
+}
+
+function parseCsvRecords(csv: string): string[][] {
+  const records: string[][] = [];
+  let currentRecord: string[] = [];
+  let currentCell = "";
+  let inQuotes = false;
+
+  for (let index = 0; index < csv.length; index += 1) {
+    const char = csv[index];
+    const nextChar = csv[index + 1];
+
+    if (char === '"' && inQuotes && nextChar === '"') {
+      currentCell += '"';
+      index += 1;
+      continue;
+    }
+
+    if (char === '"') {
+      inQuotes = !inQuotes;
+      continue;
+    }
+
+    if (char === "," && !inQuotes) {
+      currentRecord.push(currentCell);
+      currentCell = "";
+      continue;
+    }
+
+    if ((char === "\n" || char === "\r") && !inQuotes) {
+      if (char === "\r" && nextChar === "\n") {
+        index += 1;
+      }
+      currentRecord.push(currentCell);
+      records.push(currentRecord);
+      currentRecord = [];
+      currentCell = "";
+      continue;
+    }
+
+    currentCell += char;
+  }
+
+  currentRecord.push(currentCell);
+  records.push(currentRecord);
+
+  return records.filter((record) => record.some((cell) => cell.trim()));
+}
+
+function normalizeCsvHeader(header: string): string {
+  return header.trim().toLowerCase().replaceAll("_", "").replaceAll(" ", "");
 }
 
 function commandPayload(

@@ -68,6 +68,9 @@ test.describe("admin portal regression", () => {
     await expect(
       page.getByRole("link", { name: "Download sample CSV" }),
     ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Download classes sample CSV" }),
+    ).toBeVisible();
     await expect(page.getByText("studentCode is required")).toBeVisible();
     await expect(
       page.getByRole("link", { name: "Download error CSV" }),
@@ -80,6 +83,9 @@ test.describe("admin portal regression", () => {
     await expect(
       page.getByRole("button", { name: "Save profile" }),
     ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Download staff sample CSV" }),
+    ).toBeVisible();
 
     await page.goto("/apps");
     await expect(
@@ -87,6 +93,14 @@ test.describe("admin portal regression", () => {
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Queue deployment" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Download app catalog sample CSV" }),
+    ).toBeVisible();
+
+    await page.goto("/devices");
+    await expect(
+      page.getByRole("link", { name: "Download device assignment sample CSV" }),
     ).toBeVisible();
 
     await page.goto("/alerts");
@@ -120,10 +134,41 @@ test.describe("admin portal regression", () => {
     const sample = await sampleDownload;
     expect(sample.suggestedFilename()).toBe("roster-import-sample.csv");
 
+    const classesDownload = page.waitForEvent("download");
+    await page
+      .getByRole("link", { name: "Download classes sample CSV" })
+      .click();
+    const classes = await classesDownload;
+    expect(classes.suggestedFilename()).toBe("classes-import-sample.csv");
+
     const errorDownload = page.waitForEvent("download");
     await page.getByRole("link", { name: "Download error CSV" }).click();
     const errors = await errorDownload;
     expect(errors.suggestedFilename()).toBe("roster-import-errors.csv");
+
+    await page.goto("/tenants");
+    const staffDownload = page.waitForEvent("download");
+    await page.getByRole("link", { name: "Download staff sample CSV" }).click();
+    const staff = await staffDownload;
+    expect(staff.suggestedFilename()).toBe("staff-import-sample.csv");
+
+    await page.goto("/apps");
+    const appsDownload = page.waitForEvent("download");
+    await page
+      .getByRole("link", { name: "Download app catalog sample CSV" })
+      .click();
+    const apps = await appsDownload;
+    expect(apps.suggestedFilename()).toBe("app-catalog-import-sample.csv");
+
+    await page.goto("/devices");
+    const assignmentDownload = page.waitForEvent("download");
+    await page
+      .getByRole("link", { name: "Download device assignment sample CSV" })
+      .click();
+    const assignment = await assignmentDownload;
+    expect(assignment.suggestedFilename()).toBe(
+      "device-assignment-import-sample.csv",
+    );
   });
 
   test("keeps mobile layout within viewport", async ({ page }, testInfo) => {

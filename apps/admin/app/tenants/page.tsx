@@ -9,6 +9,7 @@ import {
   SubmitButton,
 } from "../../components/ui";
 import {
+  bulkInviteStaffAction,
   createBranchAction,
   createTenantAction,
   deactivateStaffAction,
@@ -269,6 +270,45 @@ export default async function TenantsPage() {
                         </select>
                       </Field>
                       <SubmitButton>Send invite</SubmitButton>
+                    </form>
+                  </ActionPanel>
+                ) : null}
+
+                {canInviteUsers ? (
+                  <ActionPanel title="Bulk staff import">
+                    <form
+                      action={bulkInviteStaffAction}
+                      className="stacked-form"
+                    >
+                      <input
+                        name="tenantId"
+                        type="hidden"
+                        value={selectedTenant.id}
+                      />
+                      <Field label="CSV file">
+                        <input
+                          name="csvFile"
+                          accept=".csv,text/csv"
+                          type="file"
+                        />
+                      </Field>
+                      <Field label="CSV rows">
+                        <textarea
+                          name="csv"
+                          placeholder="name,email,role,branchId"
+                        />
+                      </Field>
+                      <p className="form-help">
+                        Roles: SCHOOL_ADMIN, IT_ADMIN, ACADEMIC_ADMIN, TEACHER,
+                        SUPPORT_AGENT, BILLING_ADMIN, AUDITOR.
+                      </p>
+                      <a
+                        className="small-button"
+                        href="/tenants/staff-sample.csv"
+                      >
+                        Download staff sample CSV
+                      </a>
+                      <SubmitButton>Import staff invites</SubmitButton>
                     </form>
                   </ActionPanel>
                 ) : null}

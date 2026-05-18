@@ -9,6 +9,7 @@ import {
   SubmitButton,
 } from "../../components/ui";
 import {
+  bulkCreateClassesAction,
   commitRosterImportAction,
   createClassAction,
   createStudentAction,
@@ -89,7 +90,37 @@ export default async function RosterPage({
                       <input name="subject" placeholder="Science" />
                     </Field>
                   </div>
+                  <Field label="Campus ID">
+                    <input name="branchId" placeholder="Optional branch ID" />
+                  </Field>
                   <SubmitButton>Create class</SubmitButton>
+                </form>
+              </ActionPanel>
+
+              <ActionPanel title="Import class sections">
+                <form action={bulkCreateClassesAction} className="stacked-form">
+                  <input
+                    name="tenantId"
+                    type="hidden"
+                    value={selectedTenant.id}
+                  />
+                  <Field label="CSV file">
+                    <input name="csvFile" accept=".csv,text/csv" type="file" />
+                  </Field>
+                  <Field label="CSV rows">
+                    <textarea
+                      name="csv"
+                      placeholder="name,grade,subject,branchId"
+                    />
+                  </Field>
+                  <p className="form-help">
+                    Import class sections before assigning policies, apps, and
+                    schedules to class scopes.
+                  </p>
+                  <a className="small-button" href="/roster/classes-sample.csv">
+                    Download classes sample CSV
+                  </a>
+                  <SubmitButton>Import classes</SubmitButton>
                 </form>
               </ActionPanel>
 

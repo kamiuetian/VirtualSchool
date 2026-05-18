@@ -10,6 +10,7 @@ import {
 } from "../../components/ui";
 import {
   assignDeviceAction,
+  bulkAssignDevicesAction,
   queueDeviceCommandAction,
   queueWipeDeviceAction,
 } from "../../lib/actions";
@@ -39,10 +40,13 @@ export default async function DevicesPage({
       ? await getDeviceOperationsData(selectedTenant.id, selectedDevice.id)
       : { commands: [], connectionIssue: false, diagnostics: [] };
   const nonCompliant = data.devices.filter(
-    (device) => device.compliance !== "COMPLIANT" && device.compliance !== "UNKNOWN",
+    (device) =>
+      device.compliance !== "COMPLIANT" && device.compliance !== "UNKNOWN",
   );
   const offline = data.devices.filter((device) => device.status === "OFFLINE");
-  const quarantined = data.devices.filter((device) => !device.studentId && !device.classId);
+  const quarantined = data.devices.filter(
+    (device) => !device.studentId && !device.classId,
+  );
 
   return (
     <AppShell
@@ -52,7 +56,10 @@ export default async function DevicesPage({
       <div className="content-stack">
         <PageSection kicker="Fleet" title="Device Inventory">
           <section className="stat-grid" aria-label="Device summary">
-            <StatCard label="Total tablets" value={formatCount(data.devices.length)} />
+            <StatCard
+              label="Total tablets"
+              value={formatCount(data.devices.length)}
+            />
             <StatCard
               label="Offline"
               tone={offline.length > 0 ? "warning" : "good"}
@@ -73,33 +80,77 @@ export default async function DevicesPage({
 
         {selectedTenant && canAssignDevices && data.devices.length > 0 ? (
           <PageSection kicker="Assignment" title="Assign Tablet">
-            <ActionPanel title="Student, class, or campus assignment">
-              <form action={assignDeviceAction} className="inline-form">
-                <input name="tenantId" type="hidden" value={selectedTenant.id} />
-                <Field label="Device">
-                  <select name="deviceId" required>
-                    {data.devices.map((device) => (
-                      <option key={device.id} value={device.id}>
-                        {device.serialNumber}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Student ID">
-                  <input name="studentId" placeholder="Optional" />
-                </Field>
-                <Field label="Class ID">
-                  <input name="classId" placeholder="Optional" />
-                </Field>
-                <Field label="Tags">
-                  <input name="tags" placeholder="pilot, grade-4" />
-                </Field>
-                <Field label="Reason">
-                  <input name="reason" placeholder="Assigned during rollout" />
-                </Field>
-                <SubmitButton>Save assignment</SubmitButton>
-              </form>
-            </ActionPanel>
+            <div className="form-grid two">
+              <ActionPanel title="Student, class, or campus assignment">
+                <form action={assignDeviceAction} className="stacked-form">
+                  <input
+                    name="tenantId"
+                    type="hidden"
+                    value={selectedTenant.id}
+                  />
+                  <Field label="Device">
+                    <select name="deviceId" required>
+                      {data.devices.map((device) => (
+                        <option key={device.id} value={device.id}>
+                          {device.serialNumber}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <div className="form-row">
+                    <Field label="Student ID">
+                      <input name="studentId" placeholder="Optional" />
+                    </Field>
+                    <Field label="Class ID">
+                      <input name="classId" placeholder="Optional" />
+                    </Field>
+                  </div>
+                  <Field label="Branch ID">
+                    <input name="branchId" placeholder="Optional" />
+                  </Field>
+                  <Field label="Tags">
+                    <input name="tags" placeholder="pilot, grade-4" />
+                  </Field>
+                  <Field label="Reason">
+                    <input
+                      name="reason"
+                      placeholder="Assigned during rollout"
+                    />
+                  </Field>
+                  <SubmitButton>Save assignment</SubmitButton>
+                </form>
+              </ActionPanel>
+
+              <ActionPanel title="Bulk device assignment">
+                <form action={bulkAssignDevicesAction} className="stacked-form">
+                  <input
+                    name="tenantId"
+                    type="hidden"
+                    value={selectedTenant.id}
+                  />
+                  <Field label="CSV file">
+                    <input name="csvFile" accept=".csv,text/csv" type="file" />
+                  </Field>
+                  <Field label="CSV rows">
+                    <textarea
+                      name="csv"
+                      placeholder="deviceId,studentId,classId,branchId,tags,reason"
+                    />
+                  </Field>
+                  <p className="form-help">
+                    Device IDs are the portal IDs from the managed tablet table,
+                    not serial numbers.
+                  </p>
+                  <a
+                    className="small-button"
+                    href="/devices/assignment-sample.csv"
+                  >
+                    Download device assignment sample CSV
+                  </a>
+                  <SubmitButton>Import assignments</SubmitButton>
+                </form>
+              </ActionPanel>
+            </div>
           </PageSection>
         ) : null}
 
@@ -108,9 +159,20 @@ export default async function DevicesPage({
             <div className="form-grid">
               {canQueueCommands ? (
                 <ActionPanel title="Queue device command">
-                  <form action={queueDeviceCommandAction} className="stacked-form">
-                    <input name="tenantId" type="hidden" value={selectedTenant.id} />
-                    <input name="deviceId" type="hidden" value={selectedDevice.id} />
+                  <form
+                    action={queueDeviceCommandAction}
+                    className="stacked-form"
+                  >
+                    <input
+                      name="tenantId"
+                      type="hidden"
+                      value={selectedTenant.id}
+                    />
+                    <input
+                      name="deviceId"
+                      type="hidden"
+                      value={selectedDevice.id}
+                    />
                     <Field label="Selected tablet">
                       <select defaultValue={selectedDevice.id} disabled>
                         {data.devices.map((device) => (
@@ -122,7 +184,9 @@ export default async function DevicesPage({
                     </Field>
                     <Field label="Command">
                       <select name="type" defaultValue="REQUEST_CHECK_IN">
-                        <option value="REQUEST_CHECK_IN">Request check-in</option>
+                        <option value="REQUEST_CHECK_IN">
+                          Request check-in
+                        </option>
                         <option value="POLICY_REFRESH">Refresh policy</option>
                         <option value="LOCK">Lock</option>
                         <option value="UNLOCK">Unlock</option>
@@ -131,14 +195,27 @@ export default async function DevicesPage({
                       </select>
                     </Field>
                     <Field label="Message">
-                      <input name="message" placeholder="Shown only for message commands" />
+                      <input
+                        name="message"
+                        placeholder="Shown only for message commands"
+                      />
                     </Field>
                     <div className="form-row">
                       <Field label="TTL minutes">
-                        <input defaultValue="60" min="1" name="ttlMinutes" type="number" />
+                        <input
+                          defaultValue="60"
+                          min="1"
+                          name="ttlMinutes"
+                          type="number"
+                        />
                       </Field>
                       <Field label="Attempts">
-                        <input defaultValue="3" min="1" name="maxAttempts" type="number" />
+                        <input
+                          defaultValue="3"
+                          min="1"
+                          name="maxAttempts"
+                          type="number"
+                        />
                       </Field>
                     </div>
                     <label className="check-field">
@@ -146,7 +223,10 @@ export default async function DevicesPage({
                       <span>Confirm high-impact operation</span>
                     </label>
                     <Field label="Reason">
-                      <input name="reason" placeholder="Support or classroom operation" />
+                      <input
+                        name="reason"
+                        placeholder="Support or classroom operation"
+                      />
                     </Field>
                     <SubmitButton>Queue command</SubmitButton>
                   </form>
@@ -156,11 +236,20 @@ export default async function DevicesPage({
               {canWipeDevices ? (
                 <ActionPanel title="Confirmed wipe">
                   <form action={queueWipeDeviceAction} className="stacked-form">
-                    <input name="tenantId" type="hidden" value={selectedTenant.id} />
-                    <input name="deviceId" type="hidden" value={selectedDevice.id} />
+                    <input
+                      name="tenantId"
+                      type="hidden"
+                      value={selectedTenant.id}
+                    />
+                    <input
+                      name="deviceId"
+                      type="hidden"
+                      value={selectedDevice.id}
+                    />
                     <p className="form-help">
                       Destructive reset requires the exact serial number and a
-                      reason. Use only for approved lost-device or redeployment cases.
+                      reason. Use only for approved lost-device or redeployment
+                      cases.
                     </p>
                     <Field label="Serial confirmation">
                       <input
@@ -170,10 +259,17 @@ export default async function DevicesPage({
                       />
                     </Field>
                     <Field label="Reason">
-                      <input name="reason" placeholder="Approved wipe request" required />
+                      <input
+                        name="reason"
+                        placeholder="Approved wipe request"
+                        required
+                      />
                     </Field>
                     <label className="check-field">
-                      <input name="preserveFactoryResetProtection" type="checkbox" />
+                      <input
+                        name="preserveFactoryResetProtection"
+                        type="checkbox"
+                      />
                       <span>Preserve factory reset protection</span>
                     </label>
                     <button className="submit-button danger" type="submit">
@@ -222,19 +318,33 @@ export default async function DevicesPage({
                   {data.devices.map((device) => (
                     <tr key={device.id}>
                       <td>
-                        <a className="table-link" href={`/devices?deviceId=${device.id}`}>
+                        <a
+                          className="table-link"
+                          href={`/devices?deviceId=${device.id}`}
+                        >
                           {device.serialNumber}
                         </a>
+                        <span className="cell-note">ID: {device.id}</span>
                       </td>
-                      <td>{device.model ?? device.manufacturer ?? "Android tablet"}</td>
+                      <td>
+                        {device.model ??
+                          device.manufacturer ??
+                          "Android tablet"}
+                      </td>
                       <td>
                         <StatusPill tone={statusTone(device.status)}>
                           {humanize(device.status)}
                         </StatusPill>
                       </td>
                       <td>{humanize(device.health)}</td>
-                      <td>{device.policyVersion ? `v${device.policyVersion}` : "Unassigned"}</td>
-                      <td>{device.studentId ?? device.classId ?? "Quarantine"}</td>
+                      <td>
+                        {device.policyVersion
+                          ? `v${device.policyVersion}`
+                          : "Unassigned"}
+                      </td>
+                      <td>
+                        {device.studentId ?? device.classId ?? "Quarantine"}
+                      </td>
                       <td>{formatDateTime(device.lastCheckInAt)}</td>
                     </tr>
                   ))}
@@ -274,7 +384,11 @@ export default async function DevicesPage({
                       <td>
                         {command.attempts} of {command.maxAttempts}
                       </td>
-                      <td>{command.reason ?? command.failureReason ?? "Not recorded"}</td>
+                      <td>
+                        {command.reason ??
+                          command.failureReason ??
+                          "Not recorded"}
+                      </td>
                       <td>{formatDateTime(command.updatedAt)}</td>
                     </tr>
                   ))}
@@ -314,7 +428,11 @@ export default async function DevicesPage({
                           : "Unknown"}
                       </td>
                       <td>{diagnostic.networkStatus ?? "Unknown"}</td>
-                      <td>{diagnostic.health ? humanize(diagnostic.health) : "Unknown"}</td>
+                      <td>
+                        {diagnostic.health
+                          ? humanize(diagnostic.health)
+                          : "Unknown"}
+                      </td>
                       <td>
                         {diagnostic.compliance
                           ? humanize(diagnostic.compliance)
@@ -337,9 +455,15 @@ export default async function DevicesPage({
   );
 }
 
-function statusTone(status: string): "neutral" | "good" | "warning" | "critical" {
+function statusTone(
+  status: string,
+): "neutral" | "good" | "warning" | "critical" {
   if (status === "ONLINE") return "good";
-  if (status === "LOST" || status === "NON_COMPLIANT" || status === "ENROLLMENT_FAILED") {
+  if (
+    status === "LOST" ||
+    status === "NON_COMPLIANT" ||
+    status === "ENROLLMENT_FAILED"
+  ) {
     return "critical";
   }
   if (status === "OFFLINE" || status === "LOCKED") return "warning";

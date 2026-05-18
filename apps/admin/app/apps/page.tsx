@@ -8,7 +8,11 @@ import {
   StatusPill,
   SubmitButton,
 } from "../../components/ui";
-import { createAppAction, deployAppAction } from "../../lib/actions";
+import {
+  bulkCreateAppsAction,
+  createAppAction,
+  deployAppAction,
+} from "../../lib/actions";
 import { getAdminData } from "../../lib/api";
 import { roleCan } from "../../lib/auth/portal-access";
 import { formatCount, formatDateTime, humanize } from "../../lib/format";
@@ -27,8 +31,15 @@ export default async function AppsPage() {
       <div className="content-stack">
         <PageSection kicker="Learning access" title="Apps And Web Catalog">
           <section className="stat-grid" aria-label="App catalog summary">
-            <StatCard label="Catalog apps" value={formatCount(data.apps.length)} />
-            <StatCard label="Approved" tone="good" value={formatCount(approved.length)} />
+            <StatCard
+              label="Catalog apps"
+              value={formatCount(data.apps.length)}
+            />
+            <StatCard
+              label="Approved"
+              tone="good"
+              value={formatCount(approved.length)}
+            />
             <StatCard
               label="Blocked"
               tone={blocked.length > 0 ? "warning" : "neutral"}
@@ -38,7 +49,9 @@ export default async function AppsPage() {
               label="Policy-linked packages"
               value={formatCount(
                 new Set(
-                  data.policies.flatMap((policy) => policy.rules.approvedAppPackageIds),
+                  data.policies.flatMap(
+                    (policy) => policy.rules.approvedAppPackageIds,
+                  ),
                 ).size,
               )}
             />
@@ -47,43 +60,84 @@ export default async function AppsPage() {
 
         {selectedTenant ? (
           <PageSection kicker="Catalog action" title="Add Approved App">
-            <ActionPanel title="Managed Google Play app">
-              <form action={createAppAction} className="inline-form">
-                <input name="tenantId" type="hidden" value={selectedTenant.id} />
-                <Field label="App name">
-                  <input name="name" placeholder="Google Classroom" required />
-                </Field>
-                <Field label="Package ID">
+            <div className="form-grid two">
+              <ActionPanel title="Managed Google Play app">
+                <form action={createAppAction} className="stacked-form">
                   <input
-                    name="packageId"
-                    placeholder="com.google.android.apps.classroom"
-                    required
+                    name="tenantId"
+                    type="hidden"
+                    value={selectedTenant.id}
                   />
-                </Field>
-                <Field label="Category">
-                  <input name="category" placeholder="Learning" />
-                </Field>
-                <Field label="Grades">
-                  <input name="approvedGrades" placeholder="1, 2, 3" />
-                </Field>
-                <Field label="Install rule">
-                  <select name="installType" defaultValue="AVAILABLE">
-                    <option value="AVAILABLE">Available</option>
-                    <option value="FORCE_INSTALLED">Force installed</option>
-                    <option value="BLOCKED">Blocked</option>
-                  </select>
-                </Field>
-                <Field label="Status">
-                  <select name="approvalStatus" defaultValue="APPROVED">
-                    <option value="APPROVED">Approved</option>
-                    <option value="PENDING_REVIEW">Pending review</option>
-                    <option value="DEPRECATED">Deprecated</option>
-                    <option value="BLOCKED">Blocked</option>
-                  </select>
-                </Field>
-                <SubmitButton>Add app</SubmitButton>
-              </form>
-            </ActionPanel>
+                  <Field label="App name">
+                    <input
+                      name="name"
+                      placeholder="Google Classroom"
+                      required
+                    />
+                  </Field>
+                  <Field label="Package ID">
+                    <input
+                      name="packageId"
+                      placeholder="com.google.android.apps.classroom"
+                      required
+                    />
+                  </Field>
+                  <div className="form-row">
+                    <Field label="Category">
+                      <input name="category" placeholder="Learning" />
+                    </Field>
+                    <Field label="Grades">
+                      <input name="approvedGrades" placeholder="1, 2, 3" />
+                    </Field>
+                  </div>
+                  <div className="form-row">
+                    <Field label="Install rule">
+                      <select name="installType" defaultValue="AVAILABLE">
+                        <option value="AVAILABLE">Available</option>
+                        <option value="FORCE_INSTALLED">Force installed</option>
+                        <option value="BLOCKED">Blocked</option>
+                      </select>
+                    </Field>
+                    <Field label="Status">
+                      <select name="approvalStatus" defaultValue="APPROVED">
+                        <option value="APPROVED">Approved</option>
+                        <option value="PENDING_REVIEW">Pending review</option>
+                        <option value="DEPRECATED">Deprecated</option>
+                        <option value="BLOCKED">Blocked</option>
+                      </select>
+                    </Field>
+                  </div>
+                  <SubmitButton>Add app</SubmitButton>
+                </form>
+              </ActionPanel>
+
+              <ActionPanel title="Bulk app catalog import">
+                <form action={bulkCreateAppsAction} className="stacked-form">
+                  <input
+                    name="tenantId"
+                    type="hidden"
+                    value={selectedTenant.id}
+                  />
+                  <Field label="CSV file">
+                    <input name="csvFile" accept=".csv,text/csv" type="file" />
+                  </Field>
+                  <Field label="CSV rows">
+                    <textarea
+                      name="csv"
+                      placeholder="name,packageId,category,approvedGrades,installType,approvalStatus"
+                    />
+                  </Field>
+                  <p className="form-help">
+                    Use package IDs from Managed Google Play and set install
+                    rules to AVAILABLE, FORCE_INSTALLED, or BLOCKED.
+                  </p>
+                  <a className="small-button" href="/apps/sample.csv">
+                    Download app catalog sample CSV
+                  </a>
+                  <SubmitButton>Import apps</SubmitButton>
+                </form>
+              </ActionPanel>
+            </div>
           </PageSection>
         ) : null}
 
@@ -91,7 +145,11 @@ export default async function AppsPage() {
           <PageSection kicker="Deployment" title="Install Or Remove Apps">
             <ActionPanel title="Queue app deployment">
               <form action={deployAppAction} className="inline-form wide">
-                <input name="tenantId" type="hidden" value={selectedTenant.id} />
+                <input
+                  name="tenantId"
+                  type="hidden"
+                  value={selectedTenant.id}
+                />
                 <Field label="App">
                   <select name="appId" required>
                     {data.apps.map((app) => (
@@ -123,7 +181,12 @@ export default async function AppsPage() {
                   <input name="reason" placeholder="Curriculum app rollout" />
                 </Field>
                 <Field label="TTL minutes">
-                  <input defaultValue="120" min="1" name="ttlMinutes" type="number" />
+                  <input
+                    defaultValue="120"
+                    min="1"
+                    name="ttlMinutes"
+                    type="number"
+                  />
                 </Field>
                 <SubmitButton>Queue deployment</SubmitButton>
               </form>
@@ -150,10 +213,22 @@ export default async function AppsPage() {
                     <tr key={app.id}>
                       <td>{app.name}</td>
                       <td>{app.packageId}</td>
-                      <td>{app.approvedGrades.length > 0 ? app.approvedGrades.join(", ") : "All"}</td>
-                      <td>{humanize(app.installRules?.installType ?? "AVAILABLE")}</td>
                       <td>
-                        <StatusPill tone={app.approvalStatus === "APPROVED" ? "good" : "warning"}>
+                        {app.approvedGrades.length > 0
+                          ? app.approvedGrades.join(", ")
+                          : "All"}
+                      </td>
+                      <td>
+                        {humanize(app.installRules?.installType ?? "AVAILABLE")}
+                      </td>
+                      <td>
+                        <StatusPill
+                          tone={
+                            app.approvalStatus === "APPROVED"
+                              ? "good"
+                              : "warning"
+                          }
+                        >
                           {humanize(app.approvalStatus)}
                         </StatusPill>
                       </td>
@@ -178,10 +253,13 @@ export default async function AppsPage() {
                 <article className="record-card" key={policy.id}>
                   <div>
                     <strong>{policy.name}</strong>
-                    <span>{humanize(policy.rules.defaultWebAccess)} by default</span>
+                    <span>
+                      {humanize(policy.rules.defaultWebAccess)} by default
+                    </span>
                   </div>
                   <StatusPill>
-                    {policy.rules.urlAllowlist.length} allowed, {policy.rules.urlBlocklist.length} blocked
+                    {policy.rules.urlAllowlist.length} allowed,{" "}
+                    {policy.rules.urlBlocklist.length} blocked
                   </StatusPill>
                 </article>
               ))}
