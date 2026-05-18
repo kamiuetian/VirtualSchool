@@ -64,6 +64,8 @@ test.describe("admin portal regression", () => {
       page.getByRole("img", { name: "Enrollment QR for Pilot tablets" }),
     ).toBeVisible();
     await expect(page.getByRole("link", { name: "Download QR" })).toBeVisible();
+    await expect(page.getByText("Payload")).toHaveCount(0);
+    await expect(page.getByText('"connector":"android-management-api"')).toHaveCount(0);
   });
 
   test("downloads CSV exports through portal routes", async ({ page }) => {

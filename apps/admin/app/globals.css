@@ -892,15 +892,6 @@ tr:last-child td {
   padding: 8px;
 }
 
-.payload-text {
-  color: var(--muted-strong);
-  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
-  font-size: 11px;
-  line-height: 1.45;
-  max-height: 92px;
-  overflow: auto;
-}
-
 @media (max-width: 1220px) {
   .app-shell {
     grid-template-columns: 230px minmax(0, 1fr);

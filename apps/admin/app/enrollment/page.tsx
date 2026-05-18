@@ -23,7 +23,6 @@ export default async function EnrollmentPage() {
     data.enrollmentBatches.map(async (batch) => ({
       batch,
       qrDataUrl: await enrollmentQrDataUrl(batch),
-      qrText: enrollmentQrText(batch),
     })),
   );
   const active = data.enrollmentBatches.filter((batch) => batch.status === "ACTIVE");
@@ -80,7 +79,7 @@ export default async function EnrollmentPage() {
         <PageSection title="Enrollment Batch Register">
           {data.enrollmentBatches.length > 0 ? (
             <div className="card-grid">
-              {batchesWithQr.map(({ batch, qrDataUrl, qrText }) => (
+              {batchesWithQr.map(({ batch, qrDataUrl }) => (
                 <article className="record-card enrollment-card" key={batch.id}>
                   <div className="enrollment-card-header">
                     <div className="record-icon">
@@ -121,10 +120,6 @@ export default async function EnrollmentPage() {
                     <div>
                       <dt>Token</dt>
                       <dd>{batch.token}</dd>
-                    </div>
-                    <div>
-                      <dt>Payload</dt>
-                      <dd className="payload-text">{qrText}</dd>
                     </div>
                   </dl>
                 </article>
