@@ -114,6 +114,13 @@ test.describe("admin portal regression", () => {
       page.getByRole("img", { name: "Enrollment QR for Pilot tablets" }),
     ).toBeVisible();
     await expect(page.getByRole("link", { name: "Download QR" })).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Download kit" }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Enrollment key", { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText("token-1")).toHaveCount(0);
     await expect(page.getByText("Payload")).toHaveCount(0);
     await expect(
       page.getByText('"connector":"android-management-api"'),
@@ -169,6 +176,12 @@ test.describe("admin portal regression", () => {
     expect(assignment.suggestedFilename()).toBe(
       "device-assignment-import-sample.csv",
     );
+
+    await page.goto("/enrollment");
+    const kitDownload = page.waitForEvent("download");
+    await page.getByRole("link", { name: "Download kit" }).click();
+    const kit = await kitDownload;
+    expect(kit.suggestedFilename()).toBe("pilot-tablets-provisioning-kit.txt");
   });
 
   test("keeps mobile layout within viewport", async ({ page }, testInfo) => {

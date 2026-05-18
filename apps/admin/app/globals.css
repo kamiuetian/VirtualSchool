@@ -1173,6 +1173,32 @@ tr:last-child td {
   padding: 8px;
 }
 
+.qr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  width: 100%;
+}
+
+.operator-note {
+  align-items: flex-start;
+  background: var(--blue-soft);
+  border: 1px solid #bfd5ea;
+  border-radius: 8px;
+  color: var(--blue);
+  display: flex;
+  font-size: 13px;
+  gap: 8px;
+  line-height: 1.45;
+  padding: 10px;
+}
+
+.operator-note svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
 @media (max-width: 1220px) {
   .app-shell {
     grid-template-columns: 230px minmax(0, 1fr);
