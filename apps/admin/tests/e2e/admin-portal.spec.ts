@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type BrowserContext } from "@playwright/test";
 
 const pages = [
   { heading: "Keep every school tablet ready for class.", path: "/" },
@@ -16,6 +16,10 @@ const pages = [
 ] as const;
 
 test.describe("admin portal regression", () => {
+  test.beforeEach(async ({ baseURL, context }) => {
+    await signInAs(context, baseURL, "PLATFORM_SUPER_ADMIN");
+  });
+
   for (const pageCase of pages) {
     test(`renders ${pageCase.path}`, async ({ page }) => {
       const consoleErrors: string[] = [];
@@ -100,3 +104,108 @@ test.describe("admin portal regression", () => {
     }
   });
 });
+
+test.describe("role-aware admin portal", () => {
+  test("shows a read-only teacher navigation surface and redirects restricted pages", async ({
+    baseURL,
+    context,
+    page,
+  }) => {
+    await signInAs(context, baseURL, "TEACHER");
+
+    await page.goto("/");
+    await expect(page.locator(".sidebar-nav").getByRole("link", { name: "Overview" })).toBeVisible();
+    await expect(page.locator(".sidebar-nav").getByRole("link", { name: "Devices" })).toBeVisible();
+    await expect(page.locator(".sidebar-nav").getByRole("link", { name: "Alerts" })).toBeVisible();
+    await expect(page.locator(".sidebar-nav").getByRole("link", { name: "Support" })).toBeVisible();
+    await expect(page.locator(".sidebar-nav").getByRole("link", { name: "Roster" })).toHaveCount(0);
+    await expect(page.locator(".sidebar-nav").getByRole("link", { name: "Billing" })).toHaveCount(0);
+
+    await page.goto("/roster");
+    await expect(page).toHaveURL("/");
+    await expect(
+      page.getByRole("heading", { name: "Keep every school tablet ready for class." }),
+    ).toBeVisible();
+
+    await page.goto("/devices");
+    await expect(page.getByRole("heading", { name: "Device Inventory" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Queue command" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Queue wipe" })).toHaveCount(0);
+  });
+
+  test("keeps billing admins limited to billing and overview", async ({
+    baseURL,
+    context,
+    page,
+  }) => {
+    await signInAs(context, baseURL, "BILLING_ADMIN");
+
+    await page.goto("/billing");
+    await expect(page.getByRole("heading", { name: "Plan Usage" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Update subscription" })).toBeVisible();
+    await expect(page.locator(".sidebar-nav").getByRole("link", { name: "Billing" })).toBeVisible();
+    await expect(page.locator(".sidebar-nav").getByRole("link", { name: "Devices" })).toHaveCount(0);
+    await expect(page.locator(".sidebar-nav").getByRole("link", { name: "Schools" })).toHaveCount(0);
+
+    await page.goto("/devices");
+    await expect(page).toHaveURL("/");
+  });
+
+  test("hides operational command controls from school admins", async ({
+    baseURL,
+    context,
+    page,
+  }) => {
+    await signInAs(context, baseURL, "SCHOOL_ADMIN");
+
+    await page.goto("/devices");
+    await expect(page.getByRole("heading", { name: "Device Inventory" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Assign Tablet" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Queue command" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Queue wipe" })).toHaveCount(0);
+
+    await page.goto("/apps");
+    await expect(page.getByRole("heading", { name: "Apps And Web Catalog" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Add Approved App" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Queue deployment" })).toHaveCount(0);
+
+    await page.goto("/enrollment");
+    await expect(page).toHaveURL("/");
+  });
+});
+
+async function signInAs(
+  context: BrowserContext,
+  baseURL: string | undefined,
+  role: string,
+): Promise<void> {
+  if (!baseURL) {
+    throw new Error("Playwright baseURL is required");
+  }
+
+  const value = Buffer.from(
+    JSON.stringify({
+      email: `${role.toLowerCase()}@northview.edu`,
+      name: roleName(role),
+      role,
+      tenantIds: ["tenant-northview"],
+    }),
+    "utf8",
+  ).toString("base64url");
+
+  await context.addCookies([
+    {
+      name: "vs_admin_session",
+      url: baseURL,
+      value,
+    },
+  ]);
+}
+
+function roleName(role: string): string {
+  return role
+    .toLowerCase()
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}

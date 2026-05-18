@@ -48,7 +48,6 @@ export default defineConfig({
     {
       command: `pnpm exec next dev -H 127.0.0.1 -p ${appPort}`,
       env: {
-        ADMIN_AUTH_BYPASS: "true",
         ADMIN_API_BASE_URL: apiURL,
         NEXT_PUBLIC_API_BASE_URL: apiURL,
       },
