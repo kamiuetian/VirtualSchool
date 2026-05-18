@@ -2,10 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { RosterImportSummary } from "@virtual-school/shared";
+import type { Permission, RosterImportSummary } from "@virtual-school/shared";
 import { adminApiJsonMutation, adminApiMutation } from "./api";
+import { roleCan } from "./auth/portal-access";
+import { requireAdminSession } from "./auth/session";
 
 export async function createTenantAction(formData: FormData): Promise<void> {
+  await requireActionPermission("tenant:create");
   await adminApiMutation("POST", "/tenants", {
     country: text(formData, "country"),
     name: text(formData, "name"),
@@ -18,6 +21,7 @@ export async function createTenantAction(formData: FormData): Promise<void> {
 }
 
 export async function createBranchAction(formData: FormData): Promise<void> {
+  await requireActionPermission("tenant:update");
   const tenantId = required(formData, "tenantId");
   await adminApiMutation("POST", `/tenants/${tenantId}/branches`, {
     name: text(formData, "name"),
@@ -27,6 +31,7 @@ export async function createBranchAction(formData: FormData): Promise<void> {
 }
 
 export async function inviteStaffAction(formData: FormData): Promise<void> {
+  await requireActionPermission("user:invite");
   const tenantId = required(formData, "tenantId");
   await adminApiMutation("POST", `/tenants/${tenantId}/users/invitations`, {
     email: text(formData, "email"),
@@ -37,6 +42,7 @@ export async function inviteStaffAction(formData: FormData): Promise<void> {
 }
 
 export async function updateStaffRoleAction(formData: FormData): Promise<void> {
+  await requireActionPermission("user:invite");
   const tenantId = required(formData, "tenantId");
   const userId = required(formData, "userId");
   await adminApiMutation("PATCH", `/tenants/${tenantId}/users/${userId}/role`, {
@@ -63,6 +69,7 @@ export async function forceLogoutStaffAction(formData: FormData): Promise<void> 
 }
 
 export async function setStaffMfaAction(formData: FormData): Promise<void> {
+  await requireActionPermission("user:suspend");
   const tenantId = required(formData, "tenantId");
   const userId = required(formData, "userId");
   await adminApiMutation("PATCH", `/tenants/${tenantId}/users/${userId}/mfa`, {
@@ -73,6 +80,7 @@ export async function setStaffMfaAction(formData: FormData): Promise<void> {
 }
 
 export async function createClassAction(formData: FormData): Promise<void> {
+  await requireActionPermission("class:manage");
   const tenantId = required(formData, "tenantId");
   await adminApiMutation("POST", `/tenants/${tenantId}/classes`, {
     grade: text(formData, "grade"),
@@ -83,6 +91,7 @@ export async function createClassAction(formData: FormData): Promise<void> {
 }
 
 export async function createStudentAction(formData: FormData): Promise<void> {
+  await requireActionPermission("roster:manage");
   const tenantId = required(formData, "tenantId");
   const guardianName = text(formData, "guardianName");
   await adminApiMutation("POST", `/tenants/${tenantId}/students`, {
@@ -107,6 +116,7 @@ export async function createStudentAction(formData: FormData): Promise<void> {
 export async function previewRosterImportAction(
   formData: FormData,
 ): Promise<void> {
+  await requireActionPermission("roster:manage");
   const tenantId = required(formData, "tenantId");
   const result = await adminApiJsonMutation<RosterImportSummary>(
     "POST",
@@ -123,6 +133,7 @@ export async function previewRosterImportAction(
 export async function commitRosterImportAction(
   formData: FormData,
 ): Promise<void> {
+  await requireActionPermission("roster:manage");
   const tenantId = required(formData, "tenantId");
   const importId = required(formData, "importId");
   await adminApiMutation(
@@ -137,6 +148,7 @@ export async function commitRosterImportAction(
 export async function createEnrollmentBatchAction(
   formData: FormData,
 ): Promise<void> {
+  await requireActionPermission("device:enroll");
   const tenantId = required(formData, "tenantId");
   await adminApiMutation("POST", `/tenants/${tenantId}/enrollment-batches`, {
     expiresAt: text(formData, "expiresAt"),
@@ -147,6 +159,7 @@ export async function createEnrollmentBatchAction(
 }
 
 export async function assignDeviceAction(formData: FormData): Promise<void> {
+  await requireActionPermission("device:enroll");
   const tenantId = required(formData, "tenantId");
   const deviceId = required(formData, "deviceId");
   await adminApiMutation(
@@ -166,6 +179,7 @@ export async function assignDeviceAction(formData: FormData): Promise<void> {
 export async function queueDeviceCommandAction(
   formData: FormData,
 ): Promise<void> {
+  await requireActionPermission("device:command");
   const tenantId = required(formData, "tenantId");
   const deviceId = required(formData, "deviceId");
   const type = required(formData, "type");
@@ -181,6 +195,7 @@ export async function queueDeviceCommandAction(
 }
 
 export async function queueWipeDeviceAction(formData: FormData): Promise<void> {
+  await requireActionPermission("device:wipe");
   const tenantId = required(formData, "tenantId");
   const deviceId = required(formData, "deviceId");
   await adminApiMutation(
@@ -202,12 +217,14 @@ export async function queueWipeDeviceAction(formData: FormData): Promise<void> {
 export async function createStarterPoliciesAction(
   formData: FormData,
 ): Promise<void> {
+  await requireActionPermission("policy:manage");
   const tenantId = required(formData, "tenantId");
   await adminApiMutation("POST", `/tenants/${tenantId}/policies/starter-templates`, {});
   revalidateAll();
 }
 
 export async function publishPolicyAction(formData: FormData): Promise<void> {
+  await requireActionPermission("policy:manage");
   const tenantId = required(formData, "tenantId");
   const policyId = required(formData, "policyId");
   await adminApiMutation("POST", `/tenants/${tenantId}/policies/${policyId}/publish`, {
@@ -217,6 +234,7 @@ export async function publishPolicyAction(formData: FormData): Promise<void> {
 }
 
 export async function assignPolicyAction(formData: FormData): Promise<void> {
+  await requireActionPermission("policy:manage");
   const tenantId = required(formData, "tenantId");
   const policyId = required(formData, "policyId");
   await adminApiMutation(
@@ -236,6 +254,7 @@ export async function assignPolicyAction(formData: FormData): Promise<void> {
 export async function createTimetableBlockAction(
   formData: FormData,
 ): Promise<void> {
+  await requireActionPermission("policy:manage");
   const tenantId = required(formData, "tenantId");
   await adminApiMutation("POST", `/tenants/${tenantId}/timetable-blocks`, {
     branchId: text(formData, "branchId"),
@@ -258,6 +277,7 @@ export async function createTimetableBlockAction(
 export async function deactivateTimetableBlockAction(
   formData: FormData,
 ): Promise<void> {
+  await requireActionPermission("policy:manage");
   const tenantId = required(formData, "tenantId");
   const blockId = required(formData, "blockId");
   await adminApiMutation(
@@ -271,6 +291,7 @@ export async function deactivateTimetableBlockAction(
 }
 
 export async function createAppAction(formData: FormData): Promise<void> {
+  await requireActionPermission("policy:manage");
   const tenantId = required(formData, "tenantId");
   await adminApiMutation("POST", `/tenants/${tenantId}/apps`, {
     approvalStatus: text(formData, "approvalStatus") || "APPROVED",
@@ -287,6 +308,7 @@ export async function createAppAction(formData: FormData): Promise<void> {
 }
 
 export async function deployAppAction(formData: FormData): Promise<void> {
+  await requireActionPermission("device:command");
   const tenantId = required(formData, "tenantId");
   const appId = required(formData, "appId");
   await adminApiMutation("POST", `/tenants/${tenantId}/apps/${appId}/deployments`, {
@@ -301,6 +323,7 @@ export async function deployAppAction(formData: FormData): Promise<void> {
 }
 
 export async function createSupportNoteAction(formData: FormData): Promise<void> {
+  await requireActionPermission("device:command");
   const tenantId = required(formData, "tenantId");
   const deviceId = required(formData, "deviceId");
   await adminApiMutation("POST", `/tenants/${tenantId}/support/devices/${deviceId}/notes`, {
@@ -315,6 +338,7 @@ export async function createSupportNoteAction(formData: FormData): Promise<void>
 }
 
 export async function updateSupportNoteAction(formData: FormData): Promise<void> {
+  await requireActionPermission("device:command");
   const tenantId = required(formData, "tenantId");
   const noteId = required(formData, "noteId");
   await adminApiMutation("PATCH", `/tenants/${tenantId}/support/notes/${noteId}`, {
@@ -328,6 +352,7 @@ export async function updateSupportNoteAction(formData: FormData): Promise<void>
 export async function updateRetentionSettingsAction(
   formData: FormData,
 ): Promise<void> {
+  await requireActionPermission("tenant:update");
   const tenantId = required(formData, "tenantId");
   await adminApiMutation("PATCH", `/tenants/${tenantId}/retention-settings`, {
     auditRetentionDays: numberValue(formData, "auditRetentionDays"),
@@ -350,6 +375,7 @@ export async function updateRetentionSettingsAction(
 }
 
 export async function dryRunRetentionAction(formData: FormData): Promise<void> {
+  await requireActionPermission("tenant:update");
   const tenantId = required(formData, "tenantId");
   await adminApiMutation("POST", `/tenants/${tenantId}/retention-runs/dry-run`, {
     reason: text(formData, "reason"),
@@ -358,6 +384,7 @@ export async function dryRunRetentionAction(formData: FormData): Promise<void> {
 }
 
 export async function applyRetentionAction(formData: FormData): Promise<void> {
+  await requireActionPermission("tenant:update");
   const tenantId = required(formData, "tenantId");
   await adminApiMutation("POST", `/tenants/${tenantId}/retention-runs`, {
     reason: text(formData, "reason"),
@@ -368,6 +395,7 @@ export async function applyRetentionAction(formData: FormData): Promise<void> {
 export async function acknowledgeAlertAction(
   formData: FormData,
 ): Promise<void> {
+  await requireActionPermission("device:command");
   const tenantId = required(formData, "tenantId");
   const alertId = required(formData, "alertId");
   await adminApiMutation("POST", `/tenants/${tenantId}/alerts/${alertId}/acknowledge`, {
@@ -377,6 +405,7 @@ export async function acknowledgeAlertAction(
 }
 
 export async function resolveAlertAction(formData: FormData): Promise<void> {
+  await requireActionPermission("device:command");
   const tenantId = required(formData, "tenantId");
   const alertId = required(formData, "alertId");
   await adminApiMutation("POST", `/tenants/${tenantId}/alerts/${alertId}/resolve`, {
@@ -388,6 +417,7 @@ export async function resolveAlertAction(formData: FormData): Promise<void> {
 export async function scanOfflineAlertsAction(
   formData: FormData,
 ): Promise<void> {
+  await requireActionPermission("device:command");
   const tenantId = required(formData, "tenantId");
   await adminApiMutation("POST", `/tenants/${tenantId}/alerts/offline-scan`, {
     offlineAfterMinutes: numberValue(formData, "offlineAfterMinutes"),
@@ -396,6 +426,7 @@ export async function scanOfflineAlertsAction(
 }
 
 export async function updateBillingAction(formData: FormData): Promise<void> {
+  await requireActionPermission("billing:manage");
   const tenantId = required(formData, "tenantId");
   await adminApiMutation("PATCH", `/tenants/${tenantId}/billing/subscription`, {
     billingEmail: text(formData, "billingEmail"),
@@ -434,12 +465,21 @@ async function staffLifecycleAction(
   formData: FormData,
   action: "deactivate" | "force-logout" | "reactivate" | "suspend",
 ): Promise<void> {
+  await requireActionPermission("user:suspend");
   const tenantId = required(formData, "tenantId");
   const userId = required(formData, "userId");
   await adminApiMutation("POST", `/tenants/${tenantId}/users/${userId}/${action}`, {
     reason: text(formData, "reason"),
   });
   revalidateAll();
+}
+
+async function requireActionPermission(permission: Permission): Promise<void> {
+  const session = await requireAdminSession();
+
+  if (!roleCan(session.role, permission)) {
+    throw new Error(`Permission ${permission} is required`);
+  }
 }
 
 function required(formData: FormData, key: string): string {
