@@ -22,6 +22,7 @@ import type {
   TimetableBlockSummary,
   UserSummary,
 } from "@virtual-school/shared";
+import { adminSessionHeaders, requireAdminSession } from "./auth/session";
 
 const baseUrl =
   process.env.ADMIN_API_BASE_URL ??
@@ -51,6 +52,8 @@ export type AdminData = {
 };
 
 export async function getAdminData(): Promise<AdminData> {
+  await requireAdminSession();
+
   const tenantsResult = await apiGet<TenantSummary[]>("/tenants");
   const tenants = tenantsResult.data ?? [];
   const selectedTenant = tenants[0] ?? null;
@@ -175,7 +178,7 @@ export async function adminApiJsonMutation<T>(
     cache: "no-store",
     headers: {
       "Content-Type": "application/json",
-      ...authHeaders(),
+      ...(await authHeaders()),
     },
     method,
   });
@@ -251,7 +254,7 @@ export async function getDeviceOperationsData(
 export async function adminApiRawGet(path: string): Promise<Response> {
   return fetch(`${baseUrl}${path}`, {
     cache: "no-store",
-    headers: authHeaders(),
+    headers: await authHeaders(),
   });
 }
 
@@ -261,7 +264,7 @@ async function apiGet<T>(
   try {
     const response = await fetch(`${baseUrl}${path}`, {
       cache: "no-store",
-      headers: authHeaders(),
+      headers: await authHeaders(),
       signal: AbortSignal.timeout(1800),
     });
 
@@ -275,19 +278,8 @@ async function apiGet<T>(
   }
 }
 
-function authHeaders(): HeadersInit {
-  if (process.env.ADMIN_API_BEARER_TOKEN) {
-    return {
-      Authorization: `Bearer ${process.env.ADMIN_API_BEARER_TOKEN}`,
-    };
-  }
-
-  return {
-    "x-dev-email": process.env.ADMIN_API_EMAIL ?? "admin@example.edu",
-    "x-dev-role": process.env.ADMIN_API_ROLE ?? "PLATFORM_SUPER_ADMIN",
-    "x-dev-subject": process.env.ADMIN_API_SUBJECT ?? "admin-portal",
-    "x-dev-tenant-id": process.env.ADMIN_API_TENANT_ID ?? "*",
-  };
+async function authHeaders(): Promise<HeadersInit> {
+  return adminSessionHeaders();
 }
 
 function removeEmptyValues(

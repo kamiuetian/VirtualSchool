@@ -9,7 +9,7 @@ export default defineConfig({
   expect: {
     timeout: 8_000,
   },
-  fullyParallel: true,
+  fullyParallel: false,
   outputDir: "test-results",
   projects: [
     {
@@ -34,6 +34,7 @@ export default defineConfig({
     baseURL,
     trace: "retain-on-failure",
   },
+  workers: 1,
   webServer: [
     {
       command: "node tests/mock-api.mjs",
@@ -47,6 +48,7 @@ export default defineConfig({
     {
       command: `pnpm exec next dev -H 127.0.0.1 -p ${appPort}`,
       env: {
+        ADMIN_AUTH_BYPASS: "true",
         ADMIN_API_BASE_URL: apiURL,
         NEXT_PUBLIC_API_BASE_URL: apiURL,
       },

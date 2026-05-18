@@ -33,6 +33,7 @@ test.describe("admin portal regression", () => {
       await expect(
         page.locator(".workspace-header").getByText("Northview Primary School"),
       ).toBeVisible();
+      await expect(page.getByLabel("Sign out")).toBeVisible();
       await expect(page.locator(".app-shell")).toBeVisible();
       expect(consoleErrors).toEqual([]);
     });

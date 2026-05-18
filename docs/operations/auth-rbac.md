@@ -17,6 +17,30 @@ Production requires:
 - `AUTH0_ISSUER_BASE_URL` or `AUTH0_DOMAIN`
 - Optional `AUTH0_JWKS_URI` override
 
+## Admin Portal Login
+
+The admin portal uses Auth0 as the production session provider. Configure these
+environment variables for the Next.js admin service:
+
+- `AUTH0_DOMAIN`
+- `AUTH0_CLIENT_ID`
+- `AUTH0_CLIENT_SECRET`
+- `AUTH0_SECRET`
+- `APP_BASE_URL`
+- `AUTH0_AUDIENCE`
+- `ADMIN_API_BASE_URL`
+
+The Auth0 application must be a Regular Web Application. Add
+`<APP_BASE_URL>/auth/callback` to Allowed Callback URLs and `<APP_BASE_URL>` to
+Allowed Logout URLs. The portal signs users in through `/auth/login`, signs them
+out through `/auth/logout`, and sends the server-side access token to the API as
+a Bearer token.
+
+For local development only, when Auth0 is not configured, the portal exposes a
+cookie-backed sign-in button at `/login` and forwards development auth headers
+to the API. CI can set `ADMIN_AUTH_BYPASS=true` to avoid an external Auth0
+dependency during browser regression tests.
+
 ## Token Claims
 
 Auth0 tokens should include:

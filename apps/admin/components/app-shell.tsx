@@ -13,11 +13,13 @@ import {
   FileBarChart,
   Headset,
   ShieldCheck,
+  LogOut,
   Users,
 } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { TenantSummary } from "@virtual-school/shared";
+import { getAdminSession, logoutHref } from "../lib/auth/session";
 
 const navigation = [
   { href: "/", icon: LayoutDashboard, label: "Overview" },
@@ -34,7 +36,7 @@ const navigation = [
   { href: "/billing", icon: ReceiptText, label: "Billing" },
 ] as const;
 
-export function AppShell({
+export async function AppShell({
   children,
   connectionIssue,
   tenant,
@@ -43,6 +45,8 @@ export function AppShell({
   connectionIssue?: boolean;
   tenant: TenantSummary | null;
 }) {
+  const session = await getAdminSession();
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -80,9 +84,22 @@ export function AppShell({
             <span className="eyebrow">School operations</span>
             <h1>{tenant?.name ?? "Managed learning console"}</h1>
           </div>
-          <div className="tenant-switcher">
-            <CalendarClock size={16} />
-            <span>{tenant?.timezone ?? "No school selected"}</span>
+          <div className="workspace-actions">
+            <div className="tenant-switcher">
+              <CalendarClock size={16} />
+              <span>{tenant?.timezone ?? "No school selected"}</span>
+            </div>
+            {session ? (
+              <div className="user-menu">
+                <span>
+                  <strong>{session.name}</strong>
+                  <small>{session.email}</small>
+                </span>
+                <a aria-label="Sign out" className="icon-action" href={logoutHref()}>
+                  <LogOut size={17} />
+                </a>
+              </div>
+            ) : null}
           </div>
         </header>
 

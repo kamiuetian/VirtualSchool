@@ -1,0 +1,13 @@
+import { Auth0Client } from "@auth0/nextjs-auth0/server";
+import { isAuth0Configured } from "./config";
+
+export const auth0 = isAuth0Configured()
+  ? new Auth0Client({
+      authorizationParameters: {
+        audience: process.env.AUTH0_AUDIENCE,
+        scope: "openid profile email",
+      },
+      enableAccessTokenEndpoint: false,
+      signInReturnToPath: "/",
+    })
+  : null;
