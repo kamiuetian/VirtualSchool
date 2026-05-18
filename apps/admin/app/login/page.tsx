@@ -29,23 +29,30 @@ export default async function LoginPage() {
   return (
     <main className="auth-page">
       <section className="auth-panel" aria-labelledby="login-title">
-        <div className="auth-brand">
-          <span className="brand-mark">
-            <BookOpenCheck size={28} strokeWidth={2.4} />
-          </span>
-          <span>
-            <strong>Virtual School</strong>
-            <small>Device Management</small>
-          </span>
-        </div>
+        <div className="auth-intro">
+          <div className="auth-brand">
+            <span className="brand-mark">
+              <BookOpenCheck size={28} strokeWidth={2.4} />
+            </span>
+            <span>
+              <strong>Virtual School</strong>
+              <small>Device Management</small>
+            </span>
+          </div>
 
-        <div className="auth-copy">
-          <span className="eyebrow">Secure school operations</span>
-          <h1 id="login-title">Sign in to manage learning tablets.</h1>
-          <p>
-            Access enrollment batches, device health, policies, schedules, and
-            support workflows from one protected console.
-          </p>
+          <div className="auth-copy">
+            <span className="eyebrow">Secure school operations</span>
+            <h1 id="login-title">Sign in to manage learning tablets.</h1>
+            <p>
+              Access enrollment batches, device health, policies, schedules,
+              and support workflows from one protected console.
+            </p>
+          </div>
+
+          <div className="auth-assurance">
+            <ShieldCheck size={18} />
+            <span>MFA-ready authentication with role and tenant scoped access.</span>
+          </div>
         </div>
 
         <div className="auth-actions">
@@ -115,11 +122,6 @@ export default async function LoginPage() {
               </button>
             </form>
           )}
-        </div>
-
-        <div className="auth-assurance">
-          <ShieldCheck size={18} />
-          <span>MFA-ready authentication with role and tenant scoped access.</span>
         </div>
       </section>
     </main>
