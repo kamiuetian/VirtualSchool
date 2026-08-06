@@ -1,14 +1,12 @@
 package com.virtualschool.browser.policy
 
 object LocalPolicyStore {
-    val defaultPolicy = BrowserPolicy(
+    val safeDefault = BrowserPolicy(
+        policyId = "unmanaged",
+        policyVersion = 0,
         defaultWebAccess = WebAccessMode.DENY,
-        urlAllowlist = listOf(
-            "https://math.example.edu",
-            "https://reading.example.edu",
-        ),
-        urlBlocklist = listOf(
-            "https://blocked.example.edu",
-        ),
+        urlAllowlist = emptyList(),
+        urlBlocklist = emptyList(),
+        homeUrl = null,
     )
 }

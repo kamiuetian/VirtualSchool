@@ -1,6 +1,10 @@
 package com.virtualschool.browser
 
 import android.app.Activity
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.os.Bundle
 import android.view.ViewGroup
 import android.webkit.WebResourceRequest
@@ -10,15 +14,22 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import com.virtualschool.browser.policy.BrowserPolicy
 import com.virtualschool.browser.policy.BrowserPolicyEvaluator
-import com.virtualschool.browser.policy.LocalPolicyStore
+import com.virtualschool.browser.policy.ManagedBrowserPolicyStore
 import com.virtualschool.browser.policy.NavigationDecision
 
 class MainActivity : Activity() {
-    private val policy: BrowserPolicy = LocalPolicyStore.defaultPolicy
-    private val blockedEventReporter: BlockedEventReporter = LogcatBlockedEventReporter()
+    private lateinit var policyStore: ManagedBrowserPolicyStore
+    private lateinit var blockedEventReporter: BlockedEventReporter
+    private lateinit var browser: WebView
+    private val policyChangedReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) = applyPolicy()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        policyStore = ManagedBrowserPolicyStore(this)
+        blockedEventReporter = QueuedBlockedEventReporter(this)
+        val policy = policyStore.current()
 
         val status = TextView(this).apply {
             text = "Mode: Default School"
@@ -26,7 +37,7 @@ class MainActivity : Activity() {
             setPadding(24, 24, 24, 12)
         }
 
-        val browser = WebView(this).apply {
+        browser = WebView(this).apply {
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 0,
@@ -34,19 +45,7 @@ class MainActivity : Activity() {
             )
             webViewClient = PolicyWebViewClient(policy, blockedEventReporter)
             settings.javaScriptEnabled = false
-            loadData(
-                """
-                    <h1>Learning Browser</h1>
-                    <p>Approved links</p>
-                    <ul>
-                      <li><a href="https://math.example.edu">Math</a></li>
-                      <li><a href="https://reading.example.edu">Reading</a></li>
-                      <li><a href="https://blocked.example.edu">Blocked example</a></li>
-                    </ul>
-                """.trimIndent(),
-                "text/html",
-                "UTF-8",
-            )
+            openHome(policy)
         }
 
         setContentView(
@@ -56,6 +55,31 @@ class MainActivity : Activity() {
                 addView(browser)
             },
         )
+    }
+
+    override fun onStart() {
+        super.onStart()
+        registerReceiver(policyChangedReceiver, IntentFilter(Intent.ACTION_APPLICATION_RESTRICTIONS_CHANGED))
+    }
+
+    override fun onStop() {
+        unregisterReceiver(policyChangedReceiver)
+        super.onStop()
+    }
+
+    private fun applyPolicy() {
+        val policy = policyStore.current()
+        browser.webViewClient = PolicyWebViewClient(policy, blockedEventReporter)
+        browser.openHome(policy)
+    }
+
+    private fun WebView.openHome(policy: BrowserPolicy) {
+        val home = policy.homeUrl
+        if (home != null && BrowserPolicyEvaluator.evaluate(home, policy).decision == NavigationDecision.ALLOW) {
+            loadUrl(home)
+        } else {
+            loadData("<h1>Learning Browser</h1><p>No approved home page is available.</p>", "text/html", "UTF-8")
+        }
     }
 
     private class PolicyWebViewClient(
@@ -83,9 +107,11 @@ class MainActivity : Activity() {
 
             blockedEventReporter.report(
                 BlockedWebEvent(
-                    url = url,
+                    domain = QueuedBlockedEventReporter.domain(url),
                     reason = evaluation.reason,
                     matchedRule = evaluation.matchedRule,
+                    policyId = policy.policyId,
+                    policyVersion = policy.policyVersion,
                 ),
             )
             view.loadData(

@@ -1,9 +1,14 @@
 package com.virtualschool.browser.policy
 
+import java.net.URI
+
 data class BrowserPolicy(
+    val policyId: String,
+    val policyVersion: Int,
     val defaultWebAccess: WebAccessMode,
     val urlAllowlist: List<String>,
     val urlBlocklist: List<String>,
+    val homeUrl: String?,
 )
 
 enum class WebAccessMode {
@@ -22,6 +27,11 @@ data class NavigationEvaluation(
     val matchedRule: String? = null,
 )
 
+object BrowserPolicyResolver {
+    fun resolve(managed: BrowserPolicy?, cached: BrowserPolicy?): BrowserPolicy =
+        managed ?: cached ?: LocalPolicyStore.safeDefault
+}
+
 object BrowserPolicyEvaluator {
     fun evaluate(rawUrl: String, policy: BrowserPolicy): NavigationEvaluation {
         val normalizedUrl = rawUrl.trim()
@@ -30,6 +40,13 @@ object BrowserPolicyEvaluator {
             return NavigationEvaluation(
                 decision = NavigationDecision.BLOCK,
                 reason = "EMPTY_URL",
+            )
+        }
+
+        if (parseHttpUrl(normalizedUrl) == null) {
+            return NavigationEvaluation(
+                decision = NavigationDecision.BLOCK,
+                reason = "UNSUPPORTED_SCHEME",
             )
         }
 
@@ -76,11 +93,31 @@ object BrowserPolicyEvaluator {
             return false
         }
 
-        if (normalizedRule.endsWith("*")) {
-            return url.startsWith(normalizedRule.dropLast(1), ignoreCase = true)
-        }
+        val wildcard = normalizedRule.endsWith("*")
+        val ruleUri = parseHttpUrl(if (wildcard) normalizedRule.dropLast(1) else normalizedRule)
+            ?: return false
+        val urlUri = parseHttpUrl(url) ?: return false
+        if (!ruleUri.scheme.equals(urlUri.scheme, true) ||
+            !ruleUri.host.equals(urlUri.host, true) ||
+            effectivePort(ruleUri) != effectivePort(urlUri)
+        ) return false
 
-        return url.equals(normalizedRule, ignoreCase = true) ||
-            url.startsWith("$normalizedRule/", ignoreCase = true)
+        val rulePath = ruleUri.rawPath.orEmpty().ifEmpty { "/" }
+        val urlPath = urlUri.rawPath.orEmpty().ifEmpty { "/" }
+        if (wildcard) return urlPath.startsWith(rulePath, ignoreCase = true)
+        return urlPath.equals(rulePath, true) ||
+            (rulePath.endsWith("/") && urlPath.startsWith(rulePath, true)) ||
+            (!rulePath.endsWith("/") && urlPath.startsWith("$rulePath/", true))
+    }
+
+    private fun parseHttpUrl(value: String): URI? = runCatching { URI(value) }
+        .getOrNull()
+        ?.takeIf { it.scheme.equals("https", true) || it.scheme.equals("http", true) }
+        ?.takeIf { !it.host.isNullOrBlank() && it.userInfo == null }
+
+    private fun effectivePort(uri: URI): Int = when {
+        uri.port >= 0 -> uri.port
+        uri.scheme.equals("https", true) -> 443
+        else -> 80
     }
 }
