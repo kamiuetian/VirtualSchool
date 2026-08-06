@@ -31,6 +31,6 @@
     "@types/express": "^5.0.0",
     "@types/swagger-ui-express": "^4.1.7",
     "tsx": "^4.19.2",
-    "vitest": "^2.1.9"
+    "vitest": "^3.2.7"
   }
 }
