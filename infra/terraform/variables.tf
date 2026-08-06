@@ -67,3 +67,21 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "operational_alert_email" {
+  description = "Optional operations email subscribed to the encrypted alert topic. AWS requires confirmation."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+variable "application_error_threshold" {
+  description = "Structured error log count in five minutes that triggers an operational alarm."
+  type        = number
+  default     = 5
+
+  validation {
+    condition     = var.application_error_threshold >= 1
+    error_message = "The application error threshold must be at least one."
+  }
+}

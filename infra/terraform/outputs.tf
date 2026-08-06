@@ -54,3 +54,13 @@ output "application_secret_arns" {
   value       = { for name, secret in aws_secretsmanager_secret.application : name => secret.arn }
   sensitive   = true
 }
+
+output "operational_alert_topic_arn" {
+  description = "Encrypted SNS topic used by staging operational alarms."
+  value       = aws_sns_topic.operational_alerts.arn
+}
+
+output "operations_dashboard_name" {
+  description = "CloudWatch dashboard for staging health and error signals."
+  value       = aws_cloudwatch_dashboard.staging.dashboard_name
+}

@@ -10,6 +10,7 @@ This root module provisions the shared foundation for the Virtual School staging
 - KMS-encrypted, versioned, public-access-blocked buckets for imports, exports, reports, and artifacts.
 - Empty KMS-encrypted Secrets Manager containers for application, Auth0, and Android Management configuration. Terraform never stores their values.
 - An ECS Fargate cluster foundation with Container Insights, private-workload security groups, least-privilege task roles, encrypted CloudWatch log groups, and immutable/scanned ECR repositories for admin, API, worker, and migration workloads.
+- An encrypted operational alert topic, structured-error metric filters and alarms, database and Redis capacity alarms, and a CloudWatch operations dashboard.
 
 Staging uses one NAT gateway to control pilot cost. Production should use one NAT gateway per availability zone before workloads with a multi-AZ availability objective are deployed.
 
@@ -49,5 +50,7 @@ terraform -chdir=infra/terraform apply staging.tfplan
 ```
 
 Populate the application secret containers after apply through an approved secrets workflow. Secret values must not be passed to Terraform because values written by Terraform are retained in state. The RDS credential is available through the sensitive `database_master_secret_arn` output and remains managed by RDS.
+
+Set the optional `operational_alert_email` variable to subscribe an operations mailbox to alarm and recovery notifications. The recipient must confirm the AWS subscription. Follow `docs/operations/staging-observability-readiness.md` for rollout checks, alert response, and isolated backup restore drills.
 
 The database has deletion protection and requires a final snapshot. Disable deletion protection in a separately reviewed plan before intentionally destroying the staging database.

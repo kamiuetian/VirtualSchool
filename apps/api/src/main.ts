@@ -4,6 +4,7 @@ import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { json, urlencoded } from "express";
 import helmet from "helmet";
+import { JsonLogger } from "@virtual-school/shared";
 import { AppModule } from "./modules/app.module";
 import { createRateLimitMiddleware } from "./modules/security/rate-limit.middleware";
 
@@ -11,6 +12,7 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, {
     bodyParser: false,
     bufferLogs: true,
+    logger: new JsonLogger("api"),
   });
 
   if (process.env.API_TRUST_PROXY !== "false") {
