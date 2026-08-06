@@ -19,6 +19,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  terraform:
+    name: Terraform
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ~1.11.0
+
+      - name: Check formatting
+        run: terraform -chdir=infra/terraform fmt -check -recursive
+
+      - name: Initialize providers
+        run: terraform -chdir=infra/terraform init -backend=false
+
+      - name: Validate configuration
+        run: terraform -chdir=infra/terraform validate
+
   web-api-worker:
     name: Web, API, Worker
     runs-on: ubuntu-latest
