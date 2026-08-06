@@ -33,4 +33,7 @@ When Android behavior changes, also run the affected Gradle lint and unit-test t
 - Add or update tests for changed behavior.
 - Update operational documentation when configuration or workflows change.
 - Leave the working tree containing only the current feature's changes.
-- Do not commit, push, open pull requests, or modify GitHub issues. The delivery workflow handles Git operations.
+- Complete one backlog feature per cycle.
+- After verification succeeds, commit and push that feature before selecting the next one.
+- Do not start the next feature while the preceding feature has uncommitted changes or failed checks.
+- Record completed and blocked work in `CODEX_FEATURE_BACKLOG.md`.
