@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import type { RemoteCommandType } from "@virtual-school/shared";
 import type {
   Prisma,
@@ -11,6 +11,10 @@ import type {
   WorkerJobName,
   WorkerJobResult,
 } from "./worker-job.types";
+import {
+  WorkerMdmConnector,
+  type WorkerMdmDispatchResult,
+} from "./worker-mdm.connector";
 
 const mdmConnectorCommandTypes: RemoteCommandType[] = ["LOCK", "WIPE"];
 const deploymentCommandAlertTypes: Partial<
@@ -35,11 +39,11 @@ type RetentionCutoffs = {
 
 @Injectable()
 export class WorkerJobsService {
-  private readonly logger = new Logger(WorkerJobsService.name);
-
   constructor(
     @Inject(WorkerPrismaService)
     private readonly prisma: WorkerPrismaService,
+    @Inject(WorkerMdmConnector)
+    private readonly mdmConnector: WorkerMdmConnector,
   ) {}
 
   async processJob(
@@ -220,17 +224,18 @@ export class WorkerJobsService {
     let skipped = 0;
 
     for (const command of retryable) {
-      if (process.env.MDM_CONNECTOR_MODE === "android-management") {
-        skipped += 1;
-        this.logger.warn(
-          `Skipping Android Management dispatch for ${command.id}; API connector remains the source of truth until worker adapter credentials are configured.`,
-        );
-        continue;
-      }
-
       const delivered = await this.markDeliveryAttempt(command);
-      await this.markStubAccepted(delivered);
-      accepted += 1;
+      const result = await this.mdmConnector.dispatchCommand(
+        delivered,
+        command.device,
+      );
+      const status = result.accepted
+        ? await this.markAccepted(delivered, result)
+        : await this.markRejected(delivered, result);
+
+      if (status === "DELIVERED") accepted += 1;
+      else if (status === "QUEUED") skipped += 1;
+      else failed += 1;
     }
 
     return {
@@ -258,17 +263,16 @@ export class WorkerJobsService {
     });
   }
 
-  private async markStubAccepted(command: RemoteCommand): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
-      await tx.remoteCommand.update({
+  private async markAccepted(
+    command: RemoteCommand,
+    result: WorkerMdmDispatchResult,
+  ): Promise<string> {
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.remoteCommand.update({
         data: {
-          connectorCommandId: `stub:${command.id}`,
+          connectorCommandId: result.connectorCommandId,
           failureReason: null,
-          result: {
-            accepted: true,
-            connector: "STUB",
-            mode: "worker",
-          },
+          result: this.dispatchResultJson(result),
           status: "DELIVERED",
         },
         where: {
@@ -280,8 +284,8 @@ export class WorkerJobsService {
         data: {
           action: "remote_command.dispatch",
           newValue: {
-            connector: "STUB",
-            connectorCommandId: `stub:${command.id}`,
+            connector: result.connector,
+            connectorCommandId: result.connectorCommandId,
             status: "DELIVERED",
             worker: true,
           },
@@ -294,7 +298,61 @@ export class WorkerJobsService {
           tenantId: command.tenantId,
         },
       });
+
+      return updated.status;
     });
+  }
+
+  private async markRejected(
+    command: RemoteCommand,
+    result: WorkerMdmDispatchResult,
+  ): Promise<string> {
+    const expired =
+      command.expiresAt !== null && command.expiresAt.getTime() <= Date.now();
+    const canRetry =
+      result.retryable === true &&
+      !expired &&
+      command.attempts < command.maxAttempts;
+    const status = canRetry ? "QUEUED" : "FAILED";
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.remoteCommand.update({
+        data: {
+          completedAt: canRetry ? null : new Date(),
+          failureReason:
+            result.failureReason ?? "Connector did not accept command",
+          result: this.dispatchResultJson(result),
+          status,
+        },
+        where: { id: command.id },
+      });
+      await tx.auditEvent.create({
+        data: {
+          action: canRetry
+            ? "remote_command.dispatch_retry"
+            : "remote_command.dispatch_fail",
+          newValue: {
+            failureReason: updated.failureReason,
+            status: updated.status,
+            worker: true,
+          },
+          object: "RemoteCommand",
+          objectId: command.id,
+          oldValue: { status: command.status },
+          outcome: canRetry ? "RETRY_QUEUED" : "FAILED",
+          tenantId: command.tenantId,
+        },
+      });
+      return updated.status;
+    });
+  }
+
+  private dispatchResultJson(
+    result: WorkerMdmDispatchResult,
+  ): Prisma.InputJsonObject {
+    return Object.fromEntries(
+      Object.entries(result).filter(([, value]) => value !== undefined),
+    ) as Prisma.InputJsonObject;
   }
 
   private async scanOfflineAlertsForTenant(

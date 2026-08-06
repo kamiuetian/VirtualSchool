@@ -52,33 +52,36 @@ function retentionSettings(overrides: Record<string, unknown> = {}) {
 describe("WorkerJobsService", () => {
   it("expires overdue deployment commands and creates alerts", async () => {
     const createAlert = vi.fn();
-    const service = new WorkerJobsService({
-      $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
-        callback({
-          auditEvent: {
-            create: vi.fn(),
-          },
-          deviceAlert: {
-            create: createAlert,
-            findFirst: vi.fn().mockResolvedValue(null),
-            updateMany: vi.fn(),
-          },
-          remoteCommand: {
-            update: async ({ data }: { data: Record<string, unknown> }) =>
-              command({
-                completedAt: data.completedAt,
-                failureReason: data.failureReason,
-                status: data.status,
-              }),
-          },
-        }),
-      remoteCommand: {
-        findMany: vi.fn().mockResolvedValue([command()]),
-      },
-      tenant: {
-        findMany: async () => [{ id: "tenant-1" }],
-      },
-    } as never);
+    const service = new WorkerJobsService(
+      {
+        $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
+          callback({
+            auditEvent: {
+              create: vi.fn(),
+            },
+            deviceAlert: {
+              create: createAlert,
+              findFirst: vi.fn().mockResolvedValue(null),
+              updateMany: vi.fn(),
+            },
+            remoteCommand: {
+              update: async ({ data }: { data: Record<string, unknown> }) =>
+                command({
+                  completedAt: data.completedAt,
+                  failureReason: data.failureReason,
+                  status: data.status,
+                }),
+            },
+          }),
+        remoteCommand: {
+          findMany: vi.fn().mockResolvedValue([command()]),
+        },
+        tenant: {
+          findMany: async () => [{ id: "tenant-1" }],
+        },
+      } as never,
+      { dispatchCommand: vi.fn() } as never,
+    );
 
     await expect(
       service.processJob("commands.dispatch", {}),
@@ -104,30 +107,33 @@ describe("WorkerJobsService", () => {
   it("creates offline alerts for stale devices", async () => {
     const audit = vi.fn();
     const alert = vi.fn();
-    const service = new WorkerJobsService({
-      $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
-        callback({
-          auditEvent: {
-            create: audit,
-          },
-          deviceAlert: {
-            create: alert,
-            findFirst: vi.fn().mockResolvedValue(null),
-          },
-        }),
-      device: {
-        findMany: async () => [
-          {
-            id: "device-1",
-            lastCheckInAt: null,
-            serialNumber: "SERIAL-001",
-          },
-        ],
-      },
-      tenant: {
-        findMany: async () => [{ id: "tenant-1" }],
-      },
-    } as never);
+    const service = new WorkerJobsService(
+      {
+        $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
+          callback({
+            auditEvent: {
+              create: audit,
+            },
+            deviceAlert: {
+              create: alert,
+              findFirst: vi.fn().mockResolvedValue(null),
+            },
+          }),
+        device: {
+          findMany: async () => [
+            {
+              id: "device-1",
+              lastCheckInAt: null,
+              serialNumber: "SERIAL-001",
+            },
+          ],
+        },
+        tenant: {
+          findMany: async () => [{ id: "tenant-1" }],
+        },
+      } as never,
+      { dispatchCommand: vi.fn() } as never,
+    );
 
     await expect(
       service.processJob("alerts.offline-scan", {}),
@@ -164,38 +170,41 @@ describe("WorkerJobsService", () => {
         tenantId: data.tenantId,
       }),
     );
-    const service = new WorkerJobsService({
-      $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
-        callback({
-          auditEvent: {
-            create: vi.fn(),
-          },
-          dataRetentionRun: {
-            create: runCreate,
-          },
-        }),
-      auditEvent: {
-        count: async () => 0,
-      },
-      deviceAlert: {
-        count: async () => 1,
-      },
-      deviceDiagnostic: {
-        count: async () => 2,
-      },
-      remoteCommand: {
-        count: async () => 3,
-      },
-      retentionSettings: {
-        findUnique: async () => retentionSettings(),
-      },
-      supportNote: {
-        count: async () => 4,
-      },
-      tenant: {
-        findMany: async () => [{ id: "tenant-1" }],
-      },
-    } as never);
+    const service = new WorkerJobsService(
+      {
+        $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
+          callback({
+            auditEvent: {
+              create: vi.fn(),
+            },
+            dataRetentionRun: {
+              create: runCreate,
+            },
+          }),
+        auditEvent: {
+          count: async () => 0,
+        },
+        deviceAlert: {
+          count: async () => 1,
+        },
+        deviceDiagnostic: {
+          count: async () => 2,
+        },
+        remoteCommand: {
+          count: async () => 3,
+        },
+        retentionSettings: {
+          findUnique: async () => retentionSettings(),
+        },
+        supportNote: {
+          count: async () => 4,
+        },
+        tenant: {
+          findMany: async () => [{ id: "tenant-1" }],
+        },
+      } as never,
+      { dispatchCommand: vi.fn() } as never,
+    );
 
     await expect(
       service.processJob("retention.dry-run", {}),
@@ -215,5 +224,75 @@ describe("WorkerJobsService", () => {
         }),
       }),
     );
+  });
+
+  it.each([
+    {
+      expected: { accepted: 1, failed: 0, skipped: 0 },
+      result: {
+        accepted: true,
+        connector: "ANDROID_MANAGEMENT_API",
+        connectorCommandId: "operations/command-1",
+      },
+      status: "DELIVERED",
+    },
+    {
+      expected: { accepted: 0, failed: 0, skipped: 1 },
+      result: {
+        accepted: false,
+        connector: "ANDROID_MANAGEMENT_API",
+        failureReason: "temporary Google API failure",
+        retryable: true,
+      },
+      status: "QUEUED",
+    },
+  ])("records production connector result as $status", async (scenario) => {
+    process.env.WORKER_MDM_DISPATCH_ENABLED = "true";
+    const dispatchCommand = vi.fn().mockResolvedValue(scenario.result);
+    const updates: Record<string, unknown>[] = [];
+    const queued = command({
+      expiresAt: new Date(Date.now() + 60_000),
+      type: "LOCK",
+    });
+    const service = new WorkerJobsService(
+      {
+        $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
+          callback({
+            auditEvent: { create: vi.fn() },
+            remoteCommand: {
+              update: async ({ data }: { data: Record<string, unknown> }) => {
+                updates.push(data);
+                return command({ ...queued, ...data, attempts: 1 });
+              },
+            },
+          }),
+        remoteCommand: {
+          findMany: vi.fn().mockResolvedValue([
+            {
+              ...queued,
+              device: {
+                connectorDeviceName: "enterprises/test/devices/device-1",
+                enrollmentId: null,
+                id: "device-1",
+                tenantId: "tenant-1",
+              },
+            },
+          ]),
+          update: async ({ data }: { data: Record<string, unknown> }) =>
+            command({ ...queued, ...data, attempts: 1 }),
+        },
+        tenant: { findMany: async () => [{ id: "tenant-1" }] },
+      } as never,
+      { dispatchCommand } as never,
+    );
+
+    await expect(
+      service.processJob("commands.dispatch", {}),
+    ).resolves.toMatchObject({ details: [scenario.expected] });
+    expect(dispatchCommand).toHaveBeenCalledOnce();
+    expect(updates).toContainEqual(
+      expect.objectContaining({ status: scenario.status }),
+    );
+    delete process.env.WORKER_MDM_DISPATCH_ENABLED;
   });
 });
