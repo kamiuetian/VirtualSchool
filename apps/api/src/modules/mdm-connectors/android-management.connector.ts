@@ -113,6 +113,7 @@ export class AndroidManagementConnector implements MdmConnector {
     const payload = this.policyMapper.map({
       apps: input.apps.map((app) => ({
         installRules: app.installRules,
+        name: app.name,
         packageId: app.packageId,
       })),
       enterpriseId,

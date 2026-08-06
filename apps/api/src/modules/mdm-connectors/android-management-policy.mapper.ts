@@ -39,6 +39,7 @@ export class AndroidManagementPolicyMapper {
     version: number;
     rules: PolicyRuleSet;
     apps: Array<{
+      name: string;
       packageId: string;
       installRules?: Prisma.JsonValue | null;
     }>;
@@ -58,10 +59,23 @@ export class AndroidManagementPolicyMapper {
       defaultPermissionPolicy: "GRANT",
       installType: "FORCE_INSTALLED",
       managedConfiguration: {
+        approvedAppsJson: JSON.stringify(
+          input.apps
+            .filter(
+              (app) => this.mapInstallType(app.installRules) !== "BLOCKED",
+            )
+            .map((app) => ({
+              name: app.name,
+              packageId: app.packageId,
+            })),
+        ),
         mode: input.rules.mode,
         policyId: input.policyId,
         policyVersion: input.version,
+        showMessages: input.rules.launcher.showMessages,
+        showSupportContact: input.rules.launcher.showSupportContact,
         tenantId: input.tenantId,
+        webShortcutsJson: JSON.stringify(input.rules.webShortcuts),
       },
       packageName: launcherPackageName,
     });

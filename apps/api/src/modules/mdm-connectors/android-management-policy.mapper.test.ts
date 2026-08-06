@@ -31,6 +31,7 @@ describe("AndroidManagementPolicyMapper", () => {
               autoUpdateMode: "HIGH_PRIORITY",
               installType: "FORCE_INSTALLED",
             },
+            name: "Google Classroom",
             packageId: "com.google.android.apps.classroom",
           },
         ],
@@ -44,6 +45,19 @@ describe("AndroidManagementPolicyMapper", () => {
       applications: expect.arrayContaining([
         expect.objectContaining({
           installType: "FORCE_INSTALLED",
+          managedConfiguration: expect.objectContaining({
+            approvedAppsJson: JSON.stringify([
+              {
+                name: "Google Classroom",
+                packageId: "com.google.android.apps.classroom",
+              },
+            ]),
+            mode: "TIMETABLE_CLASS",
+            policyVersion: 3,
+            showMessages: true,
+            showSupportContact: true,
+            webShortcutsJson: "[]",
+          }),
           packageName: "com.virtualschool.launcher",
         }),
         expect.objectContaining({
