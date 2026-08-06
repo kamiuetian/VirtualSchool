@@ -34,7 +34,7 @@ jobs:
 
       - name: Confirm a feature is ready
         id: backlog
-        shell: pwsh
+        shell: powershell
         run: |
           $hasReady = Select-String -Path CODEX_FEATURE_BACKLOG.md -Pattern '^\|\s*\d+\s*\|\s*ready\s*\|' -Quiet
           "has_ready=$($hasReady.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
@@ -44,17 +44,17 @@ jobs:
 
       - name: Install workspace dependencies
         if: steps.backlog.outputs.has_ready == 'true'
-        shell: pwsh
+        shell: powershell
         run: pnpm install --frozen-lockfile
 
       - name: Generate Prisma client
         if: steps.backlog.outputs.has_ready == 'true'
-        shell: pwsh
+        shell: powershell
         run: pnpm prisma:generate
 
       - name: Implement one feature with local Codex
         if: steps.backlog.outputs.has_ready == 'true'
-        shell: pwsh
+        shell: powershell
         run: |
           $prompt = @'
           Continue the event-driven feature cycle for this repository.
@@ -68,7 +68,7 @@ jobs:
 
       - name: Verify repository checks
         if: steps.backlog.outputs.has_ready == 'true'
-        shell: pwsh
+        shell: powershell
         run: |
           pnpm prisma:validate
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -81,7 +81,7 @@ jobs:
 
       - name: Ensure exactly one feature completed
         if: steps.backlog.outputs.has_ready == 'true'
-        shell: pwsh
+        shell: powershell
         run: |
           if (-not (git status --porcelain)) {
             throw 'Codex produced no repository change.'
@@ -95,7 +95,7 @@ jobs:
 
       - name: Commit and push verified feature
         if: steps.backlog.outputs.has_ready == 'true'
-        shell: pwsh
+        shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
