@@ -21,7 +21,7 @@ jobs:
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'push' &&
        github.event.workflow_run.head_branch == 'main')
-    runs-on: [self-hosted, virtualschool-codex]
+    runs-on: virtualschool-codex
     timeout-minutes: 120
 
     steps:
