@@ -1,0 +1,111 @@
+name: Codex feature cycle
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: codex-feature-cycle
+  cancel-in-progress: false
+
+jobs:
+  implement-next-feature:
+    name: Implement next ready feature
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: [self-hosted, virtualschool-codex]
+    timeout-minutes: 120
+
+    steps:
+      - name: Check out verified main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Confirm a feature is ready
+        id: backlog
+        shell: pwsh
+        run: |
+          $hasReady = Select-String -Path CODEX_FEATURE_BACKLOG.md -Pattern '^\|\s*\d+\s*\|\s*ready\s*\|' -Quiet
+          "has_ready=$($hasReady.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          if (-not $hasReady) {
+            Write-Host 'The feature queue is complete or has no ready entries.'
+          }
+
+      - name: Install workspace dependencies
+        if: steps.backlog.outputs.has_ready == 'true'
+        shell: pwsh
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        if: steps.backlog.outputs.has_ready == 'true'
+        shell: pwsh
+        run: pnpm prisma:generate
+
+      - name: Implement one feature with local Codex
+        if: steps.backlog.outputs.has_ready == 'true'
+        shell: pwsh
+        run: |
+          $prompt = @'
+          Continue the event-driven feature cycle for this repository.
+
+          Read AGENTS.md, CODEX_FEATURE_BACKLOG.md, and the relevant requirements and implementation. Select exactly the first ready backlog feature and change its status to in-progress. Implement only that feature completely, including meaningful tests and operational documentation. Preserve tenant isolation, RBAC, auditability, security controls, and compatibility.
+
+          Run every verification command required by AGENTS.md and any feature-specific Android, browser, infrastructure, or end-to-end checks. Fix failures caused by the change. When all relevant checks pass, mark only that feature complete in CODEX_FEATURE_BACKLOG.md and record any material note. Do not commit, push, call GitHub APIs, change GitHub workflows, modify runner configuration, access credentials, or start another backlog feature. The surrounding workflow owns delivery. If blocked or unable to verify, leave the feature in-progress or blocked, explain the reason in CODEX_FEATURE_BACKLOG.md, and exit without speculative changes.
+          '@
+          & 'E:\GitHubActionsRunner\CodexCli\node_modules\.bin\codex.cmd' exec --ephemeral --sandbox danger-full-access $prompt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify repository checks
+        if: steps.backlog.outputs.has_ready == 'true'
+        shell: pwsh
+        run: |
+          pnpm prisma:validate
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pnpm typecheck
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pnpm test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pnpm build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Ensure exactly one feature completed
+        if: steps.backlog.outputs.has_ready == 'true'
+        shell: pwsh
+        run: |
+          if (-not (git status --porcelain)) {
+            throw 'Codex produced no repository change.'
+          }
+          $diff = git diff -- CODEX_FEATURE_BACKLOG.md
+          if ($diff -notmatch '\|\s*complete\s*\|') {
+            throw 'Codex did not mark the implemented backlog feature complete.'
+          }
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Commit and push verified feature
+        if: steps.backlog.outputs.has_ready == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $completed = Select-String -Path CODEX_FEATURE_BACKLOG.md -Pattern '^\|\s*(\d+)\s*\|\s*complete\s*\|\s*([^|]+)' | Select-Object -Last 1
+          if (-not $completed) { throw 'Unable to identify the completed feature.' }
+          $order = $completed.Matches[0].Groups[1].Value.Trim()
+          $title = $completed.Matches[0].Groups[2].Value.Trim()
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --all
+          git commit -m "Feature ${order}: ${title}"
+          gh auth setup-git
+          git push origin HEAD:main

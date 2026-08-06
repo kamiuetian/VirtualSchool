@@ -1,18 +1,19 @@
 # Codex app feature delivery
 
-Feature delivery is orchestrated by the persistent Codex app task, using the user's Codex session. It does not require or expose an OpenAI API key.
+Feature delivery is orchestrated by a repository-scoped GitHub self-hosted runner on the development machine. The runner invokes the local Codex CLI using the user's existing ChatGPT-managed Codex authentication. It does not require or expose an OpenAI API key.
 
 ## Cycle
 
-1. Select the first `ready` entry in `CODEX_FEATURE_BACKLOG.md`.
-2. Mark it `in-progress` and inspect the relevant implementation and requirements.
-3. Implement only that feature, including tests and operational documentation.
-4. Run the checks required by `AGENTS.md` plus feature-specific verification.
-5. If verification passes, mark the feature `complete`, commit the isolated change, and push it to GitHub.
-6. Confirm that GitHub CI has started. The next Codex continuation checks CI before selecting another feature.
-7. If verification or CI fails, keep that feature active, diagnose it, and do not advance the queue.
+1. A successful GitHub `CI` workflow for a push to `main` triggers `Codex feature cycle`.
+2. The runner selects the first `ready` entry in `CODEX_FEATURE_BACKLOG.md`.
+3. It marks the feature `in-progress` and inspects the relevant implementation and requirements.
+4. It implements only that feature, including tests and operational documentation.
+5. It runs the checks required by `AGENTS.md` plus feature-specific verification.
+6. If verification passes, it marks the feature `complete`, commits the isolated change, and pushes it to GitHub.
+7. The push starts GitHub CI; CI success triggers the next feature cycle automatically.
+8. If implementation or verification fails, no push occurs and the event chain stops for diagnosis.
 
-GitHub Actions remains the independent verifier. The Codex app task owns implementation and Git delivery; GitHub Actions does not run an AI coding agent.
+The runner is registered with only the `virtualschool-codex` custom label and runs under the logged-in Windows user so it can use that user's Codex authentication. It is configured to start at Windows logon.
 
 ## Safety rules
 
