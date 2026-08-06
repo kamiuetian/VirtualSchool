@@ -1,4 +1,9 @@
-import { expect, test, type BrowserContext } from "@playwright/test";
+import {
+  expect,
+  test,
+  type APIRequestContext,
+  type BrowserContext,
+} from "@playwright/test";
 
 const pages = [
   { heading: "Keep every school tablet ready for class.", path: "/" },
@@ -14,6 +19,7 @@ const pages = [
   { heading: "Operational Reports", path: "/reports" },
   { heading: "Plan Usage", path: "/billing" },
 ] as const;
+const mockApiURL = `http://127.0.0.1:${process.env.ADMIN_E2E_API_PORT ?? "4100"}`;
 
 test.describe("admin portal regression", () => {
   test.beforeEach(async ({ baseURL, context }) => {
@@ -184,6 +190,100 @@ test.describe("admin portal regression", () => {
     expect(kit.suggestedFilename()).toBe("pilot-tablets-provisioning-kit.txt");
   });
 
+  test("completes the school setup and managed-device critical path", async ({
+    page,
+    request,
+  }) => {
+    await page.goto("/tenants");
+    const createSchool = page.locator("form").filter({ hasText: "Create school" });
+    await createSchool.getByLabel("School name").fill("Lakeside Academy");
+    await createSchool.getByLabel("Country").fill("PK");
+    await createSchool.getByLabel("Timezone").fill("Asia/Karachi");
+    await createSchool.getByLabel("Plan").selectOption("growth");
+    await createSchool.getByLabel("Status").selectOption("ACTIVE");
+    await createSchool.getByLabel("Billing contact").fill("admin@lakeside.edu");
+    await createSchool.getByRole("button", { name: "Create school" }).click();
+    await expectMutation(request, "POST", "/tenants", {
+      country: "PK",
+      name: "Lakeside Academy",
+      planKey: "growth",
+      status: "ACTIVE",
+      timezone: "Asia/Karachi",
+    });
+
+    await page.goto("/roster");
+    const student = page.locator("form").filter({ hasText: "Create student" });
+    await student.getByLabel("Student code").fill("S-2002");
+    await student.getByLabel("Student name").fill("Omar Ali");
+    await student.getByLabel("Grade").fill("5");
+    await student.getByLabel("Section").fill("Green");
+    await student.getByRole("button", { name: "Create student" }).click();
+    await expectMutation(
+      request,
+      "POST",
+      "/tenants/tenant-northview/students",
+      { grade: "5", name: "Omar Ali", studentCode: "S-2002" },
+    );
+
+    const roster = page.locator("form").filter({ hasText: "Validate import" });
+    await roster.getByLabel("Filename").fill("grade-5.csv");
+    await roster
+      .getByLabel("CSV rows")
+      .fill("studentCode,name,grade,section\nS-2003,Mina Noor,5,Green");
+    await roster.getByRole("button", { name: "Validate import" }).click();
+    await expect(page).toHaveURL(/\/roster\?importId=import-preview-1/);
+    await expect(page.getByRole("heading", { name: "CSV Validation Result" })).toBeVisible();
+    await expectMutation(
+      request,
+      "POST",
+      "/tenants/tenant-northview/roster-imports/preview",
+      { filename: "grade-5.csv" },
+    );
+
+    await page.goto("/enrollment");
+    const enrollment = page.locator("form").filter({ hasText: "Create batch" });
+    await enrollment.getByLabel("Batch name").fill("Grade 5 rollout");
+    await enrollment.getByLabel("Device cap").fill("40");
+    await enrollment.getByRole("button", { name: "Create batch" }).click();
+    await expectMutation(
+      request,
+      "POST",
+      "/tenants/tenant-northview/enrollment-batches",
+      { maxDevices: 40, name: "Grade 5 rollout" },
+    );
+
+    await page.goto("/policies");
+    const assign = page.locator("form").filter({ hasText: "Assign" });
+    await assign.getByLabel("Scope").selectOption("CLASS");
+    await assign.getByLabel("Target ID").fill("class-4-blue");
+    await assign.getByLabel("Reason").fill("Grade 4 baseline");
+    await assign.getByRole("button", { name: "Assign" }).click();
+    await expectMutation(
+      request,
+      "POST",
+      "/tenants/tenant-northview/policies/policy-supervised/assignments",
+      { reason: "Grade 4 baseline", scope: "CLASS", scopeId: "class-4-blue" },
+    );
+
+    await page.goto("/devices");
+    const command = page.locator("form").filter({ hasText: "Queue command" });
+    await command.getByLabel("Command").selectOption("POLICY_REFRESH");
+    await command.getByLabel("Reason").fill("Apply assigned baseline");
+    await command.getByRole("button", { name: "Queue command" }).click();
+    await expectMutation(
+      request,
+      "POST",
+      "/tenants/tenant-northview/devices/device-tab-001/commands",
+      { reason: "Apply assigned baseline", type: "POLICY_REFRESH" },
+    );
+
+    await page.goto("/reports");
+    await expect(page.getByText("TAB001")).toBeVisible();
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByRole("link", { name: "Download inventory CSV" }).click();
+    expect((await downloadPromise).suggestedFilename()).toBe("device-inventory.csv");
+  });
+
   test("keeps mobile layout within viewport", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== "mobile-chromium", "mobile-only check");
 
@@ -348,4 +448,25 @@ function roleName(role: string): string {
     .split("_")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+async function expectMutation(
+  request: APIRequestContext,
+  method: string,
+  path: string,
+  expectedBody: Record<string, unknown>,
+): Promise<void> {
+  await expect
+    .poll(async () => {
+      const response = await request.get(`${mockApiURL}/__test/mutations`);
+      const mutations = (await response.json()) as Array<{
+        body: Record<string, unknown>;
+        method: string;
+        path: string;
+      }>;
+      return mutations.find(
+        (mutation) => mutation.method === method && mutation.path === path,
+      );
+    })
+    .toMatchObject({ body: expectedBody, method, path });
 }

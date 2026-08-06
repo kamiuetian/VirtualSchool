@@ -6,6 +6,7 @@ const deviceId = "device-tab-001";
 const policyId = "policy-supervised";
 const appId = "app-classroom";
 const importId = "import-preview-1";
+const mutationJournal = [];
 
 const now = "2026-05-17T10:00:00.000Z";
 
@@ -568,12 +569,33 @@ const server = createServer(async (request, response) => {
   const url = new URL(request.url ?? "/", `http://${request.headers.host}`);
   const pathname = url.pathname;
 
+  if (request.method === "GET" && pathname === "/__test/mutations") {
+    response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+    response.end(JSON.stringify(mutationJournal));
+    return;
+  }
+
   if (request.method !== "GET") {
-    request.resume();
+    const chunks = [];
+    for await (const chunk of request) chunks.push(chunk);
+    const rawBody = Buffer.concat(chunks).toString("utf8");
+    let body = rawBody;
+    try {
+      body = rawBody ? JSON.parse(rawBody) : {};
+    } catch {
+      // Retain the raw payload to make unexpected request formats diagnosable.
+    }
+    mutationJournal.push({ body, method: request.method, path: pathname });
     response.writeHead(201, {
       "content-type": "application/json; charset=utf-8",
     });
-    response.end(JSON.stringify({ ok: true, id: "mutation-ok" }));
+    response.end(
+      JSON.stringify(
+        pathname.endsWith("/roster-imports/preview")
+          ? rosterImport
+          : { ok: true, id: "mutation-ok" },
+      ),
+    );
     return;
   }
 
