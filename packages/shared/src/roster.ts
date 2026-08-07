@@ -32,6 +32,17 @@ export type ClassSectionSummary = {
   grade: string;
   subject?: string | null;
   studentCount: number;
+  academicYear?: string | null;
+  status: "ACTIVE" | "ARCHIVED";
+  archivedAt?: string | null;
+  sourceClassId?: string | null;
+};
+
+export type AcademicYearRolloverResult = {
+  sourceAcademicYear: string;
+  targetAcademicYear: string;
+  archivedClassIds: string[];
+  createdClasses: ClassSectionSummary[];
 };
 
 export type RosterImportStatus = "PREVIEWED" | "COMMITTED" | "FAILED";

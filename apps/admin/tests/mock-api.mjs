@@ -362,6 +362,7 @@ const routes = [
   ],
   ["GET", `/tenants/${tenantId}/students`, () => json(students)],
   ["GET", `/tenants/${tenantId}/classes`, () => json(classes)],
+  ["GET", `/tenants/${tenantId}/calendar-exceptions`, () => json([])],
   ["GET", `/tenants/${tenantId}/users`, () => json(users)],
   [
     "GET",

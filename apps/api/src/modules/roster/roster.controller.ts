@@ -11,6 +11,7 @@ import {
 import { ApiCreatedResponse, ApiOkResponse, ApiTags } from "@nestjs/swagger";
 import type {
   ClassSectionSummary,
+  AcademicYearRolloverResult,
   RosterImportCommitResult,
   RosterImportSummary,
   StudentSummary,
@@ -21,6 +22,7 @@ import { CreateClassSectionDto } from "./dto/create-class-section.dto";
 import { CreateStudentDto } from "./dto/create-student.dto";
 import { PreviewRosterImportDto } from "./dto/preview-roster-import.dto";
 import { RosterService } from "./roster.service";
+import { AcademicYearRolloverDto } from "./dto/academic-year-rollover.dto";
 
 @ApiTags("roster")
 @Controller("tenants/:tenantId")
@@ -63,6 +65,19 @@ export class RosterController {
     @Body() body: CreateClassSectionDto,
   ): Promise<ClassSectionSummary> {
     return this.rosterService.createClass(tenantId, body);
+  }
+
+  @Post("academic-year-rollovers")
+  @RequirePermissions("class:manage")
+  @ApiCreatedResponse({
+    description:
+      "Archive and duplicate class structures for a new academic year",
+  })
+  rolloverAcademicYear(
+    @Param("tenantId") tenantId: string,
+    @Body() body: AcademicYearRolloverDto,
+  ): Promise<AcademicYearRolloverResult> {
+    return this.rosterService.rolloverAcademicYear(tenantId, body);
   }
 
   @Post("classes/:classId/students/:studentId")

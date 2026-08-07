@@ -14,6 +14,7 @@ import {
   createClassAction,
   createStudentAction,
   previewRosterImportAction,
+  rolloverAcademicYearAction,
 } from "../../lib/actions";
 import { getAdminData, getRosterImport } from "../../lib/api";
 import { formatCount, humanize } from "../../lib/format";
@@ -93,7 +94,45 @@ export default async function RosterPage({
                   <Field label="Campus ID">
                     <input name="branchId" placeholder="Optional branch ID" />
                   </Field>
+                  <Field label="Academic year">
+                    <input name="academicYear" placeholder="2026-27" />
+                  </Field>
                   <SubmitButton>Create class</SubmitButton>
+                </form>
+              </ActionPanel>
+
+              <ActionPanel title="Academic year rollover">
+                <form
+                  action={rolloverAcademicYearAction}
+                  className="stacked-form"
+                >
+                  <input
+                    name="tenantId"
+                    type="hidden"
+                    value={selectedTenant.id}
+                  />
+                  <Field label="Source academic year">
+                    <input
+                      name="sourceAcademicYear"
+                      placeholder="2025-26"
+                      required
+                    />
+                  </Field>
+                  <Field label="Target academic year">
+                    <input
+                      name="targetAcademicYear"
+                      placeholder="2026-27"
+                      required
+                    />
+                  </Field>
+                  <Field label="Reason">
+                    <input name="reason" placeholder="End-of-year rollover" />
+                  </Field>
+                  <p className="form-help">
+                    Archives all active source-year classes and creates linked
+                    empty class structures for the target year.
+                  </p>
+                  <SubmitButton>Archive and duplicate</SubmitButton>
                 </form>
               </ActionPanel>
 
@@ -315,10 +354,19 @@ export default async function RosterPage({
                     <span>
                       Grade {classSection.grade}
                       {classSection.subject ? `, ${classSection.subject}` : ""}
+                      {classSection.academicYear
+                        ? ` · ${classSection.academicYear}`
+                        : ""}
                     </span>
                   </div>
-                  <StatusPill>
-                    {formatCount(classSection.studentCount)} students
+                  <StatusPill
+                    tone={
+                      classSection.status === "ARCHIVED" ? "neutral" : "good"
+                    }
+                  >
+                    {classSection.status === "ARCHIVED"
+                      ? "Archived"
+                      : `${formatCount(classSection.studentCount)} students`}
                   </StatusPill>
                 </article>
               ))}

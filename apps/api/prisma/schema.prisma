@@ -103,6 +103,7 @@ model Tenant {
   policies            Policy[]
   policyAssignments   PolicyAssignment[]
   timetableBlocks     TimetableBlock[]
+  calendarExceptions AcademicCalendarException[]
   supportNotes        SupportNote[]
   retentionSettings   RetentionSettings?
   retentionRuns       DataRetentionRun[]
@@ -228,6 +229,10 @@ model ClassSection {
   name            String
   grade           String
   subject         String?
+  academicYear    String?
+  status          String            @default("ACTIVE")
+  archivedAt      DateTime?
+  sourceClassId   String?
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
   tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -235,8 +240,12 @@ model ClassSection {
   members         ClassMembership[]
   devices         Device[]
   timetableBlocks TimetableBlock[]
+  sourceClass     ClassSection?      @relation("ClassRollover", fields: [sourceClassId], references: [id])
+  rolloverCopies  ClassSection[]     @relation("ClassRollover")
 
   @@index([tenantId, grade])
+  @@index([tenantId, academicYear, status])
+  @@index([sourceClassId])
 }
 
 model ClassMembership {
@@ -469,6 +478,7 @@ model Policy {
   versions           PolicyVersion[]
   assignments        PolicyAssignment[]
   timetableBlocks    TimetableBlock[]
+  calendarExceptions AcademicCalendarException[]
 
   @@index([tenantId, status])
   @@index([tenantId, mdmPublishStatus])
@@ -504,6 +514,31 @@ model TimetableBlock {
   @@index([tenantId, active, dayOfWeek])
   @@index([tenantId, scope, scopeId])
   @@index([tenantId, classId])
+  @@index([policyId])
+}
+
+model AcademicCalendarException {
+  id          String   @id @default(uuid())
+  tenantId    String
+  policyId    String?
+  scope       String   @default("TENANT")
+  scopeId     String?
+  localDate   String
+  name        String
+  kind        String
+  startMinute Int?
+  endMinute   Int?
+  timezone    String?
+  active      Boolean  @default(true)
+  actorId     String?
+  reason      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  policy      Policy?  @relation(fields: [policyId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, localDate, active])
+  @@index([tenantId, scope, scopeId])
   @@index([policyId])
 }
 

@@ -21,4 +21,9 @@ export class CreateClassSectionDto {
   @IsOptional()
   @IsString()
   branchId?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  academicYear?: string;
 }

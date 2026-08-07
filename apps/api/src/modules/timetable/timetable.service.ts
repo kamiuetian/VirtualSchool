@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 import type {
   ActiveTimetableResolution,
+  AcademicCalendarExceptionSummary,
   LearningMode,
   PolicyRuleSet,
   PolicyStatus,
@@ -15,6 +16,7 @@ import type {
 } from "@virtual-school/shared";
 import {
   type Policy,
+  type AcademicCalendarException,
   Prisma,
   type TimetableBlock,
 } from "../../generated/prisma";
@@ -25,6 +27,10 @@ import type { UpdateTimetableBlockDto } from "./dto/update-timetable-block.dto";
 
 type TimetableBlockWithPolicy = TimetableBlock & {
   policy: Policy;
+};
+
+type CalendarExceptionWithPolicy = AcademicCalendarException & {
+  policy: Policy | null;
 };
 
 const scopeSpecificity: Record<TimetableBlockScope, number> = {
@@ -393,6 +399,25 @@ export class TimetableService {
       },
     });
 
+    const calendarExceptions =
+      await this.prisma.academicCalendarException.findMany({
+        include: { policy: true },
+        where: { active: true, tenantId, OR: scopeMatches },
+      });
+    const matchingException =
+      calendarExceptions
+        .filter((exception) =>
+          this.exceptionMatchesLocalTime(exception, at, device.tenant.timezone),
+        )
+        .sort((left, right) => {
+          const specificity =
+            scopeSpecificity[right.scope as TimetableBlockScope] -
+            scopeSpecificity[left.scope as TimetableBlockScope];
+          return (
+            specificity || right.createdAt.getTime() - left.createdAt.getTime()
+          );
+        })[0] ?? null;
+
     const evaluated = candidates.filter((block) =>
       this.blockMatchesLocalTime(block, at, device.tenant.timezone),
     );
@@ -416,14 +441,36 @@ export class TimetableService {
       this.toTimetableBlockSummary(block),
     );
 
+    const exceptionSummary = matchingException
+      ? this.toCalendarExceptionSummary(matchingException)
+      : null;
+    const exceptionOverrides =
+      matchingException?.kind === "OVERRIDE" && matchingException.policy;
+    const exceptionCloses = matchingException?.kind === "CLOSED";
+
     return {
-      activeBlock: active ? this.toTimetableBlockSummary(active) : null,
-      activePolicy: active ? this.toPolicySummary(active.policy) : null,
+      activeBlock: matchingException
+        ? null
+        : active
+          ? this.toTimetableBlockSummary(active)
+          : null,
+      activeException: exceptionSummary,
+      activePolicy: exceptionOverrides
+        ? this.toPolicySummary(matchingException.policy!)
+        : exceptionCloses
+          ? null
+          : active
+            ? this.toPolicySummary(active.policy)
+            : null,
       deviceId,
       evaluated: summaries,
-      explanation: active
-        ? `${active.name} matched ${active.scope}:${active.scopeId ?? "baseline"} at ${this.formatMinutes(active.startMinute)}-${this.formatMinutes(active.endMinute)}.`
-        : "No active timetable block matched this device and time.",
+      explanation: matchingException
+        ? matchingException.kind === "CLOSED"
+          ? `${matchingException.name} closes the timetable on ${matchingException.localDate}.`
+          : `${matchingException.name} overrides the recurring timetable on ${matchingException.localDate}.`
+        : active
+          ? `${active.name} matched ${active.scope}:${active.scopeId ?? "baseline"} at ${this.formatMinutes(active.startMinute)}-${this.formatMinutes(active.endMinute)}.`
+          : "No active timetable block matched this device and time.",
       resolvedAt: at.toISOString(),
       tenantId,
       timezone: device.tenant.timezone,
@@ -647,6 +694,39 @@ export class TimetableService {
     );
   }
 
+  private exceptionMatchesLocalTime(
+    exception: AcademicCalendarException,
+    at: Date,
+    tenantTimezone: string,
+  ): boolean {
+    const timezone = exception.timezone ?? tenantTimezone;
+    if (this.getLocalDate(at, timezone) !== exception.localDate) return false;
+    if (exception.startMinute === null || exception.endMinute === null)
+      return true;
+    const local = this.getLocalTime(at, timezone);
+    return (
+      exception.startMinute <= local.minuteOfDay &&
+      exception.endMinute > local.minuteOfDay
+    );
+  }
+
+  private getLocalDate(at: Date, timezone: string): string {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      day: "2-digit",
+      month: "2-digit",
+      timeZone: timezone,
+      year: "numeric",
+    }).formatToParts(at);
+    const value = (type: string) =>
+      parts.find((part) => part.type === type)?.value;
+    const year = value("year");
+    const month = value("month");
+    const day = value("day");
+    if (!year || !month || !day)
+      throw new BadRequestException(`Invalid timezone ${timezone}`);
+    return `${year}-${month}-${day}`;
+  }
+
   private getLocalTime(
     at: Date,
     timezone: string,
@@ -715,6 +795,30 @@ export class TimetableService {
       tenantId: block.tenantId,
       timezone: block.timezone,
       updatedAt: block.updatedAt.toISOString(),
+    };
+  }
+
+  private toCalendarExceptionSummary(
+    exception: CalendarExceptionWithPolicy,
+  ): AcademicCalendarExceptionSummary {
+    return {
+      active: exception.active,
+      actorId: exception.actorId,
+      createdAt: exception.createdAt.toISOString(),
+      endMinute: exception.endMinute,
+      id: exception.id,
+      kind: exception.kind as "CLOSED" | "OVERRIDE",
+      localDate: exception.localDate,
+      name: exception.name,
+      policyId: exception.policyId,
+      policyName: exception.policy?.name ?? null,
+      reason: exception.reason,
+      scope: exception.scope as TimetableBlockScope,
+      scopeId: exception.scopeId,
+      startMinute: exception.startMinute,
+      tenantId: exception.tenantId,
+      timezone: exception.timezone,
+      updatedAt: exception.updatedAt.toISOString(),
     };
   }
 

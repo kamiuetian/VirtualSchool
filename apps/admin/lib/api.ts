@@ -1,5 +1,6 @@
 import type {
   AppCatalogItemSummary,
+  AcademicCalendarExceptionSummary,
   AppDeploymentReport,
   BillingUsageSummary,
   ClassSectionSummary,
@@ -52,6 +53,7 @@ export type AdminData = {
   classes: ClassSectionSummary[];
   users: UserSummary[];
   timetableBlocks: TimetableBlockSummary[];
+  calendarExceptions: AcademicCalendarExceptionSummary[];
   retentionSettings: RetentionSettingsSummary | null;
   billingUsage: BillingUsageSummary | null;
   session: AdminPortalSession;
@@ -60,7 +62,9 @@ export type AdminData = {
 
 type ApiGetResult<T> = { data: T | null; failed: boolean };
 
-export async function getAdminData(requiredPath: PortalHref = "/"): Promise<AdminData> {
+export async function getAdminData(
+  requiredPath: PortalHref = "/",
+): Promise<AdminData> {
   const session = await requirePortalRouteAccess(requiredPath);
   const can = (permission: Parameters<typeof roleCan>[1]) =>
     roleCan(session.role, permission);
@@ -87,6 +91,7 @@ export async function getAdminData(requiredPath: PortalHref = "/"): Promise<Admi
       students: [],
       tenants,
       timetableBlocks: [],
+      calendarExceptions: [],
       users: [],
       appDeploymentReport: null,
       retentionSettings: null,
@@ -110,11 +115,14 @@ export async function getAdminData(requiredPath: PortalHref = "/"): Promise<Admi
     classes,
     users,
     timetableBlocks,
+    calendarExceptions,
     retentionSettings,
     billingUsage,
   ] = await Promise.all([
     apiGet<OnboardingChecklist>(`${tenantPath}/onboarding-checklist`),
-    can("device:read") ? apiGet<DeviceSummary[]>(`${tenantPath}/devices`) : skipped([]),
+    can("device:read")
+      ? apiGet<DeviceSummary[]>(`${tenantPath}/devices`)
+      : skipped([]),
     can("report:export")
       ? apiGet<DeviceInventoryReport>(`${tenantPath}/reports/device-inventory`)
       : skipped<DeviceInventoryReport>(),
@@ -131,7 +139,9 @@ export async function getAdminData(requiredPath: PortalHref = "/"): Promise<Admi
       ? apiGet<PolicyAssignmentSummary[]>(`${tenantPath}/policies/assignments`)
       : skipped([]),
     can("report:export")
-      ? apiGet<PolicyDeploymentReport>(`${tenantPath}/reports/policy-deployments`)
+      ? apiGet<PolicyDeploymentReport>(
+          `${tenantPath}/reports/policy-deployments`,
+        )
       : skipped<PolicyDeploymentReport>(),
     can("policy:manage")
       ? apiGet<AppCatalogItemSummary[]>(`${tenantPath}/apps`)
@@ -150,6 +160,11 @@ export async function getAdminData(requiredPath: PortalHref = "/"): Promise<Admi
       : skipped([]),
     can("policy:manage")
       ? apiGet<TimetableBlockSummary[]>(`${tenantPath}/timetable-blocks`)
+      : skipped([]),
+    can("policy:manage")
+      ? apiGet<AcademicCalendarExceptionSummary[]>(
+          `${tenantPath}/calendar-exceptions`,
+        )
       : skipped([]),
     can("tenant:update")
       ? apiGet<RetentionSettingsSummary>(`${tenantPath}/retention-settings`)
@@ -180,6 +195,7 @@ export async function getAdminData(requiredPath: PortalHref = "/"): Promise<Admi
       classes,
       users,
       timetableBlocks,
+      calendarExceptions,
       retentionSettings,
       billingUsage,
     ].some((result) => result.failed),
@@ -194,6 +210,7 @@ export async function getAdminData(requiredPath: PortalHref = "/"): Promise<Admi
     students: students.data ?? [],
     tenants,
     timetableBlocks: timetableBlocks.data ?? [],
+    calendarExceptions: calendarExceptions.data ?? [],
     users: users.data ?? [],
     appDeploymentReport: appDeploymentReport.data ?? null,
     retentionSettings: retentionSettings.data ?? null,
@@ -241,7 +258,9 @@ export async function getDeviceSupportData(
   connectionIssue: boolean;
 }> {
   const [notes, timeline] = await Promise.all([
-    apiGet<SupportNoteSummary[]>(`/tenants/${tenantId}/support/devices/${deviceId}/notes`),
+    apiGet<SupportNoteSummary[]>(
+      `/tenants/${tenantId}/support/devices/${deviceId}/notes`,
+    ),
     apiGet<SupportTimelineEvent[]>(
       `/tenants/${tenantId}/support/devices/${deviceId}/timeline?limit=12`,
     ),
@@ -257,7 +276,10 @@ export async function getDeviceSupportData(
 export async function getRosterImport(
   tenantId: string,
   importId: string,
-): Promise<{ importPreview: RosterImportSummary | null; connectionIssue: boolean }> {
+): Promise<{
+  importPreview: RosterImportSummary | null;
+  connectionIssue: boolean;
+}> {
   const result = await apiGet<RosterImportSummary>(
     `/tenants/${tenantId}/roster-imports/${importId}`,
   );
@@ -299,9 +321,7 @@ export async function adminApiRawGet(path: string): Promise<Response> {
   });
 }
 
-async function apiGet<T>(
-  path: string,
-): Promise<ApiGetResult<T>> {
+async function apiGet<T>(path: string): Promise<ApiGetResult<T>> {
   try {
     const response = await fetch(`${baseUrl}${path}`, {
       cache: "no-store",

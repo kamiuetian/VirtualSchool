@@ -10,6 +10,7 @@ import {
 } from "../../components/ui";
 import {
   createTimetableBlockAction,
+  createCalendarExceptionAction,
   deactivateTimetableBlockAction,
 } from "../../lib/actions";
 import { getAdminData } from "../../lib/api";
@@ -30,19 +31,37 @@ const weekdays = [
 export default async function TimetablePage() {
   const data = await getAdminData("/timetable");
   const activeBlocks = data.timetableBlocks.filter((block) => block.active);
-  const classBlocks = data.timetableBlocks.filter((block) => block.scope === "CLASS");
+  const classBlocks = data.timetableBlocks.filter(
+    (block) => block.scope === "CLASS",
+  );
 
   return (
-    <AppShell connectionIssue={data.connectionIssue} tenant={data.selectedTenant}>
+    <AppShell
+      connectionIssue={data.connectionIssue}
+      tenant={data.selectedTenant}
+    >
       <div className="content-stack">
         <PageSection kicker="Learning day" title="Timetable Blocks">
           <section className="stat-grid" aria-label="Timetable summary">
-            <StatCard label="Blocks" value={formatCount(data.timetableBlocks.length)} />
-            <StatCard label="Active" tone="good" value={formatCount(activeBlocks.length)} />
-            <StatCard label="Class scoped" value={formatCount(classBlocks.length)} />
+            <StatCard
+              label="Blocks"
+              value={formatCount(data.timetableBlocks.length)}
+            />
+            <StatCard
+              label="Active"
+              tone="good"
+              value={formatCount(activeBlocks.length)}
+            />
+            <StatCard
+              label="Class scoped"
+              value={formatCount(classBlocks.length)}
+            />
             <StatCard
               label="Policies available"
-              value={formatCount(data.policies.filter((policy) => policy.status === "PUBLISHED").length)}
+              value={formatCount(
+                data.policies.filter((policy) => policy.status === "PUBLISHED")
+                  .length,
+              )}
             />
           </section>
         </PageSection>
@@ -50,10 +69,21 @@ export default async function TimetablePage() {
         {data.selectedTenant ? (
           <PageSection kicker="Schedule action" title="Create Recurring Block">
             <ActionPanel title="Class, grade, or whole-school mode">
-              <form action={createTimetableBlockAction} className="inline-form wide">
-                <input name="tenantId" type="hidden" value={data.selectedTenant.id} />
+              <form
+                action={createTimetableBlockAction}
+                className="inline-form wide"
+              >
+                <input
+                  name="tenantId"
+                  type="hidden"
+                  value={data.selectedTenant.id}
+                />
                 <Field label="Block name">
-                  <input name="name" placeholder="Grade 4 Mathematics" required />
+                  <input
+                    name="name"
+                    placeholder="Grade 4 Mathematics"
+                    required
+                  />
                 </Field>
                 <Field label="Published policy">
                   <select name="policyId" required>
@@ -107,6 +137,87 @@ export default async function TimetablePage() {
           </PageSection>
         ) : null}
 
+        {data.selectedTenant ? (
+          <PageSection
+            kicker="Calendar exception"
+            title="Holidays And Dated Overrides"
+          >
+            <ActionPanel title="Override the recurring timetable for a local date">
+              <form
+                action={createCalendarExceptionAction}
+                className="inline-form wide"
+              >
+                <input
+                  name="tenantId"
+                  type="hidden"
+                  value={data.selectedTenant.id}
+                />
+                <Field label="Name">
+                  <input name="name" placeholder="Public holiday" required />
+                </Field>
+                <Field label="Local date">
+                  <input name="localDate" type="date" required />
+                </Field>
+                <Field label="Type">
+                  <select name="kind" defaultValue="CLOSED">
+                    <option value="CLOSED">Closed</option>
+                    <option value="OVERRIDE">Policy override</option>
+                  </select>
+                </Field>
+                <Field label="Scope">
+                  <select name="scope" defaultValue="TENANT">
+                    <option value="TENANT">Whole school</option>
+                    <option value="GRADE">Grade</option>
+                    <option value="CLASS">Class</option>
+                  </select>
+                </Field>
+                <Field label="Target ID">
+                  <input name="scopeId" placeholder="Class or grade value" />
+                </Field>
+                <Field label="Override policy">
+                  <select name="policyId">
+                    <option value="">Not required for closure</option>
+                    {data.policies.map((policy) => (
+                      <option key={policy.id} value={policy.id}>
+                        {policy.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Timezone">
+                  <input
+                    name="timezone"
+                    placeholder={data.selectedTenant.timezone}
+                  />
+                </Field>
+                <Field label="Reason">
+                  <input name="reason" placeholder="Academic calendar" />
+                </Field>
+                <SubmitButton>Create exception</SubmitButton>
+              </form>
+            </ActionPanel>
+            {data.calendarExceptions.length > 0 ? (
+              <div className="card-grid compact">
+                {data.calendarExceptions.map((item) => (
+                  <article className="record-card" key={item.id}>
+                    <div>
+                      <strong>{item.name}</strong>
+                      <span>
+                        {item.localDate} · {humanize(item.scope)}
+                      </span>
+                    </div>
+                    <StatusPill
+                      tone={item.kind === "CLOSED" ? "neutral" : "good"}
+                    >
+                      {humanize(item.kind)}
+                    </StatusPill>
+                  </article>
+                ))}
+              </div>
+            ) : null}
+          </PageSection>
+        ) : null}
+
         <PageSection title="Weekly Schedule">
           {data.timetableBlocks.length > 0 ? (
             <div className="table-wrap">
@@ -128,7 +239,9 @@ export default async function TimetablePage() {
                     <tr key={block.id}>
                       <td>
                         <strong>{block.name}</strong>
-                        <span className="cell-note">{block.subject ?? "Learning block"}</span>
+                        <span className="cell-note">
+                          {block.subject ?? "Learning block"}
+                        </span>
                       </td>
                       <td>{block.policyName}</td>
                       <td>
@@ -137,7 +250,8 @@ export default async function TimetablePage() {
                       </td>
                       <td>{weekdays[block.dayOfWeek - 1]}</td>
                       <td>
-                        {minuteLabel(block.startMinute)} to {minuteLabel(block.endMinute)}
+                        {minuteLabel(block.startMinute)} to{" "}
+                        {minuteLabel(block.endMinute)}
                       </td>
                       <td>
                         {formatDate(block.effectiveFrom)} to{" "}
@@ -150,10 +264,25 @@ export default async function TimetablePage() {
                       </td>
                       <td>
                         {data.selectedTenant && block.active ? (
-                          <form action={deactivateTimetableBlockAction} className="button-form">
-                            <input name="tenantId" type="hidden" value={data.selectedTenant.id} />
-                            <input name="blockId" type="hidden" value={block.id} />
-                            <input name="reason" type="hidden" value="Removed from active timetable" />
+                          <form
+                            action={deactivateTimetableBlockAction}
+                            className="button-form"
+                          >
+                            <input
+                              name="tenantId"
+                              type="hidden"
+                              value={data.selectedTenant.id}
+                            />
+                            <input
+                              name="blockId"
+                              type="hidden"
+                              value={block.id}
+                            />
+                            <input
+                              name="reason"
+                              type="hidden"
+                              value="Removed from active timetable"
+                            />
                             <button className="small-button" type="submit">
                               Deactivate
                             </button>

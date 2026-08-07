@@ -353,4 +353,73 @@ describe("RosterService", () => {
       service.commitRosterImport("tenant-1", "import-1", "admin-2"),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
+
+  it("archives and duplicates class structures with rollover history", async () => {
+    const now = new Date("2026-08-07T10:00:00.000Z");
+    const source = {
+      academicYear: "2025-26",
+      archivedAt: null,
+      branchId: "branch-1",
+      createdAt: now,
+      grade: "5",
+      id: "class-old",
+      name: "Grade 5 A",
+      sourceClassId: null,
+      status: "ACTIVE",
+      subject: "General",
+      tenantId: "tenant-1",
+      updatedAt: now,
+    };
+    const audit = vi.fn();
+    const updateMany = vi.fn();
+    const service = new RosterService({
+      $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
+        callback({
+          auditEvent: { create: audit },
+          classSection: {
+            create: async ({ data }: { data: Record<string, unknown> }) => ({
+              ...source,
+              ...data,
+              academicYear: "2026-27",
+              id: "class-new",
+              sourceClassId: source.id,
+            }),
+            updateMany,
+          },
+        }),
+      classSection: {
+        findFirst: async () => null,
+        findMany: async () => [source],
+      },
+      tenant: { findUnique: async () => ({ id: "tenant-1" }) },
+    } as never);
+
+    await expect(
+      service.rolloverAcademicYear("tenant-1", {
+        actorId: "admin-1",
+        reason: "Year end",
+        sourceAcademicYear: "2025-26",
+        targetAcademicYear: "2026-27",
+      }),
+    ).resolves.toMatchObject({
+      archivedClassIds: ["class-old"],
+      createdClasses: [
+        {
+          academicYear: "2026-27",
+          id: "class-new",
+          sourceClassId: "class-old",
+          status: "ACTIVE",
+        },
+      ],
+    });
+    expect(updateMany).toHaveBeenCalledOnce();
+    expect(audit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "academic_year.rollover",
+          actorId: "admin-1",
+        }),
+      }),
+    );
+  });
 });

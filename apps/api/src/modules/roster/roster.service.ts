@@ -7,6 +7,7 @@ import {
 } from "@nestjs/common";
 import type {
   ClassSectionSummary,
+  AcademicYearRolloverResult,
   RosterImportCommitResult,
   RosterImportRowInput,
   RosterImportRowResult,
@@ -25,6 +26,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import type { CreateClassSectionDto } from "./dto/create-class-section.dto";
 import type { CreateStudentDto } from "./dto/create-student.dto";
 import type { PreviewRosterImportDto } from "./dto/preview-roster-import.dto";
+import type { AcademicYearRolloverDto } from "./dto/academic-year-rollover.dto";
 
 type StudentWithCount = Student & {
   _count?: {
@@ -188,6 +190,7 @@ export class RosterService {
     const classSection = await this.prisma.$transaction(async (tx) => {
       const created = await tx.classSection.create({
         data: {
+          academicYear: input.academicYear,
           branchId: input.branchId,
           grade: input.grade,
           name: input.name,
@@ -226,6 +229,95 @@ export class RosterService {
     });
 
     return this.toClassSummary(classSection);
+  }
+
+  async rolloverAcademicYear(
+    tenantId: string,
+    input: AcademicYearRolloverDto,
+  ): Promise<AcademicYearRolloverResult> {
+    await this.ensureTenantExists(tenantId);
+    if (input.sourceAcademicYear === input.targetAcademicYear) {
+      throw new BadRequestException(
+        "Target academic year must differ from source academic year",
+      );
+    }
+    const sourceClasses = await this.prisma.classSection.findMany({
+      where: {
+        academicYear: input.sourceAcademicYear,
+        id: input.classIds ? { in: input.classIds } : undefined,
+        status: "ACTIVE",
+        tenantId,
+      },
+    });
+    if (sourceClasses.length === 0)
+      throw new NotFoundException(
+        "No active source classes were found for rollover",
+      );
+    if (input.classIds && sourceClasses.length !== input.classIds.length)
+      throw new NotFoundException(
+        "One or more source classes were not found in the tenant and academic year",
+      );
+    const existingCopies = await this.prisma.classSection.findFirst({
+      where: {
+        academicYear: input.targetAcademicYear,
+        sourceClassId: { in: sourceClasses.map((item) => item.id) },
+        tenantId,
+      },
+    });
+    if (existingCopies)
+      throw new ConflictException(
+        "One or more classes have already been rolled over to the target academic year",
+      );
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const archivedAt = new Date();
+      await tx.classSection.updateMany({
+        data: { archivedAt, status: "ARCHIVED" },
+        where: { id: { in: sourceClasses.map((item) => item.id) }, tenantId },
+      });
+      const created: ClassSection[] = [];
+      for (const source of sourceClasses) {
+        created.push(
+          await tx.classSection.create({
+            data: {
+              academicYear: input.targetAcademicYear,
+              branchId: source.branchId,
+              grade: source.grade,
+              name: source.name,
+              sourceClassId: source.id,
+              subject: source.subject,
+              tenantId,
+            },
+          }),
+        );
+      }
+      await tx.auditEvent.create({
+        data: {
+          action: "academic_year.rollover",
+          actorId: input.actorId,
+          newValue: {
+            createdClassIds: created.map((item) => item.id),
+            targetAcademicYear: input.targetAcademicYear,
+          },
+          oldValue: {
+            archivedClassIds: sourceClasses.map((item) => item.id),
+            sourceAcademicYear: input.sourceAcademicYear,
+          },
+          object: "AcademicYearRollover",
+          objectId: `${input.sourceAcademicYear}:${input.targetAcademicYear}`,
+          outcome: "SUCCESS",
+          reason: input.reason,
+          tenantId,
+        },
+      });
+      return created;
+    });
+    return {
+      archivedClassIds: sourceClasses.map((item) => item.id),
+      createdClasses: result.map((item) => this.toClassSummary(item)),
+      sourceAcademicYear: input.sourceAcademicYear,
+      targetAcademicYear: input.targetAcademicYear,
+    };
   }
 
   async addStudentToClass(
@@ -817,11 +909,15 @@ export class RosterService {
 
   private toClassSummary(classSection: ClassWithCount): ClassSectionSummary {
     return {
+      academicYear: classSection.academicYear,
+      archivedAt: classSection.archivedAt?.toISOString() ?? null,
       branchId: classSection.branchId,
       grade: classSection.grade,
       id: classSection.id,
       name: classSection.name,
       studentCount: classSection._count?.members ?? 0,
+      sourceClassId: classSection.sourceClassId,
+      status: classSection.status as "ACTIVE" | "ARCHIVED",
       subject: classSection.subject,
       tenantId: classSection.tenantId,
     };

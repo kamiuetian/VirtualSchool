@@ -183,6 +183,7 @@ describe("TimetableService", () => {
 
   it("resolves the active class block for a device and local time", async () => {
     const service = new TimetableService({
+      academicCalendarException: { findMany: async () => [] },
       device: {
         findFirst: async () => ({
           classId: "class-1",
@@ -231,6 +232,54 @@ describe("TimetableService", () => {
           scope: "CLASS",
         }),
       ]),
+    });
+  });
+
+  it("applies a tenant-local closure across the UTC date boundary", async () => {
+    const exception = {
+      active: true,
+      actorId: "admin-1",
+      createdAt: now,
+      endMinute: null,
+      id: "holiday-1",
+      kind: "CLOSED",
+      localDate: "2026-05-19",
+      name: "School holiday",
+      policy: null,
+      policyId: null,
+      reason: "Public holiday",
+      scope: "TENANT",
+      scopeId: null,
+      startMinute: null,
+      tenantId: "tenant-1",
+      timezone: null,
+      updatedAt: now,
+    };
+    const service = new TimetableService({
+      academicCalendarException: { findMany: async () => [exception] },
+      device: {
+        findFirst: async () => ({
+          classId: "class-1",
+          id: "device-1",
+          student: { grade: "5", id: "student-1" },
+          tenant: { timezone: "Asia/Karachi" },
+          tenantId: "tenant-1",
+        }),
+      },
+      timetableBlock: { findMany: async () => [block({ dayOfWeek: 2 })] },
+    } as never);
+
+    await expect(
+      service.resolveActiveBlockForDevice(
+        "tenant-1",
+        "device-1",
+        new Date("2026-05-18T19:30:00.000Z"),
+      ),
+    ).resolves.toMatchObject({
+      activeBlock: null,
+      activeException: { id: "holiday-1", kind: "CLOSED" },
+      activePolicy: null,
+      timezone: "Asia/Karachi",
     });
   });
 

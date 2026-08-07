@@ -122,10 +122,28 @@ export async function createClassAction(formData: FormData): Promise<void> {
   const tenantId = required(formData, "tenantId");
   await adminApiMutation("POST", `/tenants/${tenantId}/classes`, {
     branchId: text(formData, "branchId"),
+    academicYear: text(formData, "academicYear"),
     grade: text(formData, "grade"),
     name: text(formData, "name"),
     subject: text(formData, "subject"),
   });
+  revalidateAll();
+}
+
+export async function rolloverAcademicYearAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("class:manage");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/academic-year-rollovers`,
+    {
+      sourceAcademicYear: required(formData, "sourceAcademicYear"),
+      targetAcademicYear: required(formData, "targetAcademicYear"),
+      reason: text(formData, "reason"),
+    },
+  );
   revalidateAll();
 }
 
@@ -390,6 +408,31 @@ export async function deactivateTimetableBlockAction(
       reason: text(formData, "reason"),
     },
   );
+  revalidateAll();
+}
+
+export async function createCalendarExceptionAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("policy:manage");
+  const tenantId = required(formData, "tenantId");
+  const kind = required(formData, "kind");
+  await adminApiMutation("POST", `/tenants/${tenantId}/calendar-exceptions`, {
+    endMinute: text(formData, "endTime")
+      ? timeToMinute(required(formData, "endTime"))
+      : undefined,
+    kind,
+    localDate: required(formData, "localDate"),
+    name: required(formData, "name"),
+    policyId: kind === "OVERRIDE" ? required(formData, "policyId") : undefined,
+    reason: text(formData, "reason"),
+    scope: text(formData, "scope") || "TENANT",
+    scopeId: text(formData, "scopeId"),
+    startMinute: text(formData, "startTime")
+      ? timeToMinute(required(formData, "startTime"))
+      : undefined,
+    timezone: text(formData, "timezone"),
+  });
   revalidateAll();
 }
 

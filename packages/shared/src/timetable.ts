@@ -37,6 +37,29 @@ export type ActiveTimetableResolution = {
   timezone: string;
   activeBlock: TimetableBlockSummary | null;
   activePolicy: PolicySummary | null;
+  activeException: AcademicCalendarExceptionSummary | null;
   explanation: string;
   evaluated: TimetableBlockSummary[];
+};
+
+export type AcademicCalendarExceptionKind = "CLOSED" | "OVERRIDE";
+
+export type AcademicCalendarExceptionSummary = {
+  id: string;
+  tenantId: string;
+  policyId?: string | null;
+  policyName?: string | null;
+  scope: TimetableBlockScope;
+  scopeId?: string | null;
+  localDate: string;
+  name: string;
+  kind: AcademicCalendarExceptionKind;
+  startMinute?: number | null;
+  endMinute?: number | null;
+  timezone?: string | null;
+  active: boolean;
+  actorId?: string | null;
+  reason?: string | null;
+  createdAt: string;
+  updatedAt: string;
 };
