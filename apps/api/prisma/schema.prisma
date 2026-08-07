@@ -114,6 +114,45 @@ model Tenant {
   lifecycleEvents        DeviceLifecycleEvent[]
   notificationPreference NotificationPreference?
   notificationDeliveries NotificationDelivery[]
+  privacyNotices         PrivacyNotice[]
+  privacyAcceptances     PrivacyAcceptance[]
+}
+
+model PrivacyNotice {
+  id          String              @id @default(uuid())
+  tenantId    String
+  noticeType  String
+  channel     String
+  version     Int
+  title       String
+  content     String
+  publishedBy String?
+  publishedAt DateTime            @default(now())
+  createdAt   DateTime            @default(now())
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  acceptances PrivacyAcceptance[]
+
+  @@unique([tenantId, noticeType, channel, version])
+  @@index([tenantId, noticeType, channel, publishedAt])
+}
+
+model PrivacyAcceptance {
+  id           String        @id @default(uuid())
+  tenantId     String
+  noticeId     String
+  subjectType  String
+  subjectId    String
+  channel      String
+  acceptedAt   DateTime      @default(now())
+  revokedAt    DateTime?
+  revokeReason String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  notice       PrivacyNotice @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+
+  @@unique([noticeId, subjectType, subjectId, channel])
+  @@index([tenantId, subjectType, subjectId, acceptedAt])
 }
 
 model BillingSubscription {

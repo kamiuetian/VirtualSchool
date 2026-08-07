@@ -782,6 +782,48 @@ export async function updateBillingAction(formData: FormData): Promise<void> {
   revalidateAll();
 }
 
+export async function publishPrivacyNoticeAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation("POST", `/tenants/${tenantId}/privacy/notices`, {
+    noticeType: text(formData, "noticeType"),
+    channel: text(formData, "channel"),
+    title: text(formData, "title"),
+    content: text(formData, "content"),
+  });
+  revalidateAll();
+}
+
+export async function acceptPrivacyNoticeAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  const noticeId = required(formData, "noticeId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/privacy/notices/${noticeId}/accept`,
+    { channel: text(formData, "channel") },
+  );
+  revalidateAll();
+}
+
+export async function revokePrivacyAcceptanceAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  const acceptanceId = required(formData, "acceptanceId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/privacy/acceptances/${acceptanceId}/revoke`,
+    { reason: text(formData, "reason") },
+  );
+  revalidateAll();
+}
+
 function revalidateAll(): void {
   [
     "/",
@@ -791,6 +833,7 @@ function revalidateAll(): void {
     "/devices",
     "/enrollment",
     "/policies",
+    "/privacy",
     "/reports",
     "/roster",
     "/support",

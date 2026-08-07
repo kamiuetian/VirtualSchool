@@ -11,3 +11,4 @@ export * from "./device";
 export * from "./user";
 export * from "./timetable";
 export * from "./observability";
+export * from "./privacy";

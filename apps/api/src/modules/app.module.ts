@@ -10,6 +10,7 @@ import { MdmConnectorsModule } from "./mdm-connectors/mdm-connectors.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { PoliciesModule } from "./policies/policies.module";
 import { PrismaModule } from "./prisma/prisma.module";
+import { PrivacyModule } from "./privacy/privacy.module";
 import { RemoteCommandsModule } from "./remote-commands/remote-commands.module";
 import { ReportsModule } from "./reports/reports.module";
 import { RosterModule } from "./roster/roster.module";
@@ -21,6 +22,7 @@ import { UsersModule } from "./users/users.module";
 @Module({
   imports: [
     PrismaModule,
+    PrivacyModule,
     AuthModule,
     HealthModule,
     TenantsModule,

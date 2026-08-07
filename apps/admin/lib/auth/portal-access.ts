@@ -1,9 +1,5 @@
 import { redirect } from "next/navigation";
-import {
-  roleAllows,
-  type Permission,
-  type Role,
-} from "@virtual-school/shared";
+import { roleAllows, type Permission, type Role } from "@virtual-school/shared";
 import { requireAdminSession } from "./session";
 
 export type PortalHref =
@@ -13,6 +9,7 @@ export type PortalHref =
   | "/enrollment"
   | "/devices"
   | "/policies"
+  | "/privacy"
   | "/timetable"
   | "/apps"
   | "/alerts"
@@ -34,16 +31,26 @@ export const portalRoutes: PortalRoute[] = [
   {
     href: "/tenants",
     label: "Schools",
-    anyPermissions: ["tenant:create", "tenant:update", "user:invite", "user:suspend"],
+    anyPermissions: [
+      "tenant:create",
+      "tenant:update",
+      "user:invite",
+      "user:suspend",
+    ],
   },
   {
     href: "/roster",
     label: "Roster",
     anyPermissions: ["roster:manage", "class:manage"],
   },
-  { href: "/enrollment", label: "Enrollment", anyPermissions: ["device:enroll"] },
+  {
+    href: "/enrollment",
+    label: "Enrollment",
+    anyPermissions: ["device:enroll"],
+  },
   { href: "/devices", label: "Devices", anyPermissions: ["device:read"] },
   { href: "/policies", label: "Policies", anyPermissions: ["policy:manage"] },
+  { href: "/privacy", label: "Privacy", anyPermissions: ["tenant:update"] },
   { href: "/timetable", label: "Timetable", anyPermissions: ["policy:manage"] },
   { href: "/apps", label: "Apps & Web", anyPermissions: ["policy:manage"] },
   { href: "/alerts", label: "Alerts", anyPermissions: ["device:read"] },
@@ -58,7 +65,9 @@ export function roleCan(role: Role, permission: Permission): boolean {
 
 export function canAccessPortalRoute(role: Role, href: PortalHref): boolean {
   const route = portalRoutes.find((item) => item.href === href);
-  return route ? route.anyPermissions.some((permission) => roleCan(role, permission)) : false;
+  return route
+    ? route.anyPermissions.some((permission) => roleCan(role, permission))
+    : false;
 }
 
 export function visiblePortalNavigation(role: Role): PortalNavigationItem[] {

@@ -12,6 +12,7 @@ const pages = [
   { heading: "Enrollment Batches", path: "/enrollment" },
   { heading: "Device Inventory", path: "/devices" },
   { heading: "Policies And Modes", path: "/policies" },
+  { heading: "Privacy notices and consent", path: "/privacy" },
   { heading: "Timetable Blocks", path: "/timetable" },
   { heading: "Apps And Web Catalog", path: "/apps" },
   { heading: "Alerts And Diagnostics", path: "/alerts" },
@@ -147,6 +148,14 @@ test.describe("admin portal regression", () => {
     await expect(
       page.getByText('"connector":"android-management-api"'),
     ).toHaveCount(0);
+
+    await page.goto("/privacy");
+    await expect(
+      page.getByRole("button", { name: "Publish notice" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Accept this version" }),
+    ).toBeVisible();
   });
 
   test("downloads CSV exports through portal routes", async ({ page }) => {

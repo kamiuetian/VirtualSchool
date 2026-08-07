@@ -17,6 +17,8 @@ import type {
   PolicyDeploymentReport,
   PolicyAssignmentSummary,
   PolicySummary,
+  PrivacyAcceptanceSummary,
+  PrivacyNoticeSummary,
   RetentionSettingsSummary,
   RemoteCommandSummary,
   RosterImportSummary,
@@ -62,6 +64,8 @@ export type AdminData = {
   retentionSettings: RetentionSettingsSummary | null;
   notificationPreferences: NotificationPreferenceSummary | null;
   notificationDeliveries: NotificationDeliverySummary[];
+  privacyNotices: PrivacyNoticeSummary[];
+  privacyAcceptances: PrivacyAcceptanceSummary[];
   billingUsage: BillingUsageSummary | null;
   session: AdminPortalSession;
   connectionIssue: boolean;
@@ -105,6 +109,8 @@ export async function getAdminData(
       retentionSettings: null,
       notificationPreferences: null,
       notificationDeliveries: [],
+      privacyNotices: [],
+      privacyAcceptances: [],
       session,
     };
   }
@@ -131,6 +137,8 @@ export async function getAdminData(
     blockedDomainAggregates,
     notificationPreferences,
     notificationDeliveries,
+    privacyNotices,
+    privacyAcceptances,
   ] = await Promise.all([
     apiGet<OnboardingChecklist>(`${tenantPath}/onboarding-checklist`),
     can("device:read")
@@ -200,6 +208,12 @@ export async function getAdminData(
           `${tenantPath}/notifications/deliveries?limit=20`,
         )
       : skipped([]),
+    can("tenant:update")
+      ? apiGet<PrivacyNoticeSummary[]>(`${tenantPath}/privacy/notices`)
+      : skipped([]),
+    can("tenant:update")
+      ? apiGet<PrivacyAcceptanceSummary[]>(`${tenantPath}/privacy/acceptances`)
+      : skipped([]),
   ]);
 
   return {
@@ -230,6 +244,8 @@ export async function getAdminData(
       blockedDomainAggregates,
       notificationPreferences,
       notificationDeliveries,
+      privacyNotices,
+      privacyAcceptances,
     ].some((result) => result.failed),
     deviceInventory: deviceInventory.data ?? null,
     devices: devices.data ?? [],
@@ -248,6 +264,8 @@ export async function getAdminData(
     retentionSettings: retentionSettings.data ?? null,
     notificationPreferences: notificationPreferences.data ?? null,
     notificationDeliveries: notificationDeliveries.data ?? [],
+    privacyNotices: privacyNotices.data ?? [],
+    privacyAcceptances: privacyAcceptances.data ?? [],
     session,
   };
 }

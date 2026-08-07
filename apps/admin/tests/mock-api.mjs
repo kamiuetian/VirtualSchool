@@ -241,6 +241,25 @@ const routes = [
   ["GET", `/tenants/${tenantId}/devices`, () => json([device])],
   [
     "GET",
+    `/tenants/${tenantId}/privacy/notices`,
+    () =>
+      json([
+        {
+          id: "notice-1",
+          tenantId,
+          noticeType: "GENERAL_PRIVACY",
+          channel: "WEB",
+          version: 1,
+          title: "School privacy notice",
+          content: "How the school handles managed-device information.",
+          publishedBy: "admin-1",
+          publishedAt: now,
+        },
+      ]),
+  ],
+  ["GET", `/tenants/${tenantId}/privacy/acceptances`, () => json([])],
+  [
+    "GET",
     `/tenants/${tenantId}/reports/device-inventory`,
     () =>
       json({

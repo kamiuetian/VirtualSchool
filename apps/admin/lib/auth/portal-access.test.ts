@@ -7,13 +7,16 @@ import {
 
 describe("portal access", () => {
   it("shows platform operators every admin area", () => {
-    expect(visiblePortalNavigation("PLATFORM_SUPER_ADMIN").map((item) => item.href)).toEqual([
+    expect(
+      visiblePortalNavigation("PLATFORM_SUPER_ADMIN").map((item) => item.href),
+    ).toEqual([
       "/",
       "/tenants",
       "/roster",
       "/enrollment",
       "/devices",
       "/policies",
+      "/privacy",
       "/timetable",
       "/apps",
       "/alerts",
@@ -24,7 +27,9 @@ describe("portal access", () => {
   });
 
   it("lets school admins manage school operations without platform tenant creation being required", () => {
-    const visibleRoutes = visiblePortalNavigation("SCHOOL_ADMIN").map((item) => item.href);
+    const visibleRoutes = visiblePortalNavigation("SCHOOL_ADMIN").map(
+      (item) => item.href,
+    );
 
     expect(visibleRoutes).toContain("/tenants");
     expect(visibleRoutes).toContain("/roster");
@@ -36,21 +41,17 @@ describe("portal access", () => {
   });
 
   it("keeps classroom teachers in read-only fleet support areas", () => {
-    expect(visiblePortalNavigation("TEACHER").map((item) => item.href)).toEqual([
-      "/",
-      "/devices",
-      "/alerts",
-      "/support",
-    ]);
+    expect(visiblePortalNavigation("TEACHER").map((item) => item.href)).toEqual(
+      ["/", "/devices", "/alerts", "/support"],
+    );
     expect(canAccessPortalRoute("TEACHER", "/roster")).toBe(false);
     expect(canAccessPortalRoute("TEACHER", "/billing")).toBe(false);
   });
 
   it("keeps billing admins out of fleet and roster operations", () => {
-    expect(visiblePortalNavigation("BILLING_ADMIN").map((item) => item.href)).toEqual([
-      "/",
-      "/billing",
-    ]);
+    expect(
+      visiblePortalNavigation("BILLING_ADMIN").map((item) => item.href),
+    ).toEqual(["/", "/billing"]);
     expect(canAccessPortalRoute("BILLING_ADMIN", "/devices")).toBe(false);
   });
 

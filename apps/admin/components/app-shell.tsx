@@ -13,6 +13,7 @@ import {
   FileBarChart,
   Headset,
   ShieldCheck,
+  FileLock2,
   LogOut,
   Users,
 } from "lucide-react";
@@ -33,6 +34,7 @@ const navigationIcons = {
   "/devices": Laptop,
   "/enrollment": QrCode,
   "/policies": ShieldCheck,
+  "/privacy": FileLock2,
   "/reports": FileBarChart,
   "/roster": Users,
   "/support": Headset,
@@ -112,7 +114,11 @@ export async function AppShell({
                   <small>{roleLabels[session.role] ?? session.role}</small>
                   <small>{session.email}</small>
                 </span>
-                <a aria-label="Sign out" className="icon-action" href={logoutHref()}>
+                <a
+                  aria-label="Sign out"
+                  className="icon-action"
+                  href={logoutHref()}
+                >
                   <LogOut size={17} />
                 </a>
               </div>
@@ -138,7 +144,9 @@ export async function AppShell({
           <BarChart3 size={20} />
           <div>
             <strong>Daily focus</strong>
-            <span>Enrollment, device health, policy delivery, and learning access.</span>
+            <span>
+              Enrollment, device health, policy delivery, and learning access.
+            </span>
           </div>
         </div>
       </aside>
