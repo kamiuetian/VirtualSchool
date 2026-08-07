@@ -7,6 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: write
 
 concurrency:
@@ -14,6 +15,92 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  repair-failed-ci:
+    name: Repair failed CI
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: virtualschool-codex
+    timeout-minutes: 120
+    env:
+      DATABASE_URL: postgresql://virtualschool:virtualschool@localhost:5432/virtualschool?schema=public
+      FAILED_RUN_ID: ${{ github.event.workflow_run.id }}
+      FAILED_RUN_URL: ${{ github.event.workflow_run.html_url }}
+
+    steps:
+      - name: Check out failed main revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install workspace dependencies
+        shell: powershell
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        shell: powershell
+        run: pnpm prisma:generate
+
+      - name: Diagnose and repair failed CI with local Codex
+        id: repair
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          "baseline_sha=$(git rev-parse HEAD)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          $prompt = @"
+          Repair the GitHub Actions CI failure for the current revision of this repository.
+
+          Read AGENTS.md first. Inspect failed Actions run $env:FAILED_RUN_URL (run ID $env:FAILED_RUN_ID) with the GitHub CLI, including every failed job and its logs. Diagnose the actual root cause and make only the focused repository changes needed to fix that CI failure. Preserve tenant isolation, RBAC, auditability, security controls, API compatibility, and the current completed backlog feature. Do not select or implement another backlog feature, and do not change any feature status in CODEX_FEATURE_BACKLOG.md.
+
+          Reproduce the failing check locally where feasible, add or update regression coverage when appropriate, and run all verification required by AGENTS.md plus the checks relevant to the failure. Do not commit, push, call write GitHub APIs, change GitHub workflows, modify runner configuration, or access credentials. The surrounding workflow owns delivery. If the failure is external or cannot be safely fixed, leave a clear diagnosis in the job output and exit nonzero without speculative changes.
+          "@
+          & 'E:\GitHubActionsRunner\CodexCli\node_modules\.bin\codex.cmd' exec --ephemeral --sandbox danger-full-access $prompt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify repair output
+        shell: powershell
+        env:
+          BASELINE_SHA: ${{ steps.repair.outputs.baseline_sha }}
+        run: |
+          $status = git status --porcelain
+          $head = git rev-parse HEAD
+          if (-not $status -and $head -eq $env:BASELINE_SHA) {
+            throw 'Codex produced no CI repair change.'
+          }
+          if ($head -ne $env:BASELINE_SHA) {
+            $backlogDiff = git diff "$env:BASELINE_SHA..$head" -- CODEX_FEATURE_BACKLOG.md | Out-String
+          } else {
+            $backlogDiff = git diff -- CODEX_FEATURE_BACKLOG.md | Out-String
+          }
+          if ($backlogDiff) {
+            throw 'A CI repair must not change the feature backlog.'
+          }
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Commit and push CI repair
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FAILED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if (git status --porcelain) {
+            git add --all
+            git commit -m "Fix CI failure for $($env:FAILED_SHA.Substring(0, 7))"
+          } else {
+            Write-Host 'Codex already created the CI repair commit; skipping duplicate commit creation.'
+          }
+          gh auth setup-git
+          git push origin HEAD:main
+
   implement-next-feature:
     name: Implement next ready feature
     if: >-
