@@ -29,6 +29,7 @@ jobs:
       DATABASE_URL: postgresql://virtualschool:virtualschool@localhost:5432/virtualschool?schema=public
       FAILED_RUN_ID: ${{ github.event.workflow_run.id }}
       FAILED_RUN_URL: ${{ github.event.workflow_run.html_url }}
+      FAILED_SHA: ${{ github.event.workflow_run.head_sha }}
 
     steps:
       - name: Check out failed main revision
@@ -47,14 +48,14 @@ jobs:
         run: pnpm prisma:generate
 
       - name: Diagnose and repair failed CI with local Codex
-        id: repair
         shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          "baseline_sha=$(git rev-parse HEAD)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           $prompt = @"
           Repair the GitHub Actions CI failure for the current revision of this repository.
+
+          The repository owner has explicitly authorized this automated repair. Do not ask for approval or stop after proposing a plan: inspect, implement, test, and leave the verified fix in the working tree during this run.
 
           Read AGENTS.md first. Inspect failed Actions run $env:FAILED_RUN_URL (run ID $env:FAILED_RUN_ID) with the GitHub CLI, including every failed job and its logs. Diagnose the actual root cause and make only the focused repository changes needed to fix that CI failure. Preserve tenant isolation, RBAC, auditability, security controls, API compatibility, and the current completed backlog feature. Do not select or implement another backlog feature, and do not change any feature status in CODEX_FEATURE_BACKLOG.md.
 
@@ -65,16 +66,14 @@ jobs:
 
       - name: Verify repair output
         shell: powershell
-        env:
-          BASELINE_SHA: ${{ steps.repair.outputs.baseline_sha }}
         run: |
           $status = git status --porcelain
           $head = git rev-parse HEAD
-          if (-not $status -and $head -eq $env:BASELINE_SHA) {
+          if (-not $status -and $head -eq $env:FAILED_SHA) {
             throw 'Codex produced no CI repair change.'
           }
-          if ($head -ne $env:BASELINE_SHA) {
-            $backlogDiff = git diff "$env:BASELINE_SHA..$head" -- CODEX_FEATURE_BACKLOG.md | Out-String
+          if ($head -ne $env:FAILED_SHA) {
+            $backlogDiff = git diff "$env:FAILED_SHA..$head" -- CODEX_FEATURE_BACKLOG.md | Out-String
           } else {
             $backlogDiff = git diff -- CODEX_FEATURE_BACKLOG.md | Out-String
           }
@@ -88,7 +87,6 @@ jobs:
         shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}
-          FAILED_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
@@ -100,6 +98,11 @@ jobs:
           }
           gh auth setup-git
           git push origin HEAD:main
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git fetch origin main
+          if ((git rev-parse origin/main) -ne (git rev-parse HEAD) -or (git rev-parse HEAD) -eq $env:FAILED_SHA) {
+            throw 'CI repair did not advance origin/main.'
+          }
 
   implement-next-feature:
     name: Implement next ready feature
