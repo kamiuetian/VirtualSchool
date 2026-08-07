@@ -17,6 +17,7 @@ describe("TeacherSessionsService", () => {
         }],
       },
       teacherSession: { findMany: async () => [] },
+      teacherSessionTemplate: { findMany: async () => [] },
       appCatalogItem: { findMany: async () => [] },
     } as never);
 
@@ -98,5 +99,30 @@ describe("TeacherSessionsService", () => {
       policyAssignment: { findMany: async () => [{ policy: { version: 1, rules: { mode: "DEFAULT_SCHOOL", defaultWebAccess: "DENY", urlAllowlist: [], urlBlocklist: ["https://games.example/*"] } } }] },
     } as never);
     await expect(service.approveTemporaryUrl("tenant-1", "session-1", "https://games.example/play", 10, "auth0|teacher")).rejects.toThrow("cannot bypass");
+  });
+
+  it("rejects a template for a class the teacher is not assigned", async () => {
+    const service = new TeacherSessionsService({
+      user: { findFirst: async () => teacher },
+      teacherClassAssignment: { findUnique: async () => null },
+    } as never);
+    await expect(service.createTemplate("tenant-1", { name: "Math warmup", classId: "class-other", focusMessage: "Open notebooks", focusDurationMinutes: 2 }, "auth0|teacher")).rejects.toThrow("assigned active class");
+  });
+
+  it("creates an owned, validated template and records an audit event", async () => {
+    const auditCreate = vi.fn();
+    const template = { id: "template-1", tenantId: "tenant-1", teacherId: teacher.id, classId: "class-1", name: "Math warmup", resourceId: null, focusMessage: "Open notebooks", focusDurationMinutes: 2, temporaryUrl: null, temporaryUrlMinutes: null, createdAt: now, updatedAt: now, class: { name: "Mathematics 4A" } };
+    const service = new TeacherSessionsService({
+      user: { findFirst: async () => teacher },
+      teacherClassAssignment: { findUnique: async () => ({ tenantId: "tenant-1", class: { status: "ACTIVE", grade: "4" } }) },
+      $transaction: async (callback: (tx: any) => Promise<unknown>) => callback({ teacherSessionTemplate: { create: async () => template }, auditEvent: { create: auditCreate } }),
+    } as never);
+    await expect(service.createTemplate("tenant-1", { name: "Math warmup", classId: "class-1", focusMessage: "Open notebooks", focusDurationMinutes: 2 }, "auth0|teacher")).resolves.toMatchObject({ id: "template-1", className: "Mathematics 4A" });
+    expect(auditCreate).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ action: "teacher_session_template.create", actorId: teacher.id }) }));
+  });
+
+  it("does not let a teacher reuse another teacher's template", async () => {
+    const service = new TeacherSessionsService({ user: { findFirst: async () => teacher }, teacherSessionTemplate: { findFirst: async () => null } } as never);
+    await expect(service.startFromTemplate("tenant-1", "template-other", "auth0|teacher")).rejects.toThrow("not found");
   });
 });

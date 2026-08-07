@@ -388,10 +388,11 @@ test.describe("admin portal regression", () => {
 });
 
 test.describe("role-aware admin portal", () => {
-  test("shows the scoped teacher class-mode surface and redirects tenant-wide fleet pages", async ({
+  test("shows scoped and reusable teacher class modes and redirects tenant-wide fleet pages", async ({
     baseURL,
     context,
     page,
+    request,
   }) => {
     await signInAs(context, baseURL, "TEACHER");
 
@@ -431,6 +432,15 @@ test.describe("role-aware admin portal", () => {
       page.getByRole("heading", { name: "Live Class Mode" }),
     ).toBeVisible();
     await expect(page.getByText("TAB001")).toBeVisible();
+    await page.getByLabel("Template name").fill("Daily math warmup");
+    await page.getByLabel("Focus message (optional)").fill("Open your math notebooks");
+    await page.getByLabel("Focus minutes").fill("2");
+    await page.getByRole("button", { name: "Save template" }).click();
+    await expectMutation(request, "POST", "/tenants/tenant-northview/teacher/templates", {
+      name: "Daily math warmup",
+      focusMessage: "Open your math notebooks",
+      focusDurationMinutes: 2,
+    });
     const startButton = page.getByRole("button", { name: "Start class mode" });
     if (await startButton.isVisible()) await startButton.click();
     await expect(page.getByRole("button", { name: "Push resource" })).toBeVisible();

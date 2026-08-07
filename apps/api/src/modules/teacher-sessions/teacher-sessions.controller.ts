@@ -1,9 +1,9 @@
 import { Body, Controller, Get, Inject, Param, Post, Req } from "@nestjs/common";
 import { ApiCreatedResponse, ApiOkResponse, ApiTags } from "@nestjs/swagger";
-import type { TeacherDashboard, TeacherSessionEventSummary, TeacherSessionSummary } from "@virtual-school/shared";
+import type { TeacherDashboard, TeacherSessionEventSummary, TeacherSessionSummary, TeacherSessionTemplateSummary } from "@virtual-school/shared";
 import { RequirePermissions } from "../auth/decorators/require-permissions.decorator";
 import type { AuthenticatedRequest } from "../auth/types/authenticated-request";
-import { ApproveTemporaryUrlDto, AssignTeacherClassDto, EndTeacherSessionDto, PushTeacherResourceDto, RecordTeacherDeviceEventDto, ShowFocusScreenDto, StartTeacherSessionDto } from "./dto/teacher-session.dto";
+import { ApproveTemporaryUrlDto, AssignTeacherClassDto, CreateTeacherSessionTemplateDto, EndTeacherSessionDto, PushTeacherResourceDto, RecordTeacherDeviceEventDto, ShowFocusScreenDto, StartTeacherSessionDto } from "./dto/teacher-session.dto";
 import { TeacherSessionsService } from "./teacher-sessions.service";
 
 @ApiTags("teacher-sessions")
@@ -23,6 +23,18 @@ export class TeacherSessionsController {
   @ApiCreatedResponse({ description: "Assign a teacher to a tenant class" })
   assign(@Param("tenantId") tenantId: string, @Param("classId") classId: string, @Body() body: AssignTeacherClassDto, @Req() request: AuthenticatedRequest) {
     return this.service.assignTeacher(tenantId, classId, body.teacherId, request.user!.subject);
+  }
+
+  @Post("templates")
+  @RequirePermissions("session:manage")
+  createTemplate(@Param("tenantId") tenantId: string, @Body() body: CreateTeacherSessionTemplateDto, @Req() request: AuthenticatedRequest): Promise<TeacherSessionTemplateSummary> {
+    return this.service.createTemplate(tenantId, body, request.user!.subject, request.user?.email);
+  }
+
+  @Post("templates/:templateId/start")
+  @RequirePermissions("session:manage")
+  startTemplate(@Param("tenantId") tenantId: string, @Param("templateId") templateId: string, @Req() request: AuthenticatedRequest): Promise<TeacherSessionSummary> {
+    return this.service.startFromTemplate(tenantId, templateId, request.user!.subject, request.user?.email);
   }
 
   @Post("sessions")

@@ -271,6 +271,7 @@ const routes = [
           ? { id: "session-1", classId: "class-4a", className: "Grade 4A", teacherId: "teacher-1", status: "ACTIVE", startedAt: now, endedAt: null, reason: null, events: [] }
           : null,
         recentSessions: [],
+        templates: [],
         approvedResources: [{ id: "app-1", name: "School Reader", packageId: "edu.example.reader", category: "READING" }],
       }),
   ],

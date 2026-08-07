@@ -120,6 +120,7 @@ model Tenant {
   teacherClassAssignments TeacherClassAssignment[]
   teacherSessions        TeacherSession[]
   teacherSessionEvents   TeacherSessionEvent[]
+  teacherSessionTemplates TeacherSessionTemplate[]
 }
 
 model OnboardingProgress {
@@ -232,6 +233,7 @@ model User {
   branch            Branch?    @relation(fields: [branchId], references: [id])
   classAssignments  TeacherClassAssignment[]
   teacherSessions   TeacherSession[]
+  teacherSessionTemplates TeacherSessionTemplate[]
 
   @@unique([tenantId, email])
   @@index([tenantId, role])
@@ -304,6 +306,7 @@ model ClassSection {
   rolloverCopies  ClassSection[]    @relation("ClassRollover")
   teacherAssignments TeacherClassAssignment[]
   teacherSessions TeacherSession[]
+  teacherSessionTemplates TeacherSessionTemplate[]
 
   @@index([tenantId, grade])
   @@index([tenantId, academicYear, status])
@@ -428,6 +431,27 @@ model TeacherSessionEvent {
   device Device? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, sessionId, createdAt])
+}
+
+model TeacherSessionTemplate {
+  id                   String   @id @default(uuid())
+  tenantId             String
+  classId              String
+  teacherId            String
+  name                 String
+  resourceId           String?
+  focusMessage         String?
+  focusDurationMinutes Int?
+  temporaryUrl         String?
+  temporaryUrlMinutes  Int?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  tenant               Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  class                ClassSection @relation(fields: [classId], references: [id], onDelete: Cascade)
+  teacher              User         @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, teacherId, name])
+  @@index([tenantId, teacherId, classId])
 }
 
 model DeviceAssignment {

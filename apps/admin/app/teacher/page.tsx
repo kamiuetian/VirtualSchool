@@ -1,6 +1,6 @@
 import { AppShell } from "../../components/app-shell";
 import { ActionPanel, EmptyState, Field, PageSection, StatCard, StatusPill, SubmitButton } from "../../components/ui";
-import { approveTeacherTemporaryUrlAction, endTeacherSessionAction, pushTeacherResourceAction, showTeacherFocusScreenAction, startTeacherSessionAction } from "../../lib/actions";
+import { approveTeacherTemporaryUrlAction, createTeacherSessionTemplateAction, endTeacherSessionAction, pushTeacherResourceAction, showTeacherFocusScreenAction, startTeacherSessionAction, startTeacherSessionTemplateAction } from "../../lib/actions";
 import { getAdminData, getTeacherDashboard } from "../../lib/api";
 import { formatCount, formatDateTime, humanize } from "../../lib/format";
 
@@ -73,8 +73,33 @@ export default async function TeacherPage() {
                 <SubmitButton>Start class mode</SubmitButton>
               </form>
             </ActionPanel>
+            {dashboard.templates.length > 0 ? <ActionPanel title="Reuse a lesson template">
+              <form action={startTeacherSessionTemplateAction} className="inline-form wide">
+                <input name="tenantId" type="hidden" value={data.selectedTenant!.id} />
+                <Field label="Template"><select name="templateId" required>{dashboard.templates.map((template) => <option key={template.id} value={template.id}>{template.name} · {template.className}</option>)}</select></Field>
+                <SubmitButton>Start from template</SubmitButton>
+              </form>
+            </ActionPanel> : null}
           </PageSection>
         )}
+
+        {dashboard ? <PageSection kicker="Reusable lesson modes" title="Session Templates">
+          <ActionPanel title="Create within school guardrails">
+            <p>Choose at least one action. Resources and URLs are checked again whenever the template is reused.</p>
+            <form action={createTeacherSessionTemplateAction} className="inline-form wide">
+              <input name="tenantId" type="hidden" value={data.selectedTenant!.id} />
+              <Field label="Template name"><input name="name" minLength={3} maxLength={80} required /></Field>
+              <Field label="Assigned class"><select name="classId" required>{dashboard.classes.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.grade}</option>)}</select></Field>
+              <Field label="Approved resource (optional)"><select name="resourceId"><option value="">None</option>{dashboard.approvedResources.map((resource) => <option key={resource.id} value={resource.id}>{resource.name}</option>)}</select></Field>
+              <Field label="Focus message (optional)"><input name="focusMessage" maxLength={500} /></Field>
+              <Field label="Focus minutes"><input name="focusDurationMinutes" type="number" min={1} max={10} /></Field>
+              <Field label="Temporary URL (optional)"><input name="temporaryUrl" type="url" maxLength={2048} /></Field>
+              <Field label="URL minutes"><input name="temporaryUrlMinutes" type="number" min={1} max={60} /></Field>
+              <SubmitButton>Save template</SubmitButton>
+            </form>
+          </ActionPanel>
+          {dashboard.templates.length > 0 ? <div className="table-wrap"><table><thead><tr><th>Name</th><th>Class</th><th>Actions</th></tr></thead><tbody>{dashboard.templates.map((template) => <tr key={template.id}><td>{template.name}</td><td>{template.className}</td><td>{[template.resourceId ? "Resource" : null, template.focusMessage ? "Focus" : null, template.temporaryUrl ? "URL" : null].filter(Boolean).join(", ")}</td></tr>)}</tbody></table></div> : <EmptyState title="No templates yet" body="Save a bounded lesson mode to reuse it with an assigned class." />}
+        </PageSection> : null}
 
         {dashboard ? <PageSection kicker="Scoped fleet" title="Assigned Devices">
           {dashboard.devices.length === 0 ? <EmptyState title="No class devices" body="Devices appear here only when assigned to one of your classes." /> :

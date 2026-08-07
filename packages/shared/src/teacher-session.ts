@@ -43,6 +43,21 @@ export type TeacherDashboard = {
   activeSession: TeacherSessionSummary | null;
   recentSessions: TeacherSessionSummary[];
   approvedResources: TeacherResourceSummary[];
+  templates: TeacherSessionTemplateSummary[];
+};
+
+export type TeacherSessionTemplateSummary = {
+  id: string;
+  classId: string;
+  className: string;
+  name: string;
+  resourceId?: string | null;
+  focusMessage?: string | null;
+  focusDurationMinutes?: number | null;
+  temporaryUrl?: string | null;
+  temporaryUrlMinutes?: number | null;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type TeacherResourceSummary = {

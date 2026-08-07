@@ -1,9 +1,9 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
-import type { LearningMode, PolicyRuleSet, TeacherDashboard, TeacherSessionEventSummary, TeacherSessionSummary } from "@virtual-school/shared";
+import type { LearningMode, PolicyRuleSet, TeacherDashboard, TeacherSessionEventSummary, TeacherSessionSummary, TeacherSessionTemplateSummary } from "@virtual-school/shared";
 import { Prisma } from "../../generated/prisma";
 import { PrismaService } from "../prisma/prisma.service";
 import { evaluateUrlPolicy } from "../policies/url-policy-evaluator";
-import type { RecordTeacherDeviceEventDto } from "./dto/teacher-session.dto";
+import type { CreateTeacherSessionTemplateDto, RecordTeacherDeviceEventDto } from "./dto/teacher-session.dto";
 
 const sessionInclude = { class: true, events: { orderBy: { createdAt: "asc" as const } } };
 const modePrecedence: Record<LearningMode, number> = { LOST_DEVICE: 100, EXAM: 90, EMERGENCY_SUPPORT_OVERRIDE: 80, TIMETABLE_CLASS: 70, HOMEWORK_AFTER_SCHOOL: 60, DEVICE_BASELINE: 50, DEFAULT_SCHOOL: 10 };
@@ -31,13 +31,41 @@ export class TeacherSessionsService {
       orderBy: { name: "asc" },
       where: { tenantId, approvalStatus: "APPROVED", OR: [{ approvedGrades: { isEmpty: true } }, { approvedGrades: { hasSome: grades } }] },
     });
+    const templates = await this.prisma.teacherSessionTemplate.findMany({
+      include: { class: true }, orderBy: { name: "asc" }, where: { tenantId, teacherId: teacher.id },
+    });
     return {
       activeSession: sessions.find((item) => item.status === "ACTIVE") ? this.summary(sessions.find((item) => item.status === "ACTIVE")!) : null,
       classes: assignments.map(({ class: item }) => ({ id: item.id, name: item.name, grade: item.grade, subject: item.subject, deviceCount: item.devices.length })),
       devices: [...new Map(devices.map((item) => [item.id, item])).values()].map((item) => ({ id: item.id, serialNumber: item.serialNumber, classId: item.classId, status: item.status, compliance: item.compliance, lastCheckInAt: item.lastCheckInAt?.toISOString() ?? null })),
       recentSessions: sessions.map((item) => this.summary(item)),
       approvedResources: resources.map((item) => ({ id: item.id, name: item.name, packageId: item.packageId, category: item.category })),
+      templates: templates.map((item) => this.templateSummary(item)),
     };
+  }
+
+  async createTemplate(tenantId: string, input: CreateTeacherSessionTemplateDto, subject: string, email?: string): Promise<TeacherSessionTemplateSummary> {
+    const teacher = await this.teacher(tenantId, subject, email);
+    await this.validateTemplate(tenantId, teacher.id, input);
+    const created = await this.prisma.$transaction(async (tx) => {
+      const template = await tx.teacherSessionTemplate.create({ data: { tenantId, teacherId: teacher.id, classId: input.classId, name: input.name.trim(), resourceId: input.resourceId, focusMessage: input.focusMessage?.trim(), focusDurationMinutes: input.focusDurationMinutes, temporaryUrl: input.temporaryUrl, temporaryUrlMinutes: input.temporaryUrlMinutes }, include: { class: true } });
+      await tx.auditEvent.create({ data: { action: "teacher_session_template.create", actorId: teacher.id, object: "TeacherSessionTemplate", objectId: template.id, outcome: "SUCCESS", tenantId, newValue: { classId: template.classId, name: template.name, resourceId: template.resourceId, hasFocusScreen: Boolean(template.focusMessage), hasTemporaryUrl: Boolean(template.temporaryUrl) } } });
+      return template;
+    });
+    return this.templateSummary(created);
+  }
+
+  async startFromTemplate(tenantId: string, templateId: string, subject: string, email?: string): Promise<TeacherSessionSummary> {
+    const teacher = await this.teacher(tenantId, subject, email);
+    const template = await this.prisma.teacherSessionTemplate.findFirst({ where: { id: templateId, tenantId, teacherId: teacher.id } });
+    if (!template) throw new NotFoundException("Teacher session template was not found");
+    await this.validateTemplate(tenantId, teacher.id, template);
+    const session = await this.start(tenantId, template.classId, subject, email);
+    if (template.resourceId) await this.pushResource(tenantId, session.id, template.resourceId, subject, email);
+    if (template.focusMessage && template.focusDurationMinutes) await this.showFocusScreen(tenantId, session.id, template.focusMessage, template.focusDurationMinutes, subject, email);
+    if (template.temporaryUrl && template.temporaryUrlMinutes) await this.approveTemporaryUrl(tenantId, session.id, template.temporaryUrl, template.temporaryUrlMinutes, subject, email);
+    await this.prisma.auditEvent.create({ data: { action: "teacher_session_template.reuse", actorId: teacher.id, object: "TeacherSessionTemplate", objectId: template.id, outcome: "SUCCESS", tenantId, newValue: { sessionId: session.id, classId: template.classId } } });
+    return session;
   }
 
   async assignTeacher(tenantId: string, classId: string, teacherId: string, actorId: string) {
@@ -134,6 +162,23 @@ export class TeacherSessionsService {
     return selected.policy.rules as PolicyRuleSet;
   }
 
+  private async validateTemplate(tenantId: string, teacherId: string, input: { classId: string; resourceId?: string | null; focusMessage?: string | null; focusDurationMinutes?: number | null; temporaryUrl?: string | null; temporaryUrlMinutes?: number | null }) {
+    const assignment = await this.prisma.teacherClassAssignment.findUnique({ where: { teacherId_classId: { teacherId, classId: input.classId } }, include: { class: true } });
+    if (!assignment || assignment.tenantId !== tenantId || assignment.class.status !== "ACTIVE") throw new ForbiddenException("Template class must be an assigned active class");
+    if (!input.resourceId && !input.focusMessage && !input.temporaryUrl) throw new BadRequestException("Template must include at least one lesson action");
+    if (Boolean(input.focusMessage) !== Boolean(input.focusDurationMinutes)) throw new BadRequestException("Focus message and duration must be provided together");
+    if (Boolean(input.temporaryUrl) !== Boolean(input.temporaryUrlMinutes)) throw new BadRequestException("Temporary URL and duration must be provided together");
+    if (input.resourceId) {
+      const resource = await this.prisma.appCatalogItem.findFirst({ where: { id: input.resourceId, tenantId, approvalStatus: "APPROVED" } });
+      if (!resource || (resource.approvedGrades.length > 0 && !resource.approvedGrades.includes(assignment.class.grade))) throw new ForbiddenException("Template resource is not approved for this class");
+    }
+    if (input.temporaryUrl) {
+      let evaluation;
+      try { evaluation = evaluateUrlPolicy(input.temporaryUrl, await this.activeClassPolicyRules(tenantId, input.classId)); } catch (error) { if (error instanceof NotFoundException) throw error; throw new BadRequestException("A valid HTTP(S) template URL is required"); }
+      if (evaluation.decision === "BLOCKED") throw new ForbiddenException("Template URL cannot bypass a blocked URL rule");
+    }
+  }
+
   private async dispatchSessionAction(tenantId: string, session: { id: string; classId: string }, actorId: string, type: string, details: Record<string, unknown>, payload: Record<string, unknown>, ttlMinutes: number): Promise<TeacherSessionEventSummary> {
     const devices = await this.prisma.device.findMany({ select: { id: true }, where: { tenantId, classId: session.classId, status: { not: "RETIRED" } } });
     const event = await this.prisma.$transaction(async (tx) => {
@@ -165,5 +210,9 @@ export class TeacherSessionsService {
 
   private eventSummary(event: any): TeacherSessionEventSummary {
     return { id: event.id, type: event.type, deviceId: event.deviceId, details: event.details as Record<string, unknown> | null, createdAt: event.createdAt.toISOString() };
+  }
+
+  private templateSummary(template: any): TeacherSessionTemplateSummary {
+    return { id: template.id, classId: template.classId, className: template.class.name, name: template.name, resourceId: template.resourceId, focusMessage: template.focusMessage, focusDurationMinutes: template.focusDurationMinutes, temporaryUrl: template.temporaryUrl, temporaryUrlMinutes: template.temporaryUrlMinutes, createdAt: template.createdAt.toISOString(), updatedAt: template.updatedAt.toISOString() };
   }
 }
