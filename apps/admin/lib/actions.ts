@@ -53,6 +53,19 @@ export async function updateTenantProfileAction(
   revalidateAll();
 }
 
+export async function completeOnboardingAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/onboarding-checklist/complete`,
+    {},
+  );
+  revalidateAll();
+}
+
 export async function inviteStaffAction(formData: FormData): Promise<void> {
   await requireActionPermission("user:invite");
   const tenantId = required(formData, "tenantId");

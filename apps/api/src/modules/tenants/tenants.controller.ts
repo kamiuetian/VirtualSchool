@@ -87,6 +87,21 @@ export class TenantsController {
     return this.tenantsService.getOnboardingChecklist(tenantId);
   }
 
+  @Post(":tenantId/onboarding-checklist/complete")
+  @RequirePermissions("tenant:update")
+  @ApiOkResponse({
+    description: "Persist completion of a ready onboarding checklist",
+  })
+  completeOnboarding(
+    @Param("tenantId") tenantId: string,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<OnboardingChecklist> {
+    return this.tenantsService.completeOnboarding(
+      tenantId,
+      request.user?.subject,
+    );
+  }
+
   @Post()
   @RequirePermissions("tenant:create")
   @ApiCreatedResponse({ description: "Create an isolated school tenant" })

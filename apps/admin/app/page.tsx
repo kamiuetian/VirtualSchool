@@ -1,6 +1,15 @@
 import { AppShell } from "../components/app-shell";
-import { EmptyState, PageSection, ProgressBar, StatCard, StatusPill } from "../components/ui";
+import Link from "next/link";
+import {
+  EmptyState,
+  PageSection,
+  ProgressBar,
+  StatCard,
+  StatusPill,
+} from "../components/ui";
+import { completeOnboardingAction } from "../lib/actions";
 import { getAdminData } from "../lib/api";
+import { roleCan } from "../lib/auth/portal-access";
 import { formatCount, formatDateTime, humanize } from "../lib/format";
 
 export const dynamic = "force-dynamic";
@@ -8,13 +17,20 @@ export const dynamic = "force-dynamic";
 export default async function Home() {
   const data = await getAdminData("/");
   const openAlerts = data.alerts.filter((alert) => alert.status !== "RESOLVED");
-  const onlineDevices = data.devices.filter((device) => device.status === "ONLINE");
+  const onlineDevices = data.devices.filter(
+    (device) => device.status === "ONLINE",
+  );
   const policyCompletion = data.onboarding
-    ? Math.round((data.onboarding.completedCount / data.onboarding.totalCount) * 100)
+    ? Math.round(
+        (data.onboarding.completedCount / data.onboarding.totalCount) * 100,
+      )
     : 0;
 
   return (
-    <AppShell connectionIssue={data.connectionIssue} tenant={data.selectedTenant}>
+    <AppShell
+      connectionIssue={data.connectionIssue}
+      tenant={data.selectedTenant}
+    >
       <div className="content-stack">
         <section className="hero-panel">
           <div>
@@ -36,7 +52,10 @@ export default async function Home() {
         </section>
 
         <section className="stat-grid" aria-label="Operational summary">
-          <StatCard label="Managed tablets" value={formatCount(data.devices.length)} />
+          <StatCard
+            label="Managed tablets"
+            value={formatCount(data.devices.length)}
+          />
           <StatCard
             label="Online now"
             tone="good"
@@ -50,23 +69,75 @@ export default async function Home() {
           <StatCard
             label="Published policies"
             value={formatCount(
-              data.policies.filter((policy) => policy.status === "PUBLISHED").length,
+              data.policies.filter((policy) => policy.status === "PUBLISHED")
+                .length,
             )}
           />
         </section>
 
         <PageSection kicker="Setup" title="School Readiness">
           {data.onboarding ? (
-            <div className="checklist-grid">
-              {data.onboarding.items.map((item) => (
-                <article className="check-item" key={item.key}>
-                  <span className={item.completed ? "check-dot done" : "check-dot"} />
-                  <div>
-                    <strong>{item.label}</strong>
-                    <span>{item.completed ? "Complete" : "Needs attention"}</span>
-                  </div>
-                </article>
-              ))}
+            <div className="content-stack">
+              <div
+                className={
+                  data.onboarding.readyForFirstEnrollment
+                    ? "readiness-callout ready"
+                    : "readiness-callout"
+                }
+              >
+                <strong>
+                  {data.onboarding.readyForFirstEnrollment
+                    ? "Ready for first enrollment"
+                    : "Enrollment readiness checks remain"}
+                </strong>
+                <span>
+                  {data.onboarding.readyForFirstEnrollment
+                    ? "The tenant has the profile, roster, policy, app, and active batch required for a pilot device."
+                    : `Finish: ${data.onboarding.readinessIssues.join(", ")}.`}
+                </span>
+              </div>
+              <div className="checklist-grid">
+                {data.onboarding.items.map((item) => (
+                  <article className="check-item" key={item.key}>
+                    <span
+                      className={
+                        item.completed ? "check-dot done" : "check-dot"
+                      }
+                    />
+                    <div>
+                      <strong>{item.label}</strong>
+                      <span>{item.description}</span>
+                      <Link className="context-link" href={item.href}>
+                        {item.completed ? "Review step" : "Complete step"}
+                      </Link>
+                    </div>
+                  </article>
+                ))}
+              </div>
+              {data.onboarding.completedAt ? (
+                <p className="completion-note">
+                  Onboarding finished{" "}
+                  {formatDateTime(data.onboarding.completedAt)}.
+                </p>
+              ) : roleCan(data.session.role, "tenant:update") ? (
+                <form action={completeOnboardingAction}>
+                  <input
+                    name="tenantId"
+                    type="hidden"
+                    value={data.onboarding.tenantId}
+                  />
+                  <button
+                    className="submit-button"
+                    disabled={
+                      data.onboarding.completedCount !==
+                      data.onboarding.totalCount
+                    }
+                    type="submit"
+                  >
+                    Finish onboarding
+                  </button>
+                </form>
+              ) : null}
             </div>
           ) : (
             <EmptyState
@@ -85,7 +156,11 @@ export default async function Home() {
                     <strong>{alert.title}</strong>
                     <span>{alert.message}</span>
                   </div>
-                  <StatusPill tone={alert.severity === "CRITICAL" ? "critical" : "warning"}>
+                  <StatusPill
+                    tone={
+                      alert.severity === "CRITICAL" ? "critical" : "warning"
+                    }
+                  >
                     {humanize(alert.severity)}
                   </StatusPill>
                 </article>
@@ -108,11 +183,19 @@ export default async function Home() {
                     <strong>{metric.label}</strong>
                     <span>
                       {formatCount(metric.used)} of{" "}
-                      {metric.limit === null ? "unlimited" : formatCount(metric.limit)}
+                      {metric.limit === null
+                        ? "unlimited"
+                        : formatCount(metric.limit)}
                     </span>
                   </div>
                   <ProgressBar
-                    tone={metric.overLimit ? "critical" : (metric.percentUsed ?? 0) >= 80 ? "warning" : "good"}
+                    tone={
+                      metric.overLimit
+                        ? "critical"
+                        : (metric.percentUsed ?? 0) >= 80
+                          ? "warning"
+                          : "good"
+                    }
                     value={Math.min(metric.percentUsed ?? 0, 100)}
                   />
                 </article>
@@ -142,9 +225,15 @@ export default async function Home() {
                   {data.devices.slice(0, 6).map((device) => (
                     <tr key={device.id}>
                       <td>{device.serialNumber}</td>
-                      <td>{device.model ?? device.manufacturer ?? "Android tablet"}</td>
                       <td>
-                        <StatusPill tone={device.status === "ONLINE" ? "good" : "neutral"}>
+                        {device.model ??
+                          device.manufacturer ??
+                          "Android tablet"}
+                      </td>
+                      <td>
+                        <StatusPill
+                          tone={device.status === "ONLINE" ? "good" : "neutral"}
+                        >
                           {humanize(device.status)}
                         </StatusPill>
                       </td>

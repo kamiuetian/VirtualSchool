@@ -51,6 +51,15 @@ test.describe("admin portal regression", () => {
   }
 
   test("exposes core action surfaces", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByText("Ready for first enrollment")).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Review step" }).first(),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Finish onboarding" }),
+    ).toBeEnabled();
+
     await page.goto("/devices");
     await expect(
       page.getByRole("heading", { name: "Command Center" }),

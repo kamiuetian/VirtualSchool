@@ -1,4 +1,9 @@
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import type {
   BranchSummary,
   OnboardingChecklist,
@@ -172,18 +177,22 @@ export class TenantsService {
       branchCount,
       studentCount,
       classCount,
-      policyCount,
       appCatalogItemCount,
-      enrollmentBatchCount,
       deviceCount,
+      publishedPolicyCount,
+      activeEnrollmentBatchCount,
+      onboardingProgress,
     ] = await Promise.all([
       this.prisma.branch.count({ where: { tenantId } }),
       this.prisma.student.count({ where: { tenantId } }),
       this.prisma.classSection.count({ where: { tenantId } }),
-      this.prisma.policy.count({ where: { tenantId } }),
       this.prisma.appCatalogItem.count({ where: { tenantId } }),
-      this.prisma.enrollmentBatch.count({ where: { tenantId } }),
       this.prisma.device.count({ where: { tenantId } }),
+      this.prisma.policy.count({ where: { tenantId, status: "PUBLISHED" } }),
+      this.prisma.enrollmentBatch.count({
+        where: { tenantId, status: "ACTIVE" },
+      }),
+      this.prisma.onboardingProgress.findUnique({ where: { tenantId } }),
     ]);
 
     const items = [
@@ -193,45 +202,110 @@ export class TenantsService {
         ),
         key: "school_profile" as const,
         label: "School profile complete",
+        description:
+          "Confirm the school identity, country, timezone, and plan.",
+        href: "/tenants" as const,
       },
       {
         completed: branchCount > 0,
         key: "branch_created" as const,
         label: "Branch or campus created",
+        description:
+          "Add the campus that will own classes and managed devices.",
+        href: "/tenants" as const,
       },
       {
         completed: studentCount > 0 || classCount > 0,
         key: "roster_started" as const,
         label: "Roster started",
+        description: "Create or import at least one student or class.",
+        href: "/roster" as const,
       },
       {
-        completed: policyCount > 0,
+        completed: publishedPolicyCount > 0,
         key: "policy_template_created" as const,
-        label: "Policy template created",
+        label: "Policy published",
+        description:
+          "Create, review, and publish the policy for the pilot device.",
+        href: "/policies" as const,
       },
       {
         completed: appCatalogItemCount > 0,
         key: "app_catalog_configured" as const,
         label: "App catalog configured",
+        description: "Approve at least one learning app before enrollment.",
+        href: "/apps" as const,
       },
       {
-        completed: enrollmentBatchCount > 0,
+        completed: activeEnrollmentBatchCount > 0,
         key: "enrollment_batch_generated" as const,
         label: "Enrollment batch generated",
+        description:
+          "Generate an active enrollment token for the pilot device.",
+        href: "/enrollment" as const,
       },
       {
         completed: deviceCount > 0,
         key: "first_device_enrolled" as const,
         label: "First device enrolled",
+        description:
+          "Enroll one pilot tablet after every readiness check passes.",
+        href: "/enrollment" as const,
       },
     ];
 
+    const readinessItems = items.filter(
+      (item) => item.key !== "first_device_enrolled",
+    );
+    const readinessIssues = readinessItems
+      .filter((item) => !item.completed)
+      .map((item) => item.label);
+
     return {
       completedCount: items.filter((item) => item.completed).length,
+      completedAt: onboardingProgress?.completedAt?.toISOString() ?? null,
       items,
+      readinessIssues,
+      readyForFirstEnrollment: readinessIssues.length === 0,
       tenantId,
       totalCount: items.length,
     };
+  }
+
+  async completeOnboarding(
+    tenantId: string,
+    actorId: string | undefined,
+  ): Promise<OnboardingChecklist> {
+    const checklist = await this.getOnboardingChecklist(tenantId);
+    if (checklist.completedCount !== checklist.totalCount) {
+      throw new BadRequestException(
+        "Complete every onboarding step before finishing setup",
+      );
+    }
+
+    if (!checklist.completedAt) {
+      const completedAt = new Date();
+      await this.prisma.$transaction([
+        this.prisma.onboardingProgress.upsert({
+          create: { completedAt, completedBy: actorId, tenantId },
+          update: { completedAt, completedBy: actorId },
+          where: { tenantId },
+        }),
+        this.prisma.auditEvent.create({
+          data: {
+            action: "tenant.onboarding_complete",
+            actorId,
+            newValue: { completedAt: completedAt.toISOString() },
+            object: "Tenant",
+            objectId: tenantId,
+            outcome: "SUCCESS",
+            tenantId,
+          },
+        }),
+      ]);
+    }
+
+    return this.getOnboardingChecklist(tenantId);
   }
 
   async create(input: CreateTenantDto): Promise<TenantSummary> {

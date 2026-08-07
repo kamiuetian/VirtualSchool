@@ -257,6 +257,9 @@ describe("TenantsService", () => {
       enrollmentBatch: {
         count: async () => 0,
       },
+      onboardingProgress: {
+        findUnique: async () => null,
+      },
       policy: {
         count: async () => 1,
       },
@@ -279,8 +282,60 @@ describe("TenantsService", () => {
       service.getOnboardingChecklist("tenant-1"),
     ).resolves.toMatchObject({
       completedCount: 4,
+      completedAt: null,
+      readinessIssues: ["App catalog configured", "Enrollment batch generated"],
+      readyForFirstEnrollment: false,
       tenantId: "tenant-1",
       totalCount: 7,
     });
+  });
+
+  it("persists and audits onboarding completion only when every step is complete", async () => {
+    let progress: {
+      completedAt: Date;
+      completedBy: string;
+      tenantId: string;
+    } | null = null;
+    const audits: unknown[] = [];
+    const prisma = {
+      $transaction: async (operations: Promise<unknown>[]) =>
+        Promise.all(operations),
+      appCatalogItem: { count: async () => 1 },
+      auditEvent: {
+        create: async ({ data }: { data: unknown }) => audits.push(data),
+      },
+      branch: { count: async () => 1 },
+      classSection: { count: async () => 1 },
+      device: { count: async () => 1 },
+      enrollmentBatch: { count: async () => 1 },
+      onboardingProgress: {
+        findUnique: async () => progress,
+        upsert: async ({ create }: { create: typeof progress }) => {
+          progress = create;
+          return create;
+        },
+      },
+      policy: { count: async () => 1 },
+      student: { count: async () => 1 },
+      tenant: {
+        findUnique: async () => ({
+          country: "US",
+          name: "Pilot School",
+          planKey: "starter",
+          timezone: "America/New_York",
+        }),
+      },
+    } as never;
+
+    const service = new TenantsService(prisma);
+    const result = await service.completeOnboarding("tenant-1", "admin-1");
+
+    expect(result.completedAt).not.toBeNull();
+    expect(audits).toEqual([
+      expect.objectContaining({
+        action: "tenant.onboarding_complete",
+        actorId: "admin-1",
+      }),
+    ]);
   });
 });

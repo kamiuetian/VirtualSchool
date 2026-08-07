@@ -2,6 +2,11 @@
 
 This guide will help school admins complete the first-run setup checklist:
 
+The Overview screen is the primary guided setup surface. Each checklist item links to
+the relevant in-product workflow and explains the evidence required. Progress is
+derived from tenant-scoped records, so it survives sessions and cannot be completed by
+another tenant's data.
+
 1. Create the school tenant profile.
 2. Configure branches, timezone, school hours, weekends, holidays, and academic year dates.
 3. Invite staff users and assign role-scoped permissions.
@@ -11,6 +16,13 @@ This guide will help school admins complete the first-run setup checklist:
 7. Generate an Android enrollment batch.
 8. Enroll and assign the first device.
 9. Validate policy deployment, launcher layout, and reporting.
+
+Before the first tablet is enrolled, the readiness banner requires a complete school
+profile, a branch, a started roster, at least one published policy, an approved app,
+and an active enrollment batch. A user with `tenant:update` can select **Finish
+onboarding** only after all seven checklist items, including the first device, are
+complete. Completion is stored once and recorded as `tenant.onboarding_complete` in
+the tenant audit log.
 
 ## Approved App Catalog
 

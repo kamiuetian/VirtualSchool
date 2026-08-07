@@ -611,10 +611,37 @@ th {
 }
 
 .check-item {
-  align-items: center;
+  align-items: flex-start;
   display: flex;
   gap: 12px;
   padding: 14px;
+}
+
+.context-link {
+  color: var(--green);
+  display: inline-block;
+  font-size: 0.82rem;
+  font-weight: 700;
+  margin-top: 8px;
+}
+
+.readiness-callout {
+  background: var(--amber-soft);
+  border: 1px solid #edc97f;
+  border-radius: 14px;
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+}
+
+.readiness-callout.ready {
+  background: var(--green-soft);
+  border-color: #9bcfc3;
+}
+
+.completion-note {
+  color: var(--green);
+  font-weight: 700;
 }
 
 .check-item strong,

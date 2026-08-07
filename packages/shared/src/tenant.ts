@@ -34,11 +34,16 @@ export type OnboardingChecklistItem = {
     | "first_device_enrolled";
   label: string;
   completed: boolean;
+  description: string;
+  href: "/apps" | "/enrollment" | "/policies" | "/roster" | "/tenants";
 };
 
 export type OnboardingChecklist = {
   tenantId: string;
   completedCount: number;
+  completedAt: string | null;
+  readyForFirstEnrollment: boolean;
+  readinessIssues: string[];
   totalCount: number;
   items: OnboardingChecklistItem[];
 };
