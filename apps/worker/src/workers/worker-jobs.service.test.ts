@@ -50,6 +50,66 @@ function retentionSettings(overrides: Record<string, unknown> = {}) {
 }
 
 describe("WorkerJobsService", () => {
+  it("delivers enabled alert email once and records the outcome", async () => {
+    const deliveryUpsert = vi.fn(async ({ create }) => ({
+      ...create,
+      id: "delivery-1",
+    }));
+    const email = {
+      send: vi
+        .fn()
+        .mockResolvedValue({
+          delivered: true,
+          provider: "WEBHOOK",
+          providerId: "message-1",
+        }),
+    };
+    const service = new WorkerJobsService(
+      {
+        $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
+          callback({
+            auditEvent: { create: vi.fn() },
+            notificationDelivery: { upsert: deliveryUpsert },
+          }),
+        deviceAlert: {
+          findMany: async () => [
+            {
+              device: { serialNumber: "SERIAL-1" },
+              firstSeenAt: now,
+              id: "alert-1",
+              message: "Device offline",
+              severity: "WARNING",
+              title: "Device offline",
+            },
+          ],
+        },
+        notificationDelivery: { findUnique: async () => null },
+        notificationPreference: {
+          findUnique: async () => ({
+            appFailureEnabled: true,
+            lostDeviceEnabled: true,
+            offlineEnabled: true,
+            policyFailureEnabled: true,
+            recipients: ["it@example.edu"],
+            repeatedEnrollmentEnabled: true,
+          }),
+        },
+        tenant: { findMany: async () => [{ id: "tenant-1" }] },
+      } as never,
+      { dispatchCommand: vi.fn() } as never,
+      email as never,
+    );
+    await expect(
+      service.processJob("notifications.dispatch", {}),
+    ).resolves.toMatchObject({ details: [{ delivered: 1, failed: 0 }] });
+    expect(email.send).toHaveBeenCalledOnce();
+    expect(deliveryUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ status: "DELIVERED" }),
+      }),
+    );
+  });
+
   it("expires overdue deployment commands and creates alerts", async () => {
     const createAlert = vi.fn();
     const service = new WorkerJobsService(

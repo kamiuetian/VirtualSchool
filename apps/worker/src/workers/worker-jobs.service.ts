@@ -15,6 +15,7 @@ import {
   WorkerMdmConnector,
   type WorkerMdmDispatchResult,
 } from "./worker-mdm.connector";
+import { NotificationEmailService } from "./notification-email.service";
 
 const mdmConnectorCommandTypes: RemoteCommandType[] = ["LOCK", "WIPE"];
 const deploymentCommandAlertTypes: Partial<
@@ -44,6 +45,8 @@ export class WorkerJobsService {
     private readonly prisma: WorkerPrismaService,
     @Inject(WorkerMdmConnector)
     private readonly mdmConnector: WorkerMdmConnector,
+    @Inject(NotificationEmailService)
+    private readonly emailService: NotificationEmailService = new NotificationEmailService(),
   ) {}
 
   async processJob(
@@ -58,6 +61,8 @@ export class WorkerJobsService {
         details.push(await this.processCommandsForTenant(tenantId));
       } else if (name === "alerts.offline-scan") {
         details.push(await this.scanOfflineAlertsForTenant(tenantId));
+      } else if (name === "notifications.dispatch") {
+        details.push(await this.dispatchNotificationsForTenant(tenantId));
       } else if (name === "retention.dry-run") {
         details.push(await this.runRetentionForTenant(tenantId, "DRY_RUN"));
       } else if (name === "retention.apply") {
@@ -69,6 +74,126 @@ export class WorkerJobsService {
       details,
       processed: details.length,
       tenants: tenantIds.length,
+    };
+  }
+
+  private async dispatchNotificationsForTenant(
+    tenantId: string,
+  ): Promise<Record<string, unknown>> {
+    const preferences = await this.prisma.notificationPreference.findUnique({
+      where: { tenantId },
+    });
+    if (!preferences || preferences.recipients.length === 0) {
+      return {
+        delivered: 0,
+        failed: 0,
+        job: "notifications.dispatch",
+        skipped: true,
+        tenantId,
+      };
+    }
+    const enabledTypes = [
+      ...(preferences.offlineEnabled ? ["DEVICE_OFFLINE"] : []),
+      ...(preferences.policyFailureEnabled ? ["POLICY_DEPLOYMENT_FAILED"] : []),
+      ...(preferences.appFailureEnabled ? ["APP_DEPLOYMENT_FAILED"] : []),
+      ...(preferences.lostDeviceEnabled ? ["DEVICE_LOST"] : []),
+      ...(preferences.repeatedEnrollmentEnabled
+        ? ["REPEATED_ENROLLMENT_FAILED"]
+        : []),
+    ];
+    const alerts = await this.prisma.deviceAlert.findMany({
+      include: { device: { select: { serialNumber: true } } },
+      orderBy: { firstSeenAt: "asc" },
+      take: this.envInt("WORKER_NOTIFICATION_BATCH_SIZE", 100),
+      where: {
+        status: { in: ["OPEN", "ACKNOWLEDGED"] },
+        tenantId,
+        type: { in: enabledTypes },
+      },
+    });
+    let delivered = 0;
+    let failed = 0;
+    for (const alert of alerts) {
+      for (const recipient of preferences.recipients) {
+        const existing = await this.prisma.notificationDelivery.findUnique({
+          where: {
+            alertId_recipient_channel: {
+              alertId: alert.id,
+              channel: "EMAIL",
+              recipient,
+            },
+          },
+        });
+        if (
+          existing?.status === "DELIVERED" ||
+          (existing && existing.attemptCount >= 3)
+        )
+          continue;
+        const result = await this.emailService.send({
+          alertId: alert.id,
+          recipient,
+          subject: `[Virtual School] ${alert.title}`,
+          tenantId,
+          text: `${alert.message}\n\nDevice: ${alert.device?.serialNumber ?? "tenant-wide"}\nSeverity: ${alert.severity}`,
+        });
+        await this.prisma.$transaction(async (tx) => {
+          const saved = await tx.notificationDelivery.upsert({
+            create: {
+              alertId: alert.id,
+              attemptCount: 1,
+              channel: "EMAIL",
+              deliveredAt: result.delivered ? new Date() : null,
+              failureReason: result.failureReason,
+              lastAttemptAt: new Date(),
+              provider: result.provider,
+              providerId: result.providerId,
+              recipient,
+              status: result.delivered ? "DELIVERED" : "FAILED",
+              tenantId,
+            },
+            update: {
+              attemptCount: { increment: 1 },
+              deliveredAt: result.delivered ? new Date() : null,
+              failureReason: result.failureReason,
+              lastAttemptAt: new Date(),
+              provider: result.provider,
+              providerId: result.providerId,
+              status: result.delivered ? "DELIVERED" : "FAILED",
+            },
+            where: {
+              alertId_recipient_channel: {
+                alertId: alert.id,
+                channel: "EMAIL",
+                recipient,
+              },
+            },
+          });
+          await tx.auditEvent.create({
+            data: {
+              action: "notification.email_delivery",
+              newValue: {
+                alertId: alert.id,
+                provider: result.provider,
+                recipient,
+                status: saved.status,
+              },
+              object: "NotificationDelivery",
+              objectId: saved.id,
+              outcome: saved.status,
+              tenantId,
+            },
+          });
+        });
+        if (result.delivered) delivered += 1;
+        else failed += 1;
+      }
+    }
+    return {
+      delivered,
+      evaluatedAlerts: alerts.length,
+      failed,
+      job: "notifications.dispatch",
+      tenantId,
     };
   }
 
@@ -358,7 +483,13 @@ export class WorkerJobsService {
   private async scanOfflineAlertsForTenant(
     tenantId: string,
   ): Promise<Record<string, unknown>> {
-    const offlineAfterMinutes = this.envInt("WORKER_OFFLINE_AFTER_MINUTES", 60);
+    const preferences = await this.prisma.notificationPreference?.findUnique({
+      select: { offlineAfterMinutes: true },
+      where: { tenantId },
+    });
+    const offlineAfterMinutes =
+      preferences?.offlineAfterMinutes ??
+      this.envInt("WORKER_OFFLINE_AFTER_MINUTES", 60);
     const cutoff = new Date(Date.now() - offlineAfterMinutes * 60_000);
     const devices = await this.prisma.device.findMany({
       where: {

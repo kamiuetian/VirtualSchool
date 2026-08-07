@@ -124,6 +124,12 @@ test.describe("admin portal regression", () => {
       page.getByRole("heading", { name: "Offline Detection" }),
     ).toBeVisible();
     await expect(page.getByRole("button", { name: "Run scan" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Notification Preferences" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Save notification preferences" }),
+    ).toBeVisible();
 
     await page.goto("/enrollment");
     await expect(

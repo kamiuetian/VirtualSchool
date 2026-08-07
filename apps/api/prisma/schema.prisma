@@ -75,43 +75,45 @@ enum BillingSubscriptionStatus {
 }
 
 model Tenant {
-  id                  String               @id @default(uuid())
-  name                String
-  domain              String?              @unique
-  country             String
-  timezone            String
-  language            String               @default("en")
-  planKey             String
-  status              TenantStatus         @default(PILOT)
-  logoUrl             String?
-  primaryColor        String?
-  accentColor         String?
-  websiteUrl          String?
-  supportEmail        String?
-  supportPhone        String?
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  branches            Branch[]
-  users               User[]
-  students            Student[]
-  guardians           Guardian[]
-  classes             ClassSection[]
-  rosterImports       RosterImport[]
-  devices             Device[]
-  enrollmentBatches   EnrollmentBatch[]
-  appCatalogItems     AppCatalogItem[]
-  policies            Policy[]
-  policyAssignments   PolicyAssignment[]
-  timetableBlocks     TimetableBlock[]
-  calendarExceptions AcademicCalendarException[]
-  supportNotes        SupportNote[]
-  retentionSettings   RetentionSettings?
-  retentionRuns       DataRetentionRun[]
-  billingSubscription BillingSubscription?
-  auditEvents         AuditEvent[]
-  blockedDomainEvents BlockedDomainEvent[]
-  assignmentHistory   DeviceAssignment[]
-  lifecycleEvents     DeviceLifecycleEvent[]
+  id                     String                      @id @default(uuid())
+  name                   String
+  domain                 String?                     @unique
+  country                String
+  timezone               String
+  language               String                      @default("en")
+  planKey                String
+  status                 TenantStatus                @default(PILOT)
+  logoUrl                String?
+  primaryColor           String?
+  accentColor            String?
+  websiteUrl             String?
+  supportEmail           String?
+  supportPhone           String?
+  createdAt              DateTime                    @default(now())
+  updatedAt              DateTime                    @updatedAt
+  branches               Branch[]
+  users                  User[]
+  students               Student[]
+  guardians              Guardian[]
+  classes                ClassSection[]
+  rosterImports          RosterImport[]
+  devices                Device[]
+  enrollmentBatches      EnrollmentBatch[]
+  appCatalogItems        AppCatalogItem[]
+  policies               Policy[]
+  policyAssignments      PolicyAssignment[]
+  timetableBlocks        TimetableBlock[]
+  calendarExceptions     AcademicCalendarException[]
+  supportNotes           SupportNote[]
+  retentionSettings      RetentionSettings?
+  retentionRuns          DataRetentionRun[]
+  billingSubscription    BillingSubscription?
+  auditEvents            AuditEvent[]
+  blockedDomainEvents    BlockedDomainEvent[]
+  assignmentHistory      DeviceAssignment[]
+  lifecycleEvents        DeviceLifecycleEvent[]
+  notificationPreference NotificationPreference?
+  notificationDeliveries NotificationDelivery[]
 }
 
 model BillingSubscription {
@@ -243,8 +245,8 @@ model ClassSection {
   members         ClassMembership[]
   devices         Device[]
   timetableBlocks TimetableBlock[]
-  sourceClass     ClassSection?      @relation("ClassRollover", fields: [sourceClassId], references: [id])
-  rolloverCopies  ClassSection[]     @relation("ClassRollover")
+  sourceClass     ClassSection?     @relation("ClassRollover", fields: [sourceClassId], references: [id])
+  rolloverCopies  ClassSection[]    @relation("ClassRollover")
 
   @@index([tenantId, grade])
   @@index([tenantId, academicYear, status])
@@ -282,7 +284,7 @@ model RosterImport {
 }
 
 model Device {
-  id                  String             @id @default(uuid())
+  id                  String                 @id @default(uuid())
   tenantId            String
   branchId            String?
   studentId           String?
@@ -292,23 +294,23 @@ model Device {
   model               String?
   androidVersion      String?
   enrollmentId        String?
-  mdmConnector        String             @default("ANDROID_MANAGEMENT_API")
+  mdmConnector        String                 @default("ANDROID_MANAGEMENT_API")
   connectorDeviceName String?
-  status              DeviceStatus       @default(PENDING)
+  status              DeviceStatus           @default(PENDING)
   lastCheckInAt       DateTime?
   policyVersion       Int?
   enrollmentBatchId   String?
-  ownershipType       String             @default("SCHOOL_OWNED")
-  health              String             @default("UNKNOWN")
-  compliance          String             @default("UNKNOWN")
-  tags                String[]           @default([])
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
-  tenant              Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branch              Branch?            @relation(fields: [branchId], references: [id])
-  student             Student?           @relation(fields: [studentId], references: [id])
-  class               ClassSection?      @relation(fields: [classId], references: [id])
-  enrollmentBatch     EnrollmentBatch?   @relation(fields: [enrollmentBatchId], references: [id])
+  ownershipType       String                 @default("SCHOOL_OWNED")
+  health              String                 @default("UNKNOWN")
+  compliance          String                 @default("UNKNOWN")
+  tags                String[]               @default([])
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  tenant              Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch              Branch?                @relation(fields: [branchId], references: [id])
+  student             Student?               @relation(fields: [studentId], references: [id])
+  class               ClassSection?          @relation(fields: [classId], references: [id])
+  enrollmentBatch     EnrollmentBatch?       @relation(fields: [enrollmentBatchId], references: [id])
   commands            RemoteCommand[]
   diagnostics         DeviceDiagnostic[]
   alerts              DeviceAlert[]
@@ -436,30 +438,74 @@ model DeviceDiagnostic {
 }
 
 model DeviceAlert {
-  id             String    @id @default(uuid())
-  tenantId       String
-  deviceId       String?
-  type           String
-  severity       String
-  status         String    @default("OPEN")
-  title          String
-  message        String
-  source         String
-  metadata       Json?
-  firstSeenAt    DateTime  @default(now())
-  lastSeenAt     DateTime  @default(now())
-  acknowledgedAt DateTime?
-  acknowledgedBy String?
-  resolvedAt     DateTime?
-  resolvedBy     String?
-  resolutionNote String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  device         Device?   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  id                     String                 @id @default(uuid())
+  tenantId               String
+  deviceId               String?
+  type                   String
+  severity               String
+  status                 String                 @default("OPEN")
+  title                  String
+  message                String
+  source                 String
+  metadata               Json?
+  firstSeenAt            DateTime               @default(now())
+  lastSeenAt             DateTime               @default(now())
+  acknowledgedAt         DateTime?
+  acknowledgedBy         String?
+  resolvedAt             DateTime?
+  resolvedBy             String?
+  resolutionNote         String?
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  device                 Device?                @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  notificationDeliveries NotificationDelivery[]
 
   @@index([tenantId, status, severity])
   @@index([tenantId, deviceId, status])
   @@index([tenantId, type, status])
+}
+
+model NotificationPreference {
+  id                          String   @id @default(uuid())
+  tenantId                    String   @unique
+  recipients                  String[] @default([])
+  offlineEnabled              Boolean  @default(true)
+  offlineAfterMinutes         Int      @default(60)
+  policyFailureEnabled        Boolean  @default(true)
+  appFailureEnabled           Boolean  @default(true)
+  lostDeviceEnabled           Boolean  @default(true)
+  repeatedEnrollmentEnabled   Boolean  @default(true)
+  repeatedEnrollmentThreshold Int      @default(3)
+  deduplicationWindowMinutes  Int      @default(60)
+  updatedBy                   String?
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+  tenant                      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+model NotificationDelivery {
+  id            String      @id @default(uuid())
+  tenantId      String
+  alertId       String
+  recipient     String
+  channel       String      @default("EMAIL")
+  status        String      @default("PENDING")
+  provider      String?
+  providerId    String?
+  attemptCount  Int         @default(0)
+  lastAttemptAt DateTime?
+  deliveredAt   DateTime?
+  failureReason String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  alert         DeviceAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+
+  @@unique([alertId, recipient, channel])
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, alertId])
 }
 
 model EnrollmentBatch {
@@ -501,25 +547,25 @@ model AppCatalogItem {
 }
 
 model Policy {
-  id                 String             @id @default(uuid())
-  tenantId           String
-  name               String
-  status             String             @default("DRAFT")
-  version            Int                @default(1)
-  rules              Json
-  mdmPolicyName      String?
-  mdmPublishStatus   String?
-  mdmPublishedAt     DateTime?
-  mdmPublishError    String?
-  mdmPublishRequest  Json?
-  mdmPublishResponse Json?
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-  tenant             Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  versions           PolicyVersion[]
-  assignments        PolicyAssignment[]
-  timetableBlocks    TimetableBlock[]
-  calendarExceptions AcademicCalendarException[]
+  id                  String                      @id @default(uuid())
+  tenantId            String
+  name                String
+  status              String                      @default("DRAFT")
+  version             Int                         @default(1)
+  rules               Json
+  mdmPolicyName       String?
+  mdmPublishStatus    String?
+  mdmPublishedAt      DateTime?
+  mdmPublishError     String?
+  mdmPublishRequest   Json?
+  mdmPublishResponse  Json?
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
+  tenant              Tenant                      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  versions            PolicyVersion[]
+  assignments         PolicyAssignment[]
+  timetableBlocks     TimetableBlock[]
+  calendarExceptions  AcademicCalendarException[]
   blockedDomainEvents BlockedDomainEvent[]
 
   @@index([tenantId, status])

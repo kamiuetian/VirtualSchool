@@ -12,6 +12,8 @@ import type {
   DeviceSummary,
   EnrollmentBatchSummary,
   OnboardingChecklist,
+  NotificationDeliverySummary,
+  NotificationPreferenceSummary,
   PolicyDeploymentReport,
   PolicyAssignmentSummary,
   PolicySummary,
@@ -58,6 +60,8 @@ export type AdminData = {
   timetableBlocks: TimetableBlockSummary[];
   calendarExceptions: AcademicCalendarExceptionSummary[];
   retentionSettings: RetentionSettingsSummary | null;
+  notificationPreferences: NotificationPreferenceSummary | null;
+  notificationDeliveries: NotificationDeliverySummary[];
   billingUsage: BillingUsageSummary | null;
   session: AdminPortalSession;
   connectionIssue: boolean;
@@ -99,6 +103,8 @@ export async function getAdminData(
       users: [],
       appDeploymentReport: null,
       retentionSettings: null,
+      notificationPreferences: null,
+      notificationDeliveries: [],
       session,
     };
   }
@@ -123,6 +129,8 @@ export async function getAdminData(
     retentionSettings,
     billingUsage,
     blockedDomainAggregates,
+    notificationPreferences,
+    notificationDeliveries,
   ] = await Promise.all([
     apiGet<OnboardingChecklist>(`${tenantPath}/onboarding-checklist`),
     can("device:read")
@@ -182,6 +190,16 @@ export async function getAdminData(
           `${tenantPath}/policies/events/blocked-domains/aggregates`,
         )
       : skipped([]),
+    can("tenant:update")
+      ? apiGet<NotificationPreferenceSummary>(
+          `${tenantPath}/notifications/preferences`,
+        )
+      : skipped<NotificationPreferenceSummary>(),
+    can("tenant:update")
+      ? apiGet<NotificationDeliverySummary[]>(
+          `${tenantPath}/notifications/deliveries?limit=20`,
+        )
+      : skipped([]),
   ]);
 
   return {
@@ -210,6 +228,8 @@ export async function getAdminData(
       retentionSettings,
       billingUsage,
       blockedDomainAggregates,
+      notificationPreferences,
+      notificationDeliveries,
     ].some((result) => result.failed),
     deviceInventory: deviceInventory.data ?? null,
     devices: devices.data ?? [],
@@ -226,6 +246,8 @@ export async function getAdminData(
     users: users.data ?? [],
     appDeploymentReport: appDeploymentReport.data ?? null,
     retentionSettings: retentionSettings.data ?? null,
+    notificationPreferences: notificationPreferences.data ?? null,
+    notificationDeliveries: notificationDeliveries.data ?? [],
     session,
   };
 }

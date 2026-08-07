@@ -3,6 +3,7 @@ export const workerQueueName = "virtual-school-background";
 export const workerJobNames = [
   "commands.dispatch",
   "alerts.offline-scan",
+  "notifications.dispatch",
   "retention.dry-run",
   "retention.apply",
 ] as const;

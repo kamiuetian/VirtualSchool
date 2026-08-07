@@ -271,6 +271,26 @@ const routes = [
   ["GET", `/tenants/${tenantId}/alerts`, () => json(alerts)],
   [
     "GET",
+    `/tenants/${tenantId}/notifications/preferences`,
+    () =>
+      json({
+        appFailureEnabled: true,
+        deduplicationWindowMinutes: 60,
+        lostDeviceEnabled: true,
+        offlineAfterMinutes: 60,
+        offlineEnabled: true,
+        policyFailureEnabled: true,
+        recipients: ["it@northview.edu"],
+        repeatedEnrollmentEnabled: true,
+        repeatedEnrollmentThreshold: 3,
+        tenantId,
+        updatedAt: now,
+        updatedBy: "user-admin",
+      }),
+  ],
+  ["GET", `/tenants/${tenantId}/notifications/deliveries`, () => json([])],
+  [
+    "GET",
     `/tenants/${tenantId}/devices/${deviceId}/history`,
     () =>
       json({

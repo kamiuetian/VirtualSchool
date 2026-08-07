@@ -7,6 +7,7 @@ import { DeviceDiagnosticsModule } from "./device-diagnostics/device-diagnostics
 import { EnrollmentModule } from "./enrollment/enrollment.module";
 import { HealthModule } from "./health/health.module";
 import { MdmConnectorsModule } from "./mdm-connectors/mdm-connectors.module";
+import { NotificationsModule } from "./notifications/notifications.module";
 import { PoliciesModule } from "./policies/policies.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { RemoteCommandsModule } from "./remote-commands/remote-commands.module";
@@ -27,6 +28,7 @@ import { UsersModule } from "./users/users.module";
     RosterModule,
     EnrollmentModule,
     MdmConnectorsModule,
+    NotificationsModule,
     AppCatalogModule,
     PoliciesModule,
     RemoteCommandsModule,

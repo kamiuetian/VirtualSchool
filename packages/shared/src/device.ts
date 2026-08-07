@@ -201,7 +201,38 @@ export type DeviceAlertType =
   | "DEVICE_NON_COMPLIANT"
   | "DEVICE_UNHEALTHY"
   | "POLICY_DEPLOYMENT_FAILED"
-  | "APP_DEPLOYMENT_FAILED";
+  | "APP_DEPLOYMENT_FAILED"
+  | "DEVICE_LOST"
+  | "REPEATED_ENROLLMENT_FAILED";
+
+export type NotificationPreferenceSummary = {
+  tenantId: string;
+  recipients: string[];
+  offlineEnabled: boolean;
+  offlineAfterMinutes: number;
+  policyFailureEnabled: boolean;
+  appFailureEnabled: boolean;
+  lostDeviceEnabled: boolean;
+  repeatedEnrollmentEnabled: boolean;
+  repeatedEnrollmentThreshold: number;
+  deduplicationWindowMinutes: number;
+  updatedAt: string | null;
+  updatedBy: string | null;
+};
+
+export type NotificationDeliverySummary = {
+  id: string;
+  alertId: string;
+  recipient: string;
+  channel: "EMAIL";
+  status: "PENDING" | "DELIVERED" | "FAILED";
+  attemptCount: number;
+  provider: string | null;
+  providerId: string | null;
+  failureReason: string | null;
+  deliveredAt: string | null;
+  createdAt: string;
+};
 
 export type DeviceDiagnosticSummary = {
   id: string;

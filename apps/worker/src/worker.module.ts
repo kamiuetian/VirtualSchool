@@ -4,6 +4,7 @@ import { ModeSchedulerService } from "./workers/mode-scheduler.service";
 import { WorkerJobsService } from "./workers/worker-jobs.service";
 import { WorkerMdmConnector } from "./workers/worker-mdm.connector";
 import { WorkerQueueService } from "./workers/worker-queue.service";
+import { NotificationEmailService } from "./workers/notification-email.service";
 
 @Module({
   providers: [
@@ -12,6 +13,7 @@ import { WorkerQueueService } from "./workers/worker-queue.service";
     WorkerMdmConnector,
     WorkerPrismaService,
     WorkerQueueService,
+    NotificationEmailService,
   ],
 })
 export class WorkerModule {}

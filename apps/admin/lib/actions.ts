@@ -728,6 +728,41 @@ export async function scanOfflineAlertsAction(
   revalidateAll();
 }
 
+export async function updateNotificationPreferencesAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "PATCH",
+    `/tenants/${tenantId}/notifications/preferences`,
+    {
+      appFailureEnabled: booleanValue(formData, "appFailureEnabled"),
+      deduplicationWindowMinutes: numberValue(
+        formData,
+        "deduplicationWindowMinutes",
+      ),
+      lostDeviceEnabled: booleanValue(formData, "lostDeviceEnabled"),
+      offlineAfterMinutes: numberValue(formData, "offlineAfterMinutes"),
+      offlineEnabled: booleanValue(formData, "offlineEnabled"),
+      policyFailureEnabled: booleanValue(formData, "policyFailureEnabled"),
+      recipients: text(formData, "recipients")
+        .split(/[;,\s]+/)
+        .map((value) => value.trim())
+        .filter(Boolean),
+      repeatedEnrollmentEnabled: booleanValue(
+        formData,
+        "repeatedEnrollmentEnabled",
+      ),
+      repeatedEnrollmentThreshold: numberValue(
+        formData,
+        "repeatedEnrollmentThreshold",
+      ),
+    },
+  );
+  revalidateAll();
+}
+
 export async function updateBillingAction(formData: FormData): Promise<void> {
   await requireActionPermission("billing:manage");
   const tenantId = required(formData, "tenantId");
