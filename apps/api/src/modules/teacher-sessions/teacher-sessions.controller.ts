@@ -3,7 +3,7 @@ import { ApiCreatedResponse, ApiOkResponse, ApiTags } from "@nestjs/swagger";
 import type { TeacherDashboard, TeacherSessionEventSummary, TeacherSessionSummary } from "@virtual-school/shared";
 import { RequirePermissions } from "../auth/decorators/require-permissions.decorator";
 import type { AuthenticatedRequest } from "../auth/types/authenticated-request";
-import { AssignTeacherClassDto, EndTeacherSessionDto, RecordTeacherDeviceEventDto, StartTeacherSessionDto } from "./dto/teacher-session.dto";
+import { ApproveTemporaryUrlDto, AssignTeacherClassDto, EndTeacherSessionDto, PushTeacherResourceDto, RecordTeacherDeviceEventDto, ShowFocusScreenDto, StartTeacherSessionDto } from "./dto/teacher-session.dto";
 import { TeacherSessionsService } from "./teacher-sessions.service";
 
 @ApiTags("teacher-sessions")
@@ -41,5 +41,23 @@ export class TeacherSessionsController {
   @RequirePermissions("session:manage")
   recordDeviceEvent(@Param("tenantId") tenantId: string, @Param("sessionId") sessionId: string, @Body() body: RecordTeacherDeviceEventDto, @Req() request: AuthenticatedRequest): Promise<TeacherSessionEventSummary> {
     return this.service.recordDeviceEvent(tenantId, sessionId, body, request.user!.subject, request.user?.email);
+  }
+
+  @Post("sessions/:sessionId/resources")
+  @RequirePermissions("session:manage")
+  pushResource(@Param("tenantId") tenantId: string, @Param("sessionId") sessionId: string, @Body() body: PushTeacherResourceDto, @Req() request: AuthenticatedRequest): Promise<TeacherSessionEventSummary> {
+    return this.service.pushResource(tenantId, sessionId, body.resourceId, request.user!.subject, request.user?.email);
+  }
+
+  @Post("sessions/:sessionId/focus-screen")
+  @RequirePermissions("session:manage")
+  showFocusScreen(@Param("tenantId") tenantId: string, @Param("sessionId") sessionId: string, @Body() body: ShowFocusScreenDto, @Req() request: AuthenticatedRequest): Promise<TeacherSessionEventSummary> {
+    return this.service.showFocusScreen(tenantId, sessionId, body.message, body.durationMinutes, request.user!.subject, request.user?.email);
+  }
+
+  @Post("sessions/:sessionId/temporary-url-approvals")
+  @RequirePermissions("session:manage")
+  approveTemporaryUrl(@Param("tenantId") tenantId: string, @Param("sessionId") sessionId: string, @Body() body: ApproveTemporaryUrlDto, @Req() request: AuthenticatedRequest): Promise<TeacherSessionEventSummary> {
+    return this.service.approveTemporaryUrl(tenantId, sessionId, body.url, body.durationMinutes, request.user!.subject, request.user?.email);
   }
 }

@@ -1,6 +1,6 @@
 import { AppShell } from "../../components/app-shell";
 import { ActionPanel, EmptyState, Field, PageSection, StatCard, StatusPill, SubmitButton } from "../../components/ui";
-import { endTeacherSessionAction, startTeacherSessionAction } from "../../lib/actions";
+import { approveTeacherTemporaryUrlAction, endTeacherSessionAction, pushTeacherResourceAction, showTeacherFocusScreenAction, startTeacherSessionAction } from "../../lib/actions";
 import { getAdminData, getTeacherDashboard } from "../../lib/api";
 import { formatCount, formatDateTime, humanize } from "../../lib/format";
 
@@ -39,6 +39,30 @@ export default async function TeacherPage() {
                 <SubmitButton>End class mode</SubmitButton>
               </form>
             </ActionPanel>
+            <div className="action-grid">
+              <ActionPanel title="Push approved resource">
+                <form action={pushTeacherResourceAction} className="inline-form wide">
+                  <input name="tenantId" type="hidden" value={data.selectedTenant!.id} /><input name="sessionId" type="hidden" value={dashboard.activeSession.id} />
+                  <Field label="Resource"><select name="resourceId" required>{dashboard.approvedResources.map((resource) => <option key={resource.id} value={resource.id}>{resource.name}</option>)}</select></Field>
+                  <SubmitButton>Push resource</SubmitButton>
+                </form>
+              </ActionPanel>
+              <ActionPanel title="Display focus screen">
+                <form action={showTeacherFocusScreenAction} className="inline-form wide">
+                  <input name="tenantId" type="hidden" value={data.selectedTenant!.id} /><input name="sessionId" type="hidden" value={dashboard.activeSession.id} />
+                  <Field label="Message"><input name="message" maxLength={500} required /></Field><Field label="Minutes"><input name="durationMinutes" type="number" min={1} max={10} defaultValue={3} required /></Field>
+                  <SubmitButton>Display focus screen</SubmitButton>
+                </form>
+              </ActionPanel>
+              <ActionPanel title="Temporarily approve URL">
+                <p>Expires automatically and cannot override blocked policy rules.</p>
+                <form action={approveTeacherTemporaryUrlAction} className="inline-form wide">
+                  <input name="tenantId" type="hidden" value={data.selectedTenant!.id} /><input name="sessionId" type="hidden" value={dashboard.activeSession.id} />
+                  <Field label="URL"><input name="url" type="url" maxLength={2048} required /></Field><Field label="Minutes"><input name="durationMinutes" type="number" min={1} max={60} defaultValue={15} required /></Field>
+                  <SubmitButton>Approve temporarily</SubmitButton>
+                </form>
+              </ActionPanel>
+            </div>
           </PageSection>
         ) : (
           <PageSection kicker="Guarded session" title="Start Class Mode">

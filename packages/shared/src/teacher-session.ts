@@ -42,4 +42,12 @@ export type TeacherDashboard = {
   devices: TeacherDeviceSummary[];
   activeSession: TeacherSessionSummary | null;
   recentSessions: TeacherSessionSummary[];
+  approvedResources: TeacherResourceSummary[];
+};
+
+export type TeacherResourceSummary = {
+  id: string;
+  name: string;
+  packageId: string;
+  category?: string | null;
 };

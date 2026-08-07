@@ -43,6 +43,26 @@ export async function endTeacherSessionAction(formData: FormData): Promise<void>
   revalidateAll();
 }
 
+export async function pushTeacherResourceAction(formData: FormData): Promise<void> {
+  await teacherSessionMutation(formData, "resources", { resourceId: required(formData, "resourceId") });
+}
+
+export async function showTeacherFocusScreenAction(formData: FormData): Promise<void> {
+  await teacherSessionMutation(formData, "focus-screen", { message: required(formData, "message"), durationMinutes: numberValue(formData, "durationMinutes") });
+}
+
+export async function approveTeacherTemporaryUrlAction(formData: FormData): Promise<void> {
+  await teacherSessionMutation(formData, "temporary-url-approvals", { url: required(formData, "url"), durationMinutes: numberValue(formData, "durationMinutes") });
+}
+
+async function teacherSessionMutation(formData: FormData, action: string, body: Record<string, unknown>): Promise<void> {
+  await requireActionPermission("session:manage");
+  const tenantId = required(formData, "tenantId");
+  const sessionId = required(formData, "sessionId");
+  await adminApiMutation("POST", `/tenants/${tenantId}/teacher/sessions/${sessionId}/${action}`, body);
+  revalidateAll();
+}
+
 export async function assignTeacherClassAction(formData: FormData): Promise<void> {
   await requireActionPermission("class:manage");
   const tenantId = required(formData, "tenantId");

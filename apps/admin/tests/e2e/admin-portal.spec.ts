@@ -430,10 +430,12 @@ test.describe("role-aware admin portal", () => {
     await expect(
       page.getByRole("heading", { name: "Live Class Mode" }),
     ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Start class mode" }),
-    ).toBeVisible();
     await expect(page.getByText("TAB001")).toBeVisible();
+    const startButton = page.getByRole("button", { name: "Start class mode" });
+    if (await startButton.isVisible()) await startButton.click();
+    await expect(page.getByRole("button", { name: "Push resource" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Display focus screen" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Approve temporarily" })).toBeVisible();
   });
 
   test("keeps billing admins limited to billing and overview", async ({

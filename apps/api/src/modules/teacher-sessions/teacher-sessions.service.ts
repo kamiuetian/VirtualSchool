@@ -1,9 +1,12 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
-import type { TeacherDashboard, TeacherSessionEventSummary, TeacherSessionSummary } from "@virtual-school/shared";
+import type { LearningMode, PolicyRuleSet, TeacherDashboard, TeacherSessionEventSummary, TeacherSessionSummary } from "@virtual-school/shared";
+import { Prisma } from "../../generated/prisma";
 import { PrismaService } from "../prisma/prisma.service";
+import { evaluateUrlPolicy } from "../policies/url-policy-evaluator";
 import type { RecordTeacherDeviceEventDto } from "./dto/teacher-session.dto";
 
 const sessionInclude = { class: true, events: { orderBy: { createdAt: "asc" as const } } };
+const modePrecedence: Record<LearningMode, number> = { LOST_DEVICE: 100, EXAM: 90, EMERGENCY_SUPPORT_OVERRIDE: 80, TIMETABLE_CLASS: 70, HOMEWORK_AFTER_SCHOOL: 60, DEVICE_BASELINE: 50, DEFAULT_SCHOOL: 10 };
 
 @Injectable()
 export class TeacherSessionsService {
@@ -23,11 +26,17 @@ export class TeacherSessionsService {
       where: { tenantId, teacherId: teacher.id },
     });
     const devices = assignments.flatMap((item) => item.class.devices);
+    const grades = [...new Set(assignments.map((item) => item.class.grade))];
+    const resources = await this.prisma.appCatalogItem.findMany({
+      orderBy: { name: "asc" },
+      where: { tenantId, approvalStatus: "APPROVED", OR: [{ approvedGrades: { isEmpty: true } }, { approvedGrades: { hasSome: grades } }] },
+    });
     return {
       activeSession: sessions.find((item) => item.status === "ACTIVE") ? this.summary(sessions.find((item) => item.status === "ACTIVE")!) : null,
       classes: assignments.map(({ class: item }) => ({ id: item.id, name: item.name, grade: item.grade, subject: item.subject, deviceCount: item.devices.length })),
       devices: [...new Map(devices.map((item) => [item.id, item])).values()].map((item) => ({ id: item.id, serialNumber: item.serialNumber, classId: item.classId, status: item.status, compliance: item.compliance, lastCheckInAt: item.lastCheckInAt?.toISOString() ?? null })),
       recentSessions: sessions.map((item) => this.summary(item)),
+      approvedResources: resources.map((item) => ({ id: item.id, name: item.name, packageId: item.packageId, category: item.category })),
     };
   }
 
@@ -78,6 +87,62 @@ export class TeacherSessionsService {
     const device = await this.prisma.device.findFirst({ where: { id: input.deviceId, tenantId, classId: session.classId } });
     if (!device) throw new ForbiddenException("Device is not assigned to the active class");
     const event = await this.prisma.teacherSessionEvent.create({ data: { tenantId, sessionId, deviceId: device.id, type: input.type, details: { status: device.status, compliance: device.compliance, lastCheckInAt: device.lastCheckInAt?.toISOString() ?? null } } });
+    return this.eventSummary(event);
+  }
+
+  async pushResource(tenantId: string, sessionId: string, resourceId: string, subject: string, email?: string): Promise<TeacherSessionEventSummary> {
+    const teacher = await this.teacher(tenantId, subject, email);
+    const session = await this.ownedActiveSession(tenantId, sessionId, teacher.id);
+    const classSection = await this.prisma.classSection.findFirst({ where: { id: session.classId, tenantId } });
+    const resource = await this.prisma.appCatalogItem.findFirst({ where: { id: resourceId, tenantId, approvalStatus: "APPROVED" } });
+    if (!classSection || !resource || (resource.approvedGrades.length > 0 && !resource.approvedGrades.includes(classSection.grade))) {
+      throw new ForbiddenException("Resource is not approved for this class");
+    }
+    return this.dispatchSessionAction(tenantId, session, teacher.id, "RESOURCE_PUSHED", { resourceId, name: resource.name, packageId: resource.packageId }, { kind: "TEACHER_RESOURCE", resourceId, name: resource.name, packageId: resource.packageId }, 60);
+  }
+
+  async showFocusScreen(tenantId: string, sessionId: string, message: string, durationMinutes: number, subject: string, email?: string): Promise<TeacherSessionEventSummary> {
+    const teacher = await this.teacher(tenantId, subject, email);
+    const session = await this.ownedActiveSession(tenantId, sessionId, teacher.id);
+    const expiresAt = new Date(Date.now() + durationMinutes * 60_000);
+    return this.dispatchSessionAction(tenantId, session, teacher.id, "FOCUS_SCREEN_SHOWN", { message, durationMinutes, expiresAt: expiresAt.toISOString() }, { kind: "TEACHER_FOCUS_SCREEN", message, expiresAt: expiresAt.toISOString() }, durationMinutes);
+  }
+
+  async approveTemporaryUrl(tenantId: string, sessionId: string, url: string, durationMinutes: number, subject: string, email?: string): Promise<TeacherSessionEventSummary> {
+    const teacher = await this.teacher(tenantId, subject, email);
+    const session = await this.ownedActiveSession(tenantId, sessionId, teacher.id);
+    const rules = await this.activeClassPolicyRules(tenantId, session.classId);
+    let evaluation;
+    try { evaluation = evaluateUrlPolicy(url, rules); } catch { throw new BadRequestException("A valid HTTP(S) URL without credentials is required"); }
+    if (evaluation.decision === "BLOCKED") throw new ForbiddenException("Temporary approval cannot bypass a blocked URL rule");
+    const expiresAt = new Date(Date.now() + durationMinutes * 60_000);
+    return this.dispatchSessionAction(tenantId, session, teacher.id, "TEMPORARY_URL_APPROVED", { url, durationMinutes, expiresAt: expiresAt.toISOString(), policyDecision: evaluation.decision }, { kind: "TEACHER_TEMPORARY_URL", url, expiresAt: expiresAt.toISOString() }, durationMinutes);
+  }
+
+  private async activeClassPolicyRules(tenantId: string, classId: string): Promise<PolicyRuleSet> {
+    const now = new Date();
+    const assignments = await this.prisma.policyAssignment.findMany({
+      include: { policy: true },
+      where: { tenantId, active: true, OR: [{ scope: "TENANT", scopeId: null }, { scope: "CLASS", scopeId: classId }], policy: { status: "PUBLISHED" }, AND: [{ OR: [{ startsAt: null }, { startsAt: { lte: now } }] }, { OR: [{ endsAt: null }, { endsAt: { gt: now } }] }] },
+    });
+    const selected = assignments.sort((left, right) => {
+      const leftRules = left.policy.rules as PolicyRuleSet;
+      const rightRules = right.policy.rules as PolicyRuleSet;
+      return modePrecedence[rightRules.mode] - modePrecedence[leftRules.mode] || right.policy.version - left.policy.version;
+    })[0];
+    if (!selected) throw new NotFoundException("No active published policy applies to this class");
+    return selected.policy.rules as PolicyRuleSet;
+  }
+
+  private async dispatchSessionAction(tenantId: string, session: { id: string; classId: string }, actorId: string, type: string, details: Record<string, unknown>, payload: Record<string, unknown>, ttlMinutes: number): Promise<TeacherSessionEventSummary> {
+    const devices = await this.prisma.device.findMany({ select: { id: true }, where: { tenantId, classId: session.classId, status: { not: "RETIRED" } } });
+    const event = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.teacherSessionEvent.create({ data: { tenantId, sessionId: session.id, type, details: { ...details, targetedDevices: devices.length } } });
+      const expiresAt = new Date(Date.now() + ttlMinutes * 60_000);
+      if (devices.length > 0) await tx.remoteCommand.createMany({ data: devices.map((device) => ({ tenantId, deviceId: device.id, type: "SEND_MESSAGE", status: "QUEUED", requestedBy: actorId, reason: `Teacher session ${type.toLowerCase()}`, payload: payload as Prisma.InputJsonValue, expiresAt })) });
+      await tx.auditEvent.create({ data: { action: `teacher_session.${type.toLowerCase()}`, actorId, object: "TeacherSession", objectId: session.id, outcome: "SUCCESS", tenantId, newValue: { ...details, targetedDevices: devices.length } } });
+      return created;
+    });
     return this.eventSummary(event);
   }
 

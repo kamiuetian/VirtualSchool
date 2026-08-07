@@ -215,6 +215,8 @@ function text(body, contentType = "text/plain; charset=utf-8", status = 200) {
   };
 }
 
+let teacherSessionActive = false;
+
 const routes = [
   ["GET", "/tenants", () => json([tenant])],
   [
@@ -265,8 +267,11 @@ const routes = [
           },
         ],
         devices: [{ ...device, classId: "class-4a" }],
-        activeSession: null,
+        activeSession: teacherSessionActive
+          ? { id: "session-1", classId: "class-4a", className: "Grade 4A", teacherId: "teacher-1", status: "ACTIVE", startedAt: now, endedAt: null, reason: null, events: [] }
+          : null,
         recentSessions: [],
+        approvedResources: [{ id: "app-1", name: "School Reader", packageId: "edu.example.reader", category: "READING" }],
       }),
   ],
   [
@@ -691,6 +696,7 @@ const server = createServer(async (request, response) => {
       // Retain the raw payload to make unexpected request formats diagnosable.
     }
     mutationJournal.push({ body, method: request.method, path: pathname });
+    if (request.method === "POST" && pathname === `/tenants/${tenantId}/teacher/sessions`) teacherSessionActive = true;
     response.writeHead(201, {
       "content-type": "application/json; charset=utf-8",
     });
