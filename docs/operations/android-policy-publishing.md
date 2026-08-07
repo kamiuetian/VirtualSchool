@@ -40,9 +40,14 @@ The mapper creates a dedicated-device policy with:
 - browser managed configuration containing URL allow/block rules and default web access
 - approved app catalog entries as Android application policies
 - safe boot and app install restrictions mapped from internal policy restrictions
+- factory-reset restriction mapped to `factoryResetDisabled`
+- automatic, 30-day postponed, or daily-window system updates mapped to `systemUpdate`
+- kiosk navigation, status-bar, and power-button behavior mapped to `kioskCustomization`
 - status reporting enabled for app, software, device settings, memory, and network reports
 
 Only policy metadata and allow/block lists are sent to managed configuration. Student browsing history, private messages, audio, camera, screenshots, and keystrokes are not included.
+
+Android controls are edited only on draft policies. A daily update window uses device-local minutes after midnight and must have different start and end values; a window may cross midnight. Android Management does not provide weekday-specific update windows or kiosk wallpaper controls, and policy restrictions cannot prevent a physical hardware-recovery reset.
 
 ## Failure Handling
 

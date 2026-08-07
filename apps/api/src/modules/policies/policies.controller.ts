@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Inject, Param, Post } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Inject,
+  Param,
+  Patch,
+  Post,
+} from "@nestjs/common";
 import { ApiCreatedResponse, ApiOkResponse, ApiTags } from "@nestjs/swagger";
 import type {
   ActivePolicyResolution,
@@ -14,6 +22,7 @@ import { CreatePolicyDto } from "./dto/create-policy.dto";
 import { IssueSupportUnlockDto } from "./dto/issue-support-unlock.dto";
 import { PublishPolicyDto } from "./dto/publish-policy.dto";
 import { RollbackPolicyDto } from "./dto/rollback-policy.dto";
+import { UpdateAndroidControlsDto } from "./dto/update-android-controls.dto";
 import { PoliciesService } from "./policies.service";
 
 @ApiTags("policies")
@@ -87,6 +96,17 @@ export class PoliciesController {
     @Param("tenantId") tenantId: string,
   ): Promise<PolicySummary[]> {
     return this.policiesService.createStarterTemplates(tenantId);
+  }
+
+  @Patch(":policyId/android-controls")
+  @RequirePermissions("policy:manage")
+  @ApiOkResponse({ description: "Validate and update Android policy controls" })
+  updateAndroidControls(
+    @Param("tenantId") tenantId: string,
+    @Param("policyId") policyId: string,
+    @Body() body: UpdateAndroidControlsDto,
+  ): Promise<PolicySummary> {
+    return this.policiesService.updateAndroidControls(tenantId, policyId, body);
   }
 
   @Post(":policyId/publish")

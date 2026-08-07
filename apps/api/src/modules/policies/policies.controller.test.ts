@@ -22,6 +22,7 @@ describe("PoliciesController", () => {
       rollbackPolicy: vi.fn(),
       issueSupportUnlock: vi.fn(),
       resolveActivePolicyForDevice: vi.fn(),
+      updateAndroidControls: vi.fn(),
     } as never);
 
     await expect(
@@ -48,6 +49,7 @@ describe("PoliciesController", () => {
       rollbackPolicy: vi.fn(),
       issueSupportUnlock: vi.fn(),
       resolveActivePolicyForDevice: vi.fn(),
+      updateAndroidControls: vi.fn(),
     } as never);
 
     await expect(
@@ -80,6 +82,7 @@ describe("PoliciesController", () => {
       rollbackPolicy: vi.fn(),
       issueSupportUnlock: vi.fn(),
       resolveActivePolicyForDevice: vi.fn(),
+      updateAndroidControls: vi.fn(),
     } as never);
 
     await expect(
@@ -105,6 +108,7 @@ describe("PoliciesController", () => {
       publishPolicy: vi.fn(),
       resolveActivePolicyForDevice: vi.fn(),
       rollbackPolicy,
+      updateAndroidControls: vi.fn(),
     } as never);
 
     await controller.rollbackPolicy("tenant-1", "policy-1", {
@@ -125,6 +129,33 @@ describe("PoliciesController", () => {
     expect(issueSupportUnlock).toHaveBeenCalledWith(
       "tenant-1",
       expect.objectContaining({ deviceId: "device-1" }),
+    );
+  });
+
+  it("delegates validated Android control updates", async () => {
+    const updateAndroidControls = vi.fn().mockResolvedValue({ id: "policy-1" });
+    const controller = new PoliciesController({
+      updateAndroidControls,
+    } as never);
+    const body = {
+      blockFactoryReset: true,
+      kioskCustomization: {
+        powerButtonActions: "POWER_BUTTON_BLOCKED" as const,
+        statusBar: "SYSTEM_INFO_ONLY" as const,
+        systemNavigation: "HOME_BUTTON_ONLY" as const,
+      },
+      systemUpdate: {
+        endMinutes: 300,
+        startMinutes: 60,
+        type: "WINDOWED" as const,
+      },
+    };
+
+    await controller.updateAndroidControls("tenant-1", "policy-1", body);
+    expect(updateAndroidControls).toHaveBeenCalledWith(
+      "tenant-1",
+      "policy-1",
+      body,
     );
   });
 });

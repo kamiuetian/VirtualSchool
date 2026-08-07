@@ -57,6 +57,23 @@ export type PolicyRuleSet = {
     blockSettings: boolean;
     blockAppInstall: boolean;
     blockSafeMode: boolean;
+    blockFactoryReset?: boolean;
+  };
+  android?: {
+    systemUpdate?:
+      | { type: "AUTOMATIC" | "POSTPONE" }
+      | { type: "WINDOWED"; startMinutes: number; endMinutes: number };
+    kioskCustomization?: {
+      systemNavigation:
+        | "NAVIGATION_DISABLED"
+        | "HOME_BUTTON_ONLY"
+        | "NAVIGATION_ENABLED";
+      statusBar:
+        | "NOTIFICATIONS_AND_SYSTEM_INFO_DISABLED"
+        | "SYSTEM_INFO_ONLY"
+        | "NOTIFICATIONS_AND_SYSTEM_INFO_ENABLED";
+      powerButtonActions: "POWER_BUTTON_BLOCKED" | "POWER_BUTTON_AVAILABLE";
+    };
   };
 };
 

@@ -224,6 +224,92 @@ describe("PoliciesService", () => {
     expect(audit).toHaveBeenCalledTimes(2);
   });
 
+  it("updates validated Android controls only on a tenant draft", async () => {
+    const audit = vi.fn();
+    const existing = {
+      createdAt: now,
+      id: "policy-1",
+      name: "Default School",
+      rules: baseRules,
+      status: "DRAFT",
+      tenantId: "tenant-1",
+      updatedAt: now,
+      version: 1,
+    };
+    const update = vi.fn(
+      async ({ data }: { data: Record<string, unknown> }) => ({
+        ...existing,
+        rules: data.rules,
+      }),
+    );
+    const service = new PoliciesService(
+      {
+        $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
+          callback({ auditEvent: { create: audit }, policy: { update } }),
+        policy: { findFirst: async () => existing },
+      } as never,
+      connectorRegistry() as never,
+    );
+
+    await expect(
+      service.updateAndroidControls("tenant-1", "policy-1", {
+        blockFactoryReset: true,
+        kioskCustomization: {
+          powerButtonActions: "POWER_BUTTON_BLOCKED",
+          statusBar: "SYSTEM_INFO_ONLY",
+          systemNavigation: "HOME_BUTTON_ONLY",
+        },
+        systemUpdate: {
+          endMinutes: 300,
+          startMinutes: 60,
+          type: "WINDOWED",
+        },
+      }),
+    ).resolves.toMatchObject({
+      rules: {
+        android: {
+          systemUpdate: { endMinutes: 300, startMinutes: 60, type: "WINDOWED" },
+        },
+        restrictions: { blockFactoryReset: true },
+      },
+    });
+    expect(audit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "policy.android_controls.update",
+        }),
+      }),
+    );
+  });
+
+  it("rejects Android controls with an empty update window", async () => {
+    const service = new PoliciesService(
+      {
+        policy: {
+          findFirst: async () => ({
+            id: "policy-1",
+            rules: baseRules,
+            status: "DRAFT",
+            tenantId: "tenant-1",
+          }),
+        },
+      } as never,
+      connectorRegistry() as never,
+    );
+
+    await expect(
+      service.updateAndroidControls("tenant-1", "policy-1", {
+        blockFactoryReset: true,
+        kioskCustomization: {
+          powerButtonActions: "POWER_BUTTON_BLOCKED",
+          statusBar: "SYSTEM_INFO_ONLY",
+          systemNavigation: "HOME_BUTTON_ONLY",
+        },
+        systemUpdate: { endMinutes: 60, startMinutes: 60, type: "WINDOWED" },
+      }),
+    ).rejects.toThrow("start and end must differ");
+  });
+
   it("assigns a published tenant baseline policy with an audit event", async () => {
     const audit = vi.fn();
     const policy = {

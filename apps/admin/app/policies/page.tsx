@@ -14,6 +14,7 @@ import {
   issueSupportUnlockAction,
   publishPolicyAction,
   rollbackPolicyAction,
+  updateAndroidPolicyControlsAction,
 } from "../../lib/actions";
 import { getAdminData } from "../../lib/api";
 import { formatCount, formatDateTime, humanize } from "../../lib/format";
@@ -162,6 +163,113 @@ export default async function PoliciesPage() {
                 </>
               ) : null}
 
+              {data.policies.some((policy) => policy.status === "DRAFT") ? (
+                <ActionPanel title="Android device controls">
+                  <form
+                    action={updateAndroidPolicyControlsAction}
+                    className="stacked-form"
+                  >
+                    <input
+                      name="tenantId"
+                      type="hidden"
+                      value={data.selectedTenant.id}
+                    />
+                    <Field label="Draft policy">
+                      <select name="policyId" required>
+                        {data.policies
+                          .filter((policy) => policy.status === "DRAFT")
+                          .map((policy) => (
+                            <option key={policy.id} value={policy.id}>
+                              {policy.name}
+                            </option>
+                          ))}
+                      </select>
+                    </Field>
+                    <Field label="System update behavior">
+                      <select name="updateType" defaultValue="WINDOWED">
+                        <option value="WINDOWED">
+                          Install in daily window
+                        </option>
+                        <option value="AUTOMATIC">Install automatically</option>
+                        <option value="POSTPONE">Postpone up to 30 days</option>
+                      </select>
+                    </Field>
+                    <div className="form-row">
+                      <Field label="Window starts">
+                        <input
+                          defaultValue="01:00"
+                          name="updateStartTime"
+                          type="time"
+                        />
+                      </Field>
+                      <Field label="Window ends">
+                        <input
+                          defaultValue="05:00"
+                          name="updateEndTime"
+                          type="time"
+                        />
+                      </Field>
+                    </div>
+                    <Field label="System navigation">
+                      <select
+                        name="systemNavigation"
+                        defaultValue="NAVIGATION_DISABLED"
+                      >
+                        <option value="NAVIGATION_DISABLED">Disabled</option>
+                        <option value="HOME_BUTTON_ONLY">
+                          Home button only
+                        </option>
+                        <option value="NAVIGATION_ENABLED">Enabled</option>
+                      </select>
+                    </Field>
+                    <Field label="Status bar">
+                      <select
+                        name="statusBar"
+                        defaultValue="NOTIFICATIONS_AND_SYSTEM_INFO_DISABLED"
+                      >
+                        <option value="NOTIFICATIONS_AND_SYSTEM_INFO_DISABLED">
+                          Hidden
+                        </option>
+                        <option value="SYSTEM_INFO_ONLY">
+                          System info only
+                        </option>
+                        <option value="NOTIFICATIONS_AND_SYSTEM_INFO_ENABLED">
+                          Notifications and system info
+                        </option>
+                      </select>
+                    </Field>
+                    <Field label="Power button">
+                      <select
+                        name="powerButtonActions"
+                        defaultValue="POWER_BUTTON_BLOCKED"
+                      >
+                        <option value="POWER_BUTTON_BLOCKED">
+                          Menu blocked
+                        </option>
+                        <option value="POWER_BUTTON_AVAILABLE">
+                          Menu available
+                        </option>
+                      </select>
+                    </Field>
+                    <label>
+                      <input
+                        defaultChecked
+                        name="blockFactoryReset"
+                        type="checkbox"
+                      />{" "}
+                      Block factory reset from device settings
+                    </label>
+                    <p className="form-help">
+                      Android Management supports a daily update window, a
+                      30-day postponement, and kiosk navigation/status controls.
+                      It cannot schedule different windows by weekday, set kiosk
+                      wallpaper, or block hardware recovery resets.
+                    </p>
+                    <SubmitButton>Save Android controls</SubmitButton>
+                  </form>
+                </ActionPanel>
+              ) : null}
+
               {published.length > 0 ? (
                 <ActionPanel title="Rollback policy">
                   <form action={rollbackPolicyAction} className="stacked-form">
@@ -268,6 +376,15 @@ export default async function PoliciesPage() {
                     <div>
                       <dt>Web access</dt>
                       <dd>{humanize(policy.rules.defaultWebAccess)}</dd>
+                    </div>
+                    <div>
+                      <dt>Android updates</dt>
+                      <dd>
+                        {humanize(
+                          policy.rules.android?.systemUpdate?.type ??
+                            "AUTOMATIC",
+                        )}
+                      </dd>
                     </div>
                   </dl>
                 </article>

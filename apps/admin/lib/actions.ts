@@ -354,6 +354,36 @@ export async function publishPolicyAction(formData: FormData): Promise<void> {
   revalidateAll();
 }
 
+export async function updateAndroidPolicyControlsAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("policy:manage");
+  const tenantId = required(formData, "tenantId");
+  const policyId = required(formData, "policyId");
+  const updateType = required(formData, "updateType");
+  await adminApiMutation(
+    "PATCH",
+    `/tenants/${tenantId}/policies/${policyId}/android-controls`,
+    {
+      blockFactoryReset: booleanValue(formData, "blockFactoryReset"),
+      kioskCustomization: {
+        powerButtonActions: required(formData, "powerButtonActions"),
+        statusBar: required(formData, "statusBar"),
+        systemNavigation: required(formData, "systemNavigation"),
+      },
+      systemUpdate:
+        updateType === "WINDOWED"
+          ? {
+              endMinutes: timeToMinute(required(formData, "updateEndTime")),
+              startMinutes: timeToMinute(required(formData, "updateStartTime")),
+              type: updateType,
+            }
+          : { type: updateType },
+    },
+  );
+  revalidateAll();
+}
+
 export async function rollbackPolicyAction(formData: FormData): Promise<void> {
   await requireActionPermission("policy:manage");
   const tenantId = required(formData, "tenantId");

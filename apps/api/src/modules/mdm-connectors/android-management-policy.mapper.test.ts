@@ -11,8 +11,21 @@ const rules = {
   mode: "TIMETABLE_CLASS" as const,
   restrictions: {
     blockAppInstall: true,
+    blockFactoryReset: false,
     blockSafeMode: true,
     blockSettings: true,
+  },
+  android: {
+    kioskCustomization: {
+      powerButtonActions: "POWER_BUTTON_BLOCKED" as const,
+      statusBar: "SYSTEM_INFO_ONLY" as const,
+      systemNavigation: "HOME_BUTTON_ONLY" as const,
+    },
+    systemUpdate: {
+      endMinutes: 300,
+      startMinutes: 60,
+      type: "WINDOWED" as const,
+    },
   },
   urlAllowlist: ["https://school.example"],
   urlBlocklist: [],
@@ -75,9 +88,40 @@ describe("AndroidManagementPolicyMapper", () => {
         }),
       ]),
       installAppsDisabled: true,
+      factoryResetDisabled: false,
+      kioskCustomization: {
+        powerButtonActions: "POWER_BUTTON_BLOCKED",
+        statusBar: "SYSTEM_INFO_ONLY",
+        systemNavigation: "HOME_BUTTON_ONLY",
+      },
       kioskCustomLauncherEnabled: true,
       name: "enterprises/enterprise-1/policies/vs-tenant-1-policy-1",
       safeBootDisabled: true,
+      systemUpdate: {
+        endMinutes: 300,
+        startMinutes: 60,
+        type: "WINDOWED",
+      },
     });
+  });
+
+  it("keeps safe reset defaults for policies created before Android controls", () => {
+    const mapper = new AndroidManagementPolicyMapper();
+    const payload = mapper.map({
+      apps: [],
+      enterpriseId: "enterprise-1",
+      policyId: "legacy-policy",
+      rules: {
+        ...rules,
+        android: undefined,
+        restrictions: { ...rules.restrictions, blockFactoryReset: undefined },
+      },
+      tenantId: "tenant-1",
+      version: 1,
+    });
+
+    expect(payload.factoryResetDisabled).toBe(true);
+    expect(payload.systemUpdate).toBeUndefined();
+    expect(payload.kioskCustomization).toBeUndefined();
   });
 });

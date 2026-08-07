@@ -32,6 +32,7 @@ import type { CreatePolicyDto } from "./dto/create-policy.dto";
 import type { IssueSupportUnlockDto } from "./dto/issue-support-unlock.dto";
 import type { PublishPolicyDto } from "./dto/publish-policy.dto";
 import type { RollbackPolicyDto } from "./dto/rollback-policy.dto";
+import type { UpdateAndroidControlsDto } from "./dto/update-android-controls.dto";
 import { starterPolicyTemplates } from "./starter-policy-templates";
 
 type PolicyAssignmentWithPolicy = PolicyAssignment & {
@@ -175,6 +176,74 @@ export class PoliciesService {
     });
 
     return policies.map((policy) => this.toPolicySummary(policy));
+  }
+
+  async updateAndroidControls(
+    tenantId: string,
+    policyId: string,
+    input: UpdateAndroidControlsDto,
+  ): Promise<PolicySummary> {
+    const policy = await this.prisma.policy.findFirst({
+      where: { id: policyId, tenantId },
+    });
+    if (!policy) {
+      throw new NotFoundException(
+        `Policy ${policyId} was not found for tenant ${tenantId}`,
+      );
+    }
+    if (policy.status !== "DRAFT") {
+      throw new BadRequestException(
+        "Android controls can only be changed on a draft policy",
+      );
+    }
+    if (
+      input.systemUpdate.type === "WINDOWED" &&
+      input.systemUpdate.startMinutes === input.systemUpdate.endMinutes
+    ) {
+      throw new BadRequestException(
+        "The Android update window start and end must differ",
+      );
+    }
+
+    const existingRules = policy.rules as PolicyRuleSet;
+    const rules: PolicyRuleSet = {
+      ...existingRules,
+      android: {
+        kioskCustomization: input.kioskCustomization,
+        systemUpdate:
+          input.systemUpdate.type === "WINDOWED"
+            ? {
+                endMinutes: input.systemUpdate.endMinutes!,
+                startMinutes: input.systemUpdate.startMinutes!,
+                type: "WINDOWED",
+              }
+            : { type: input.systemUpdate.type },
+      },
+      restrictions: {
+        ...existingRules.restrictions,
+        blockFactoryReset: input.blockFactoryReset,
+      },
+    };
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const saved = await tx.policy.update({
+        data: { rules: rules as Prisma.InputJsonValue },
+        where: { id: policy.id },
+      });
+      await tx.auditEvent.create({
+        data: {
+          action: "policy.android_controls.update",
+          newValue: input as unknown as Prisma.InputJsonValue,
+          object: "Policy",
+          objectId: policy.id,
+          outcome: "SUCCESS",
+          tenantId,
+        },
+      });
+      return saved;
+    });
+
+    return this.toPolicySummary(updated);
   }
 
   async publishPolicy(

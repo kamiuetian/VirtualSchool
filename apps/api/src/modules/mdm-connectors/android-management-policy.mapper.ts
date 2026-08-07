@@ -28,6 +28,24 @@ export type AndroidManagementPolicyPayload = {
   };
   factoryResetDisabled?: boolean;
   debuggingFeaturesAllowed?: boolean;
+  systemUpdate?:
+    | { type: "AUTOMATIC" | "POSTPONE" }
+    | {
+        type: "WINDOWED";
+        startMinutes: number;
+        endMinutes: number;
+      };
+  kioskCustomization?: {
+    systemNavigation: NonNullable<
+      NonNullable<PolicyRuleSet["android"]>["kioskCustomization"]
+    >["systemNavigation"];
+    statusBar: NonNullable<
+      NonNullable<PolicyRuleSet["android"]>["kioskCustomization"]
+    >["statusBar"];
+    powerButtonActions: NonNullable<
+      NonNullable<PolicyRuleSet["android"]>["kioskCustomization"]
+    >["powerButtonActions"];
+  };
 };
 
 @Injectable()
@@ -105,11 +123,13 @@ export class AndroidManagementPolicyMapper {
     return {
       applications: [...applications.values()],
       debuggingFeaturesAllowed: false,
-      factoryResetDisabled: true,
+      factoryResetDisabled: input.rules.restrictions.blockFactoryReset ?? true,
       installAppsDisabled: input.rules.restrictions.blockAppInstall,
       kioskCustomLauncherEnabled: true,
+      kioskCustomization: input.rules.android?.kioskCustomization,
       name,
       safeBootDisabled: input.rules.restrictions.blockSafeMode,
+      systemUpdate: input.rules.android?.systemUpdate,
       statusReportingSettings: {
         applicationReportsEnabled: true,
         deviceSettingsEnabled: true,

@@ -195,7 +195,9 @@ test.describe("admin portal regression", () => {
     request,
   }) => {
     await page.goto("/tenants");
-    const createSchool = page.locator("form").filter({ hasText: "Create school" });
+    const createSchool = page
+      .locator("form")
+      .filter({ hasText: "Create school" });
     await createSchool.getByLabel("School name").fill("Lakeside Academy");
     await createSchool.getByLabel("Country").fill("PK");
     await createSchool.getByLabel("Timezone").fill("Asia/Karachi");
@@ -232,7 +234,9 @@ test.describe("admin portal regression", () => {
       .fill("studentCode,name,grade,section\nS-2003,Mina Noor,5,Green");
     await roster.getByRole("button", { name: "Validate import" }).click();
     await expect(page).toHaveURL(/\/roster\?importId=import-preview-1/);
-    await expect(page.getByRole("heading", { name: "CSV Validation Result" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "CSV Validation Result" }),
+    ).toBeVisible();
     await expectMutation(
       request,
       "POST",
@@ -253,6 +257,39 @@ test.describe("admin portal regression", () => {
     );
 
     await page.goto("/policies");
+    const androidControls = page
+      .locator("form")
+      .filter({ hasText: "Save Android controls" });
+    await androidControls
+      .getByLabel("System update behavior")
+      .selectOption("WINDOWED");
+    await androidControls.getByLabel("Window starts").fill("02:00");
+    await androidControls.getByLabel("Window ends").fill("04:30");
+    await androidControls
+      .getByLabel("System navigation")
+      .selectOption("HOME_BUTTON_ONLY");
+    await androidControls
+      .getByRole("button", { name: "Save Android controls" })
+      .click();
+    await expectMutation(
+      request,
+      "PATCH",
+      "/tenants/tenant-northview/policies/policy-draft/android-controls",
+      {
+        blockFactoryReset: true,
+        kioskCustomization: {
+          powerButtonActions: "POWER_BUTTON_BLOCKED",
+          statusBar: "NOTIFICATIONS_AND_SYSTEM_INFO_DISABLED",
+          systemNavigation: "HOME_BUTTON_ONLY",
+        },
+        systemUpdate: {
+          endMinutes: 270,
+          startMinutes: 120,
+          type: "WINDOWED",
+        },
+      },
+    );
+
     const assign = page.locator("form").filter({ hasText: "Assign" });
     await assign.getByLabel("Scope").selectOption("CLASS");
     await assign.getByLabel("Target ID").fill("class-4-blue");
@@ -281,7 +318,9 @@ test.describe("admin portal regression", () => {
     await expect(page.getByText("TAB001")).toBeVisible();
     const downloadPromise = page.waitForEvent("download");
     await page.getByRole("link", { name: "Download inventory CSV" }).click();
-    expect((await downloadPromise).suggestedFilename()).toBe("device-inventory.csv");
+    expect((await downloadPromise).suggestedFilename()).toBe(
+      "device-inventory.csv",
+    );
   });
 
   test("keeps mobile layout within viewport", async ({ page }, testInfo) => {

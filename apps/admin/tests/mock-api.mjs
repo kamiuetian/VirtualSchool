@@ -76,6 +76,15 @@ const policy = {
   version: 3,
 };
 
+const draftPolicy = {
+  ...policy,
+  id: "policy-draft",
+  mdmPublishStatus: null,
+  name: "Grade 5 Pilot Draft",
+  status: "DRAFT",
+  version: 1,
+};
+
 const app = {
   approvalStatus: "APPROVED",
   approvedGrades: ["4", "5"],
@@ -279,7 +288,7 @@ const routes = [
         },
       ]),
   ],
-  ["GET", `/tenants/${tenantId}/policies`, () => json([policy])],
+  ["GET", `/tenants/${tenantId}/policies`, () => json([policy, draftPolicy])],
   [
     "GET",
     `/tenants/${tenantId}/policies/assignments`,
@@ -571,7 +580,9 @@ const server = createServer(async (request, response) => {
   const pathname = url.pathname;
 
   if (request.method === "GET" && pathname === "/__test/mutations") {
-    response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+    response.writeHead(200, {
+      "content-type": "application/json; charset=utf-8",
+    });
     response.end(JSON.stringify(mutationJournal));
     return;
   }
