@@ -24,6 +24,35 @@ export async function createTenantAction(formData: FormData): Promise<void> {
   revalidateAll();
 }
 
+export async function startTeacherSessionAction(formData: FormData): Promise<void> {
+  await requireActionPermission("session:manage");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation("POST", `/tenants/${tenantId}/teacher/sessions`, {
+    classId: required(formData, "classId"),
+  });
+  revalidateAll();
+}
+
+export async function endTeacherSessionAction(formData: FormData): Promise<void> {
+  await requireActionPermission("session:manage");
+  const tenantId = required(formData, "tenantId");
+  const sessionId = required(formData, "sessionId");
+  await adminApiMutation("POST", `/tenants/${tenantId}/teacher/sessions/${sessionId}/end`, {
+    reason: required(formData, "reason"),
+  });
+  revalidateAll();
+}
+
+export async function assignTeacherClassAction(formData: FormData): Promise<void> {
+  await requireActionPermission("class:manage");
+  const tenantId = required(formData, "tenantId");
+  const classId = required(formData, "classId");
+  await adminApiMutation("POST", `/tenants/${tenantId}/teacher/classes/${classId}/assignments`, {
+    teacherId: required(formData, "teacherId"),
+  });
+  revalidateAll();
+}
+
 export async function createBranchAction(formData: FormData): Promise<void> {
   await requireActionPermission("tenant:update");
   const tenantId = required(formData, "tenantId");

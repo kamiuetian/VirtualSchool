@@ -117,6 +117,9 @@ model Tenant {
   privacyNotices         PrivacyNotice[]
   privacyAcceptances     PrivacyAcceptance[]
   onboardingProgress     OnboardingProgress?
+  teacherClassAssignments TeacherClassAssignment[]
+  teacherSessions        TeacherSession[]
+  teacherSessionEvents   TeacherSessionEvent[]
 }
 
 model OnboardingProgress {
@@ -227,6 +230,8 @@ model User {
   updatedAt         DateTime   @updatedAt
   tenant            Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   branch            Branch?    @relation(fields: [branchId], references: [id])
+  classAssignments  TeacherClassAssignment[]
+  teacherSessions   TeacherSession[]
 
   @@unique([tenantId, email])
   @@index([tenantId, role])
@@ -297,6 +302,8 @@ model ClassSection {
   timetableBlocks TimetableBlock[]
   sourceClass     ClassSection?     @relation("ClassRollover", fields: [sourceClassId], references: [id])
   rolloverCopies  ClassSection[]    @relation("ClassRollover")
+  teacherAssignments TeacherClassAssignment[]
+  teacherSessions TeacherSession[]
 
   @@index([tenantId, grade])
   @@index([tenantId, academicYear, status])
@@ -368,11 +375,59 @@ model Device {
   supportNotes        SupportNote[]
   assignmentHistory   DeviceAssignment[]
   lifecycleEvents     DeviceLifecycleEvent[]
+  teacherSessionEvents TeacherSessionEvent[]
 
   @@unique([tenantId, serialNumber])
   @@index([tenantId, status])
   @@index([tenantId, enrollmentBatchId])
   @@index([tenantId, mdmConnector])
+}
+
+model TeacherClassAssignment {
+  teacherId String
+  classId   String
+  tenantId  String
+  assignedAt DateTime @default(now())
+  assignedBy String?
+  teacher User @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  class ClassSection @relation(fields: [classId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([teacherId, classId])
+  @@index([tenantId, teacherId])
+}
+
+model TeacherSession {
+  id String @id @default(uuid())
+  tenantId String
+  classId String
+  teacherId String
+  status String @default("ACTIVE")
+  startedAt DateTime @default(now())
+  endedAt DateTime?
+  reason String?
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  class ClassSection @relation(fields: [classId], references: [id], onDelete: Restrict)
+  teacher User @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  events TeacherSessionEvent[]
+
+  @@index([tenantId, teacherId, startedAt])
+  @@index([tenantId, classId, status])
+}
+
+model TeacherSessionEvent {
+  id String @id @default(uuid())
+  tenantId String
+  sessionId String
+  deviceId String?
+  type String
+  details Json?
+  createdAt DateTime @default(now())
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  session TeacherSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  device Device? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, sessionId, createdAt])
 }
 
 model DeviceAssignment {

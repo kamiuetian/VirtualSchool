@@ -21,6 +21,7 @@ export const permissions = [
   "user:suspend",
   "roster:manage",
   "class:manage",
+  "session:manage",
   "device:enroll",
   "device:read",
   "device:command",
@@ -61,7 +62,7 @@ export const rolePermissions: Record<Role, Permission[]> = {
     "audit:read"
   ],
   ACADEMIC_ADMIN: ["tenant:read", "roster:manage", "class:manage", "policy:manage", "report:export"],
-  TEACHER: ["tenant:read", "device:read"],
+  TEACHER: ["tenant:read", "session:manage"],
   SUPPORT_AGENT: ["tenant:read", "device:read", "device:command"],
   BILLING_ADMIN: ["tenant:read", "billing:read", "billing:manage"],
   AUDITOR: ["tenant:read", "audit:read", "report:export"],

@@ -18,6 +18,7 @@ import { SupportModule } from "./support/support.module";
 import { TenantsModule } from "./tenants/tenants.module";
 import { TimetableModule } from "./timetable/timetable.module";
 import { UsersModule } from "./users/users.module";
+import { TeacherSessionsModule } from "./teacher-sessions/teacher-sessions.module";
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { UsersModule } from "./users/users.module";
     UsersModule,
     TimetableModule,
     SupportModule,
+    TeacherSessionsModule,
   ],
 })
 export class AppModule {}

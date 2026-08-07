@@ -11,6 +11,7 @@ export type PortalHref =
   | "/policies"
   | "/privacy"
   | "/timetable"
+  | "/teacher"
   | "/apps"
   | "/alerts"
   | "/support"
@@ -24,6 +25,7 @@ export type PortalNavigationItem = {
 
 type PortalRoute = PortalNavigationItem & {
   anyPermissions: Permission[];
+  roles?: Role[];
 };
 
 export const portalRoutes: PortalRoute[] = [
@@ -49,6 +51,7 @@ export const portalRoutes: PortalRoute[] = [
     anyPermissions: ["device:enroll"],
   },
   { href: "/devices", label: "Devices", anyPermissions: ["device:read"] },
+  { href: "/teacher", label: "Class Mode", anyPermissions: ["session:manage"], roles: ["TEACHER"] },
   { href: "/policies", label: "Policies", anyPermissions: ["policy:manage"] },
   { href: "/privacy", label: "Privacy", anyPermissions: ["tenant:update"] },
   { href: "/timetable", label: "Timetable", anyPermissions: ["policy:manage"] },
@@ -66,7 +69,8 @@ export function roleCan(role: Role, permission: Permission): boolean {
 export function canAccessPortalRoute(role: Role, href: PortalHref): boolean {
   const route = portalRoutes.find((item) => item.href === href);
   return route
-    ? route.anyPermissions.some((permission) => roleCan(role, permission))
+    ? (!route.roles || route.roles.includes(role)) &&
+      route.anyPermissions.some((permission) => roleCan(role, permission))
     : false;
 }
 

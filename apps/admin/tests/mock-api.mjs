@@ -252,6 +252,25 @@ const routes = [
   ["GET", `/tenants/${tenantId}/devices`, () => json([device])],
   [
     "GET",
+    `/tenants/${tenantId}/teacher/dashboard`,
+    () =>
+      json({
+        classes: [
+          {
+            id: "class-4a",
+            name: "Grade 4A",
+            grade: "4",
+            subject: "Mathematics",
+            deviceCount: 1,
+          },
+        ],
+        devices: [{ ...device, classId: "class-4a" }],
+        activeSession: null,
+        recentSessions: [],
+      }),
+  ],
+  [
+    "GET",
     `/tenants/${tenantId}/privacy/notices`,
     () =>
       json([

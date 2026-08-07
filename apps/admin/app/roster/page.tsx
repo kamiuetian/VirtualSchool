@@ -9,6 +9,7 @@ import {
   SubmitButton,
 } from "../../components/ui";
 import {
+  assignTeacherClassAction,
   bulkCreateClassesAction,
   commitRosterImportAction,
   createClassAction,
@@ -36,6 +37,7 @@ export default async function RosterPage({
   const activeStudents = data.students.filter(
     (student) => student.status === "ACTIVE",
   );
+  const teachers = data.users.filter((user) => user.role === "TEACHER");
 
   return (
     <AppShell
@@ -73,6 +75,24 @@ export default async function RosterPage({
         {selectedTenant ? (
           <PageSection kicker="Roster actions" title="Manual Roster Updates">
             <div className="form-grid">
+              {teachers.length > 0 && data.classes.length > 0 ? (
+                <ActionPanel title="Assign teacher to class">
+                  <form action={assignTeacherClassAction} className="stacked-form">
+                    <input name="tenantId" type="hidden" value={selectedTenant.id} />
+                    <Field label="Teacher">
+                      <select name="teacherId" required>
+                        {teachers.map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.name}</option>)}
+                      </select>
+                    </Field>
+                    <Field label="Class">
+                      <select name="classId" required>
+                        {data.classes.filter((item) => item.status === "ACTIVE").map((item) => <option key={item.id} value={item.id}>{item.name} · {item.grade}</option>)}
+                      </select>
+                    </Field>
+                    <SubmitButton>Assign teacher</SubmitButton>
+                  </form>
+                </ActionPanel>
+              ) : null}
               <ActionPanel title="Create class">
                 <form action={createClassAction} className="stacked-form">
                   <input

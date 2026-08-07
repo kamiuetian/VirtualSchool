@@ -10,5 +10,6 @@ export * from "./tenant";
 export * from "./device";
 export * from "./user";
 export * from "./timetable";
+export * from "./teacher-session";
 export * from "./observability";
 export * from "./privacy";

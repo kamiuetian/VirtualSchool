@@ -388,7 +388,7 @@ test.describe("admin portal regression", () => {
 });
 
 test.describe("role-aware admin portal", () => {
-  test("shows a read-only teacher navigation surface and redirects restricted pages", async ({
+  test("shows the scoped teacher class-mode surface and redirects tenant-wide fleet pages", async ({
     baseURL,
     context,
     page,
@@ -400,14 +400,14 @@ test.describe("role-aware admin portal", () => {
       page.locator(".sidebar-nav").getByRole("link", { name: "Overview" }),
     ).toBeVisible();
     await expect(
-      page.locator(".sidebar-nav").getByRole("link", { name: "Devices" }),
+      page.locator(".sidebar-nav").getByRole("link", { name: "Class Mode" }),
     ).toBeVisible();
     await expect(
       page.locator(".sidebar-nav").getByRole("link", { name: "Alerts" }),
-    ).toBeVisible();
+    ).toHaveCount(0);
     await expect(
       page.locator(".sidebar-nav").getByRole("link", { name: "Support" }),
-    ).toBeVisible();
+    ).toHaveCount(0);
     await expect(
       page.locator(".sidebar-nav").getByRole("link", { name: "Roster" }),
     ).toHaveCount(0);
@@ -424,15 +424,16 @@ test.describe("role-aware admin portal", () => {
     ).toBeVisible();
 
     await page.goto("/devices");
+    await expect(page).toHaveURL("/");
+
+    await page.goto("/teacher");
     await expect(
-      page.getByRole("heading", { name: "Device Inventory" }),
+      page.getByRole("heading", { name: "Live Class Mode" }),
     ).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "Queue command" }),
-    ).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Queue wipe" })).toHaveCount(
-      0,
-    );
+      page.getByRole("button", { name: "Start class mode" }),
+    ).toBeVisible();
+    await expect(page.getByText("TAB001")).toBeVisible();
   });
 
   test("keeps billing admins limited to billing and overview", async ({

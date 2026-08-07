@@ -38,6 +38,7 @@ const navigationIcons = {
   "/reports": FileBarChart,
   "/roster": Users,
   "/support": Headset,
+  "/teacher": BookOpenCheck,
   "/tenants": GraduationCap,
   "/timetable": CalendarClock,
 } satisfies Record<PortalHref, typeof LayoutDashboard>;

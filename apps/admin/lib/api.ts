@@ -27,6 +27,7 @@ import type {
   StudentSummary,
   TenantSummary,
   TimetableBlockSummary,
+  TeacherDashboard,
   UserSummary,
 } from "@virtual-school/shared";
 import {
@@ -276,6 +277,16 @@ export async function adminApiMutation(
   body: Record<string, unknown>,
 ): Promise<void> {
   await adminApiJsonMutation<unknown>(method, path, body);
+}
+
+export async function getTeacherDashboard(tenantId: string): Promise<{
+  dashboard: TeacherDashboard | null;
+  connectionIssue: boolean;
+}> {
+  const result = await apiGet<TeacherDashboard>(
+    `/tenants/${tenantId}/teacher/dashboard`,
+  );
+  return { dashboard: result.data, connectionIssue: result.failed };
 }
 
 export async function adminApiJsonMutation<T>(

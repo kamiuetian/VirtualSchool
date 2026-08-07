@@ -40,10 +40,11 @@ describe("portal access", () => {
     expect(visibleRoutes).not.toContain("/enrollment");
   });
 
-  it("keeps classroom teachers in read-only fleet support areas", () => {
+  it("keeps classroom teachers inside their scoped class-mode workspace", () => {
     expect(visiblePortalNavigation("TEACHER").map((item) => item.href)).toEqual(
-      ["/", "/devices", "/alerts", "/support"],
+      ["/", "/teacher"],
     );
+    expect(canAccessPortalRoute("TEACHER", "/devices")).toBe(false);
     expect(canAccessPortalRoute("TEACHER", "/roster")).toBe(false);
     expect(canAccessPortalRoute("TEACHER", "/billing")).toBe(false);
   });
