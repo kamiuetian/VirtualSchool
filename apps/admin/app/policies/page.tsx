@@ -11,7 +11,9 @@ import {
 import {
   assignPolicyAction,
   createStarterPoliciesAction,
+  issueSupportUnlockAction,
   publishPolicyAction,
+  rollbackPolicyAction,
 } from "../../lib/actions";
 import { getAdminData } from "../../lib/api";
 import { formatCount, formatDateTime, humanize } from "../../lib/format";
@@ -20,25 +22,47 @@ export const dynamic = "force-dynamic";
 
 export default async function PoliciesPage() {
   const data = await getAdminData("/policies");
-  const published = data.policies.filter((policy) => policy.status === "PUBLISHED");
+  const published = data.policies.filter(
+    (policy) => policy.status === "PUBLISHED",
+  );
+  const supportPolicies = published.filter(
+    (policy) => policy.rules.mode === "EMERGENCY_SUPPORT_OVERRIDE",
+  );
 
   return (
-    <AppShell connectionIssue={data.connectionIssue} tenant={data.selectedTenant}>
+    <AppShell
+      connectionIssue={data.connectionIssue}
+      tenant={data.selectedTenant}
+    >
       <div className="content-stack">
         <PageSection kicker="Learning controls" title="Policies And Modes">
           <section className="stat-grid" aria-label="Policy summary">
-            <StatCard label="Policies" value={formatCount(data.policies.length)} />
-            <StatCard label="Published" tone="good" value={formatCount(published.length)} />
-            <StatCard label="Assignments" value={formatCount(data.policyAssignments.length)} />
+            <StatCard
+              label="Policies"
+              value={formatCount(data.policies.length)}
+            />
+            <StatCard
+              label="Published"
+              tone="good"
+              value={formatCount(published.length)}
+            />
+            <StatCard
+              label="Assignments"
+              value={formatCount(data.policyAssignments.length)}
+            />
             <StatCard
               label="MDM publish failures"
               tone={
-                data.policies.some((policy) => policy.mdmPublishStatus === "FAILED")
+                data.policies.some(
+                  (policy) => policy.mdmPublishStatus === "FAILED",
+                )
                   ? "critical"
                   : "good"
               }
               value={formatCount(
-                data.policies.filter((policy) => policy.mdmPublishStatus === "FAILED").length,
+                data.policies.filter(
+                  (policy) => policy.mdmPublishStatus === "FAILED",
+                ).length,
               )}
             />
           </section>
@@ -48,8 +72,15 @@ export default async function PoliciesPage() {
           <PageSection kicker="Policy actions" title="Publish And Assign">
             <div className="form-grid">
               <ActionPanel title="Starter templates">
-                <form action={createStarterPoliciesAction} className="stacked-form">
-                  <input name="tenantId" type="hidden" value={data.selectedTenant.id} />
+                <form
+                  action={createStarterPoliciesAction}
+                  className="stacked-form"
+                >
+                  <input
+                    name="tenantId"
+                    type="hidden"
+                    value={data.selectedTenant.id}
+                  />
                   <p className="form-help">
                     Create the standard lockdown, supervised learning, homework,
                     exam, lost device, maintenance, and default school policies.
@@ -62,7 +93,11 @@ export default async function PoliciesPage() {
                 <>
                   <ActionPanel title="Publish policy">
                     <form action={publishPolicyAction} className="stacked-form">
-                      <input name="tenantId" type="hidden" value={data.selectedTenant.id} />
+                      <input
+                        name="tenantId"
+                        type="hidden"
+                        value={data.selectedTenant.id}
+                      />
                       <Field label="Policy">
                         <select name="policyId" required>
                           {data.policies.map((policy) => (
@@ -73,7 +108,10 @@ export default async function PoliciesPage() {
                         </select>
                       </Field>
                       <Field label="Reason">
-                        <input name="reason" placeholder="Ready for class rollout" />
+                        <input
+                          name="reason"
+                          placeholder="Ready for class rollout"
+                        />
                       </Field>
                       <SubmitButton>Publish</SubmitButton>
                     </form>
@@ -81,7 +119,11 @@ export default async function PoliciesPage() {
 
                   <ActionPanel title="Assign policy">
                     <form action={assignPolicyAction} className="stacked-form">
-                      <input name="tenantId" type="hidden" value={data.selectedTenant.id} />
+                      <input
+                        name="tenantId"
+                        type="hidden"
+                        value={data.selectedTenant.id}
+                      />
                       <Field label="Policy">
                         <select name="policyId" required>
                           {data.policies.map((policy) => (
@@ -102,16 +144,99 @@ export default async function PoliciesPage() {
                           </select>
                         </Field>
                         <Field label="Target ID">
-                          <input name="scopeId" placeholder="Omit for whole school" />
+                          <input
+                            name="scopeId"
+                            placeholder="Omit for whole school"
+                          />
                         </Field>
                       </div>
                       <Field label="Reason">
-                        <input name="reason" placeholder="Baseline learning mode" />
+                        <input
+                          name="reason"
+                          placeholder="Baseline learning mode"
+                        />
                       </Field>
                       <SubmitButton>Assign</SubmitButton>
                     </form>
                   </ActionPanel>
                 </>
+              ) : null}
+
+              {published.length > 0 ? (
+                <ActionPanel title="Rollback policy">
+                  <form action={rollbackPolicyAction} className="stacked-form">
+                    <input
+                      name="tenantId"
+                      type="hidden"
+                      value={data.selectedTenant.id}
+                    />
+                    <Field label="Policy">
+                      <select name="policyId" required>
+                        {published.map((policy) => (
+                          <option key={policy.id} value={policy.id}>
+                            {policy.name} (current v{policy.version})
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Prior version">
+                      <input min="1" name="version" required type="number" />
+                    </Field>
+                    <Field label="Reason">
+                      <input
+                        name="reason"
+                        required
+                        placeholder="Why rollback is required"
+                      />
+                    </Field>
+                    <SubmitButton>Republish prior version</SubmitButton>
+                  </form>
+                </ActionPanel>
+              ) : null}
+
+              {supportPolicies.length > 0 ? (
+                <ActionPanel title="Emergency support unlock">
+                  <form
+                    action={issueSupportUnlockAction}
+                    className="stacked-form"
+                  >
+                    <input
+                      name="tenantId"
+                      type="hidden"
+                      value={data.selectedTenant.id}
+                    />
+                    <Field label="Support policy">
+                      <select name="policyId" required>
+                        {supportPolicies.map((policy) => (
+                          <option key={policy.id} value={policy.id}>
+                            {policy.name}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Device ID">
+                      <input name="deviceId" required />
+                    </Field>
+                    <Field label="Duration (minutes)">
+                      <input
+                        defaultValue="30"
+                        max="480"
+                        min="5"
+                        name="durationMinutes"
+                        required
+                        type="number"
+                      />
+                    </Field>
+                    <Field label="Reason">
+                      <input
+                        name="reason"
+                        required
+                        placeholder="Support case and purpose"
+                      />
+                    </Field>
+                    <SubmitButton>Issue expiring unlock</SubmitButton>
+                  </form>
+                </ActionPanel>
               ) : null}
             </div>
           </PageSection>
@@ -126,7 +251,9 @@ export default async function PoliciesPage() {
                     <strong>{policy.name}</strong>
                     <span>{humanize(policy.rules.mode)}</span>
                   </div>
-                  <StatusPill tone={policy.status === "PUBLISHED" ? "good" : "neutral"}>
+                  <StatusPill
+                    tone={policy.status === "PUBLISHED" ? "good" : "neutral"}
+                  >
                     {humanize(policy.status)}
                   </StatusPill>
                   <dl>
@@ -165,6 +292,8 @@ export default async function PoliciesPage() {
                     <th>Target</th>
                     <th>Version</th>
                     <th>Status</th>
+                    <th>Expires</th>
+                    <th>Reason</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -175,10 +304,14 @@ export default async function PoliciesPage() {
                       <td>{assignment.scopeId ?? "Whole school"}</td>
                       <td>v{assignment.policyVersion}</td>
                       <td>
-                        <StatusPill tone={assignment.active ? "good" : "neutral"}>
+                        <StatusPill
+                          tone={assignment.active ? "good" : "neutral"}
+                        >
                           {assignment.active ? "Active" : "Inactive"}
                         </StatusPill>
                       </td>
+                      <td>{formatDateTime(assignment.endsAt)}</td>
+                      <td>{assignment.reason ?? "—"}</td>
                     </tr>
                   ))}
                 </tbody>

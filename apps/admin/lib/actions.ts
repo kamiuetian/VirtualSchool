@@ -354,6 +354,39 @@ export async function publishPolicyAction(formData: FormData): Promise<void> {
   revalidateAll();
 }
 
+export async function rollbackPolicyAction(formData: FormData): Promise<void> {
+  await requireActionPermission("policy:manage");
+  const tenantId = required(formData, "tenantId");
+  const policyId = required(formData, "policyId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/policies/${policyId}/rollback`,
+    {
+      reason: required(formData, "reason"),
+      version: numberValue(formData, "version"),
+    },
+  );
+  revalidateAll();
+}
+
+export async function issueSupportUnlockAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("policy:manage");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/policies/support-unlocks`,
+    {
+      deviceId: required(formData, "deviceId"),
+      durationMinutes: numberValue(formData, "durationMinutes"),
+      policyId: required(formData, "policyId"),
+      reason: required(formData, "reason"),
+    },
+  );
+  revalidateAll();
+}
+
 export async function assignPolicyAction(formData: FormData): Promise<void> {
   await requireActionPermission("policy:manage");
   const tenantId = required(formData, "tenantId");

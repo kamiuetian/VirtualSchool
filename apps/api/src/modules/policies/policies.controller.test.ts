@@ -19,6 +19,8 @@ describe("PoliciesController", () => {
       listPolicyAssignments: vi.fn(),
       listPolicyVersions: vi.fn(),
       publishPolicy: vi.fn(),
+      rollbackPolicy: vi.fn(),
+      issueSupportUnlock: vi.fn(),
       resolveActivePolicyForDevice: vi.fn(),
     } as never);
 
@@ -43,6 +45,8 @@ describe("PoliciesController", () => {
       listPolicyAssignments: vi.fn(),
       listPolicyVersions: vi.fn(),
       publishPolicy,
+      rollbackPolicy: vi.fn(),
+      issueSupportUnlock: vi.fn(),
       resolveActivePolicyForDevice: vi.fn(),
     } as never);
 
@@ -73,6 +77,8 @@ describe("PoliciesController", () => {
       listPolicyAssignments: vi.fn(),
       listPolicyVersions: vi.fn(),
       publishPolicy: vi.fn(),
+      rollbackPolicy: vi.fn(),
+      issueSupportUnlock: vi.fn(),
       resolveActivePolicyForDevice: vi.fn(),
     } as never);
 
@@ -82,5 +88,43 @@ describe("PoliciesController", () => {
       deviceId: "device-1",
     });
     expect(getDevicePolicyPayload).toHaveBeenCalledOnce();
+  });
+
+  it("delegates rollback and support unlock operations", async () => {
+    const rollbackPolicy = vi.fn().mockResolvedValue({ version: 5 });
+    const issueSupportUnlock = vi.fn().mockResolvedValue({ id: "unlock-1" });
+    const controller = new PoliciesController({
+      assignPolicy: vi.fn(),
+      createPolicy: vi.fn(),
+      createStarterTemplates: vi.fn(),
+      getDevicePolicyPayload: vi.fn(),
+      issueSupportUnlock,
+      listPolicies: vi.fn(),
+      listPolicyAssignments: vi.fn(),
+      listPolicyVersions: vi.fn(),
+      publishPolicy: vi.fn(),
+      resolveActivePolicyForDevice: vi.fn(),
+      rollbackPolicy,
+    } as never);
+
+    await controller.rollbackPolicy("tenant-1", "policy-1", {
+      reason: "Restore stable rules",
+      version: 2,
+    });
+    await controller.issueSupportUnlock("tenant-1", {
+      deviceId: "device-1",
+      durationMinutes: 30,
+      policyId: "support-policy",
+      reason: "Case VS-42",
+    });
+
+    expect(rollbackPolicy).toHaveBeenCalledWith("tenant-1", "policy-1", {
+      reason: "Restore stable rules",
+      version: 2,
+    });
+    expect(issueSupportUnlock).toHaveBeenCalledWith(
+      "tenant-1",
+      expect.objectContaining({ deviceId: "device-1" }),
+    );
   });
 });

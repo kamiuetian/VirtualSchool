@@ -274,6 +274,125 @@ describe("PoliciesService", () => {
     expect(audit).toHaveBeenCalledOnce();
   });
 
+  it("restores a prior snapshot and republishes it as a new version", async () => {
+    const audit = vi.fn();
+    const policy = {
+      createdAt: now,
+      id: "policy-1",
+      name: "Default School",
+      rules: baseRules,
+      status: "PUBLISHED",
+      tenantId: "tenant-1",
+      updatedAt: now,
+      version: 4,
+    };
+    const restoredRules = { ...baseRules, defaultWebAccess: "ALLOW" };
+    let currentRules: unknown = baseRules;
+    let currentVersion = 4;
+    const update = vi.fn(
+      async ({ data }: { data: Record<string, unknown> }) => {
+        if (data.rules) currentRules = data.rules;
+        if (data.version) currentVersion += 1;
+        return {
+          ...policy,
+          rules: currentRules,
+          version: currentVersion,
+          mdmPolicyName: null,
+          mdmPublishError: null,
+          mdmPublishedAt: null,
+          mdmPublishRequest: null,
+          mdmPublishResponse: null,
+          mdmPublishStatus: data.mdmPublishStatus ?? null,
+        };
+      },
+    );
+    const service = new PoliciesService(
+      {
+        $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
+          callback({
+            auditEvent: { create: audit },
+            policy: { update },
+            policyVersion: { create: vi.fn() },
+          }),
+        appCatalogItem: { findMany: async () => [] },
+        policy: { findFirst: async () => ({ ...policy, rules: currentRules }) },
+        policyVersion: {
+          findFirst: async () => ({ snapshot: restoredRules, version: 2 }),
+        },
+      } as never,
+      connectorRegistry() as never,
+    );
+
+    await expect(
+      service.rollbackPolicy("tenant-1", "policy-1", {
+        actorId: "admin-1",
+        reason: "Bad web rule",
+        version: 2,
+      }),
+    ).resolves.toMatchObject({ version: 5, rules: restoredRules });
+    expect(audit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "policy.rollback",
+          reason: "Bad web rule",
+        }),
+      }),
+    );
+  });
+
+  it("issues an audited, expiring device support unlock", async () => {
+    const audit = vi.fn();
+    const policy = {
+      createdAt: now,
+      id: "policy-support",
+      name: "Maintenance",
+      rules: { ...baseRules, mode: "EMERGENCY_SUPPORT_OVERRIDE" },
+      status: "PUBLISHED",
+      tenantId: "tenant-1",
+      updatedAt: now,
+      version: 2,
+    };
+    const service = new PoliciesService(
+      {
+        $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
+          callback({
+            auditEvent: { create: audit },
+            policyAssignment: {
+              create: async ({ data }: { data: Record<string, unknown> }) => ({
+                ...data,
+                active: true,
+                createdAt: now,
+                id: "unlock-1",
+                policy,
+                updatedAt: now,
+              }),
+            },
+          }),
+        device: { findFirst: async () => ({ id: "device-1" }) },
+        policy: { findFirst: async () => policy },
+      } as never,
+      connectorRegistry() as never,
+    );
+
+    const result = await service.issueSupportUnlock("tenant-1", {
+      deviceId: "device-1",
+      durationMinutes: 30,
+      policyId: policy.id,
+      reason: "Case VS-42",
+    });
+    expect(Date.parse(result.endsAt!) - Date.parse(result.startsAt!)).toBe(
+      1_800_000,
+    );
+    expect(audit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "policy.support_unlock.issue",
+          reason: "Case VS-42",
+        }),
+      }),
+    );
+  });
+
   it("resolves the active device policy using mode precedence", async () => {
     const defaultPolicy = {
       createdAt: now,

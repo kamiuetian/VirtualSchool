@@ -29,7 +29,9 @@ import type { MdmPolicyPublishResult } from "../mdm-connectors/mdm-connector.typ
 import { PrismaService } from "../prisma/prisma.service";
 import type { AssignPolicyDto } from "./dto/assign-policy.dto";
 import type { CreatePolicyDto } from "./dto/create-policy.dto";
+import type { IssueSupportUnlockDto } from "./dto/issue-support-unlock.dto";
 import type { PublishPolicyDto } from "./dto/publish-policy.dto";
+import type { RollbackPolicyDto } from "./dto/rollback-policy.dto";
 import { starterPolicyTemplates } from "./starter-policy-templates";
 
 type PolicyAssignmentWithPolicy = PolicyAssignment & {
@@ -313,6 +315,134 @@ export class PoliciesService {
     });
 
     return this.toPolicyPublishSummary(mdmUpdated);
+  }
+
+  async rollbackPolicy(
+    tenantId: string,
+    policyId: string,
+    input: RollbackPolicyDto,
+  ): Promise<PolicyPublishSummary> {
+    if (!input.reason.trim()) {
+      throw new BadRequestException("Rollback reason is required");
+    }
+    const policy = await this.prisma.policy.findFirst({
+      where: { id: policyId, tenantId },
+    });
+    if (!policy) {
+      throw new NotFoundException(
+        `Policy ${policyId} was not found for tenant ${tenantId}`,
+      );
+    }
+    if (input.version >= policy.version) {
+      throw new BadRequestException("Rollback requires a prior policy version");
+    }
+
+    const snapshot = await this.prisma.policyVersion.findFirst({
+      where: { policyId, version: input.version },
+    });
+    if (!snapshot) {
+      throw new NotFoundException(
+        `Policy version ${input.version} was not found for policy ${policyId}`,
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.policy.update({
+        data: { rules: snapshot.snapshot as Prisma.InputJsonValue },
+        where: { id: policyId },
+      });
+      await tx.auditEvent.create({
+        data: {
+          action: "policy.rollback",
+          actorId: input.actorId,
+          newValue: { restoredVersion: input.version },
+          object: "Policy",
+          objectId: policyId,
+          oldValue: { version: policy.version },
+          outcome: "SUCCESS",
+          reason: input.reason,
+          tenantId,
+        },
+      });
+    });
+
+    return this.publishPolicy(tenantId, policyId, {
+      actorId: input.actorId,
+      reason: `Rollback to v${input.version}: ${input.reason}`,
+    });
+  }
+
+  async issueSupportUnlock(
+    tenantId: string,
+    input: IssueSupportUnlockDto,
+  ): Promise<PolicyAssignmentSummary> {
+    if (!input.reason.trim()) {
+      throw new BadRequestException("Support unlock reason is required");
+    }
+    if (input.durationMinutes < 5 || input.durationMinutes > 480) {
+      throw new BadRequestException(
+        "Support unlock duration must be between 5 and 480 minutes",
+      );
+    }
+    const policy = await this.prisma.policy.findFirst({
+      where: { id: input.policyId, tenantId },
+    });
+    if (!policy) {
+      throw new NotFoundException(
+        `Policy ${input.policyId} was not found for tenant ${tenantId}`,
+      );
+    }
+    if (policy.status !== "PUBLISHED") {
+      throw new BadRequestException("Support unlock policy must be published");
+    }
+    const rules = policy.rules as PolicyRuleSet;
+    if (rules.mode !== "EMERGENCY_SUPPORT_OVERRIDE") {
+      throw new BadRequestException(
+        "Support unlock requires an emergency-support policy",
+      );
+    }
+    await this.ensureAssignmentTargetExists(tenantId, "DEVICE", input.deviceId);
+
+    const startsAt = new Date();
+    const endsAt = new Date(
+      startsAt.getTime() + input.durationMinutes * 60_000,
+    );
+    const assignment = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.policyAssignment.create({
+        data: {
+          actorId: input.actorId,
+          endsAt,
+          policyId: input.policyId,
+          reason: input.reason,
+          scope: "DEVICE",
+          scopeId: input.deviceId,
+          startsAt,
+          tenantId,
+        },
+        include: { policy: true },
+      });
+      await tx.auditEvent.create({
+        data: {
+          action: "policy.support_unlock.issue",
+          actorId: input.actorId,
+          newValue: {
+            deviceId: input.deviceId,
+            endsAt,
+            policyId: input.policyId,
+            policyVersion: policy.version,
+            startsAt,
+          },
+          object: "PolicyAssignment",
+          objectId: created.id,
+          outcome: "SUCCESS",
+          reason: input.reason,
+          tenantId,
+        },
+      });
+      return created;
+    });
+
+    return this.toPolicyAssignmentSummary(assignment);
   }
 
   async listPolicyAssignments(

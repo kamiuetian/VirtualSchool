@@ -11,7 +11,9 @@ import type {
 import { RequirePermissions } from "../auth/decorators/require-permissions.decorator";
 import { AssignPolicyDto } from "./dto/assign-policy.dto";
 import { CreatePolicyDto } from "./dto/create-policy.dto";
+import { IssueSupportUnlockDto } from "./dto/issue-support-unlock.dto";
 import { PublishPolicyDto } from "./dto/publish-policy.dto";
+import { RollbackPolicyDto } from "./dto/rollback-policy.dto";
 import { PoliciesService } from "./policies.service";
 
 @ApiTags("policies")
@@ -98,6 +100,29 @@ export class PoliciesController {
     @Body() body: PublishPolicyDto,
   ): Promise<PolicyPublishSummary> {
     return this.policiesService.publishPolicy(tenantId, policyId, body);
+  }
+
+  @Post(":policyId/rollback")
+  @RequirePermissions("policy:manage")
+  @ApiOkResponse({
+    description: "Republish a prior snapshot as a new policy version",
+  })
+  rollbackPolicy(
+    @Param("tenantId") tenantId: string,
+    @Param("policyId") policyId: string,
+    @Body() body: RollbackPolicyDto,
+  ): Promise<PolicyPublishSummary> {
+    return this.policiesService.rollbackPolicy(tenantId, policyId, body);
+  }
+
+  @Post("support-unlocks")
+  @RequirePermissions("policy:manage")
+  @ApiCreatedResponse({ description: "Issue a bounded device support unlock" })
+  issueSupportUnlock(
+    @Param("tenantId") tenantId: string,
+    @Body() body: IssueSupportUnlockDto,
+  ): Promise<PolicyAssignmentSummary> {
+    return this.policiesService.issueSupportUnlock(tenantId, body);
   }
 
   @Post(":policyId/assignments")
