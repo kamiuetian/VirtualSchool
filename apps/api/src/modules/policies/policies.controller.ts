@@ -22,6 +22,7 @@ import type {
   ExamReadinessSummary,
   AssessmentLaunchSummary,
   ExamReport,
+  EducationalVideoAccessEvaluation,
 } from "@virtual-school/shared";
 import { RequirePermissions } from "../auth/decorators/require-permissions.decorator";
 import { AssignPolicyDto } from "./dto/assign-policy.dto";
@@ -36,8 +37,12 @@ import { PoliciesService } from "./policies.service";
 import type { AuthenticatedRequest } from "../auth/types/authenticated-request";
 import { CompleteExamDto, ScheduleExamDto } from "./dto/schedule-exam.dto";
 import { LaunchAssessmentDto } from "./dto/launch-assessment.dto";
-import { IngestExamIntegrityEventDto, UnlockExamDeviceDto } from "./dto/exam-operations.dto";
+import {
+  IngestExamIntegrityEventDto,
+  UnlockExamDeviceDto,
+} from "./dto/exam-operations.dto";
 import { UpdateWebFilterSettingsDto } from "./dto/update-web-filter-settings.dto";
+import { EvaluateEducationalVideoDto } from "./dto/evaluate-educational-video.dto";
 
 @ApiTags("policies")
 @Controller("tenants/:tenantId/policies")
@@ -66,6 +71,15 @@ export class PoliciesController {
       body,
       request.user?.subject,
     );
+  }
+
+  @Post("educational-video/evaluate")
+  @RequirePermissions("tenant:read")
+  evaluateEducationalVideo(
+    @Param("tenantId") tenantId: string,
+    @Body() body: EvaluateEducationalVideoDto,
+  ): Promise<EducationalVideoAccessEvaluation> {
+    return this.policiesService.evaluateEducationalVideo(tenantId, body);
   }
 
   @Get()
@@ -219,30 +233,45 @@ export class PoliciesController {
 
   @Post("exam-schedules")
   @RequirePermissions("policy:manage")
-  @ApiCreatedResponse({ description: "Schedule Exam Mode for a class, grade, or student" })
+  @ApiCreatedResponse({
+    description: "Schedule Exam Mode for a class, grade, or student",
+  })
   scheduleExam(
     @Param("tenantId") tenantId: string,
     @Body() body: ScheduleExamDto,
     @Req() request: AuthenticatedRequest,
   ): Promise<PolicyAssignmentSummary> {
-    return this.policiesService.scheduleExam(tenantId, body, request.user!.subject);
+    return this.policiesService.scheduleExam(
+      tenantId,
+      body,
+      request.user!.subject,
+    );
   }
 
   @Post("exam-schedules/:assignmentId/complete")
   @RequirePermissions("policy:manage")
-  @ApiOkResponse({ description: "Complete an exam and release Exam Mode immediately" })
+  @ApiOkResponse({
+    description: "Complete an exam and release Exam Mode immediately",
+  })
   completeExam(
     @Param("tenantId") tenantId: string,
     @Param("assignmentId") assignmentId: string,
     @Body() body: CompleteExamDto,
     @Req() request: AuthenticatedRequest,
   ): Promise<PolicyAssignmentSummary> {
-    return this.policiesService.completeExam(tenantId, assignmentId, body.reason, request.user!.subject);
+    return this.policiesService.completeExam(
+      tenantId,
+      assignmentId,
+      body.reason,
+      request.user!.subject,
+    );
   }
 
   @Get("exam-schedules/:assignmentId/readiness")
   @RequirePermissions("policy:manage")
-  @ApiOkResponse({ description: "Privacy-limited readiness for devices targeted by an exam" })
+  @ApiOkResponse({
+    description: "Privacy-limited readiness for devices targeted by an exam",
+  })
   getExamReadiness(
     @Param("tenantId") tenantId: string,
     @Param("assignmentId") assignmentId: string,
@@ -252,34 +281,69 @@ export class PoliciesController {
 
   @Post("exam-schedules/:assignmentId/launch")
   @RequirePermissions("policy:manage")
-  @ApiCreatedResponse({ description: "Queue an approved assessment resource for ready devices" })
+  @ApiCreatedResponse({
+    description: "Queue an approved assessment resource for ready devices",
+  })
   launchAssessment(
     @Param("tenantId") tenantId: string,
     @Param("assignmentId") assignmentId: string,
     @Body() body: LaunchAssessmentDto,
     @Req() request: AuthenticatedRequest,
   ): Promise<AssessmentLaunchSummary> {
-    return this.policiesService.launchAssessment(tenantId, assignmentId, body, request.user!.subject);
+    return this.policiesService.launchAssessment(
+      tenantId,
+      assignmentId,
+      body,
+      request.user!.subject,
+    );
   }
 
   @Post("exam-schedules/:assignmentId/integrity-events")
   @RequirePermissions("device:read")
-  @ApiCreatedResponse({ description: "Record a privacy-limited exam integrity signal" })
-  ingestExamIntegrityEvent(@Param("tenantId") tenantId: string, @Param("assignmentId") assignmentId: string, @Body() body: IngestExamIntegrityEventDto) {
-    return this.policiesService.ingestExamIntegrityEvent(tenantId, assignmentId, body);
+  @ApiCreatedResponse({
+    description: "Record a privacy-limited exam integrity signal",
+  })
+  ingestExamIntegrityEvent(
+    @Param("tenantId") tenantId: string,
+    @Param("assignmentId") assignmentId: string,
+    @Body() body: IngestExamIntegrityEventDto,
+  ) {
+    return this.policiesService.ingestExamIntegrityEvent(
+      tenantId,
+      assignmentId,
+      body,
+    );
   }
 
   @Post("exam-schedules/:assignmentId/emergency-unlocks")
   @RequirePermissions("policy:manage")
-  @ApiCreatedResponse({ description: "Queue a bounded, audited emergency exam unlock" })
-  unlockExamDevice(@Param("tenantId") tenantId: string, @Param("assignmentId") assignmentId: string, @Body() body: UnlockExamDeviceDto, @Req() request: AuthenticatedRequest) {
-    return this.policiesService.unlockExamDevice(tenantId, assignmentId, body, request.user!.subject);
+  @ApiCreatedResponse({
+    description: "Queue a bounded, audited emergency exam unlock",
+  })
+  unlockExamDevice(
+    @Param("tenantId") tenantId: string,
+    @Param("assignmentId") assignmentId: string,
+    @Body() body: UnlockExamDeviceDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.policiesService.unlockExamDevice(
+      tenantId,
+      assignmentId,
+      body,
+      request.user!.subject,
+    );
   }
 
   @Get("exam-schedules/:assignmentId/report")
   @RequirePermissions("policy:manage")
-  @ApiOkResponse({ description: "Post-exam attendance, readiness, timing, failure, integrity, and unlock report" })
-  getExamReport(@Param("tenantId") tenantId: string, @Param("assignmentId") assignmentId: string): Promise<ExamReport> {
+  @ApiOkResponse({
+    description:
+      "Post-exam attendance, readiness, timing, failure, integrity, and unlock report",
+  })
+  getExamReport(
+    @Param("tenantId") tenantId: string,
+    @Param("assignmentId") assignmentId: string,
+  ): Promise<ExamReport> {
     return this.policiesService.getExamReport(tenantId, assignmentId);
   }
 

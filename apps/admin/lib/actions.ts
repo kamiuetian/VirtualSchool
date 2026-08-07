@@ -644,6 +644,16 @@ export async function updateWebFilterSettingsAction(
         .split(/\r?\n/)
         .map((value) => value.trim())
         .filter(Boolean),
+      educationalVideoAllowlist: text(formData, "educationalVideoAllowlist")
+        .split(/\r?\n/)
+        .map((line) => line.split("|").map((value) => value.trim()))
+        .filter(([kind, value, scope]) => Boolean(kind && value && scope))
+        .map(([kind, value, scope, scopeId]) => ({
+          kind,
+          value,
+          scope,
+          ...(scopeId ? { scopeId } : {}),
+        })),
       safeSearch: {
         bing: booleanValue(formData, "safeSearchBing"),
         google: booleanValue(formData, "safeSearchGoogle"),

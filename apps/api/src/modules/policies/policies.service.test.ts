@@ -42,6 +42,54 @@ function connectorRegistry(overrides: Record<string, unknown> = {}) {
 }
 
 describe("PoliciesService", () => {
+  it("evaluates only educational video entries applicable to the requested scope", async () => {
+    const service = new PoliciesService(
+      {
+        tenant: {
+          findUnique: async () => ({
+            webFilterSettings: {
+              blockedCategories: [],
+              educationalVideoAllowlist: [
+                { kind: "VIDEO", value: "tenantLesson", scope: "TENANT" },
+                {
+                  kind: "PLAYLIST",
+                  value: "gradeEight",
+                  scope: "GRADE",
+                  scopeId: "8",
+                },
+              ],
+              neverAllowedUrls: [],
+              safeSearch: {
+                bing: true,
+                google: true,
+                youtubeRestrictedMode: "STRICT",
+              },
+            },
+          }),
+        },
+      } as never,
+      connectorRegistry() as never,
+    );
+
+    await expect(
+      service.evaluateEducationalVideo("tenant-1", {
+        scope: "GRADE",
+        scopeId: "8",
+        url: "https://youtube.com/playlist?list=gradeEight",
+      }),
+    ).resolves.toMatchObject({
+      decision: "ALLOWED",
+      reason: "APPROVED_RESOURCE",
+    });
+    await expect(
+      service.evaluateEducationalVideo("tenant-1", {
+        scope: "GRADE",
+        scopeId: "9",
+        url: "https://youtube.com/playlist?list=gradeEight",
+      }),
+    ).resolves.toMatchObject({ decision: "BLOCKED", reason: "NOT_APPROVED" });
+  });
+
   it("simulates URL policy decisions with the winning rule", async () => {
     const service = new PoliciesService(
       {
@@ -80,7 +128,11 @@ describe("PoliciesService", () => {
             webFilterSettings: {
               neverAllowedUrls: ["https://school.example/unsafe/*"],
               blockedCategories: ["MALWARE"],
-              safeSearch: { bing: true, google: true, youtubeRestrictedMode: "STRICT" },
+              safeSearch: {
+                bing: true,
+                google: true,
+                youtubeRestrictedMode: "STRICT",
+              },
             },
           }),
         },
@@ -697,7 +749,11 @@ describe("PoliciesService", () => {
             webFilterSettings: {
               blockedCategories: ["MALWARE"],
               neverAllowedUrls: ["https://unsafe.example/*"],
-              safeSearch: { bing: true, google: true, youtubeRestrictedMode: "STRICT" },
+              safeSearch: {
+                bing: true,
+                google: true,
+                youtubeRestrictedMode: "STRICT",
+              },
             },
           }),
         },
@@ -800,7 +856,11 @@ describe("PoliciesService", () => {
             webFilterSettings: {
               blockedCategories: ["MALWARE"],
               neverAllowedUrls: ["https://unsafe.example/*"],
-              safeSearch: { bing: true, google: true, youtubeRestrictedMode: "STRICT" },
+              safeSearch: {
+                bing: true,
+                google: true,
+                youtubeRestrictedMode: "STRICT",
+              },
             },
           }),
         },

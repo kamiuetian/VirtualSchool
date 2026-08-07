@@ -4,6 +4,7 @@ import {
   IsArray,
   IsBoolean,
   IsIn,
+  IsOptional,
   IsString,
   ValidateNested,
 } from "class-validator";
@@ -20,6 +21,18 @@ class SafeSearchDto {
   youtubeRestrictedMode!: "OFF" | "MODERATE" | "STRICT";
 }
 
+export class EducationalVideoEntryDto {
+  @IsIn(["CHANNEL", "PLAYLIST", "VIDEO", "DOMAIN"])
+  kind!: "CHANNEL" | "PLAYLIST" | "VIDEO" | "DOMAIN";
+  @IsString()
+  value!: string;
+  @IsIn(["TENANT", "GRADE", "CLASS", "MODE"])
+  scope!: "TENANT" | "GRADE" | "CLASS" | "MODE";
+  @IsOptional()
+  @IsString()
+  scopeId?: string;
+}
+
 export class UpdateWebFilterSettingsDto {
   @IsArray()
   @ArrayMaxSize(webFilterCategories.length)
@@ -30,6 +43,13 @@ export class UpdateWebFilterSettingsDto {
   @ArrayMaxSize(100)
   @IsString({ each: true })
   neverAllowedUrls!: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(200)
+  @ValidateNested({ each: true })
+  @Type(() => EducationalVideoEntryDto)
+  educationalVideoAllowlist!: EducationalVideoEntryDto[];
 
   @ValidateNested()
   @Type(() => SafeSearchDto)

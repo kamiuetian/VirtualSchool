@@ -114,6 +114,13 @@ export class AndroidManagementPolicyMapper {
           google: true,
           youtubeRestrictedMode: "STRICT",
         },
+        educationalVideoAllowlist: (
+          input.rules.webFilter?.educationalVideoAllowlist ?? []
+        ).filter(
+          (entry) =>
+            entry.scope === "TENANT" ||
+            (entry.scope === "MODE" && entry.scopeId === input.rules.mode),
+        ),
         urlAllowlist: input.rules.urlAllowlist,
         urlBlocklist: input.rules.urlBlocklist,
       },

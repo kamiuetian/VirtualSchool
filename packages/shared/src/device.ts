@@ -185,6 +185,7 @@ export type DevicePolicyPayload = {
       bing: boolean;
       youtubeRestrictedMode: "OFF" | "MODERATE" | "STRICT";
     };
+    educationalVideoAllowlist: import("./policy").EducationalVideoAllowlistEntry[];
   };
   restrictions: {
     blockSettings: boolean;

@@ -121,8 +121,23 @@ export const webFilterCategories = [
 
 export type WebFilterCategory = (typeof webFilterCategories)[number];
 
+export type EducationalVideoAllowlistEntry = {
+  kind: "CHANNEL" | "PLAYLIST" | "VIDEO" | "DOMAIN";
+  value: string;
+  scope: "TENANT" | "GRADE" | "CLASS" | "MODE";
+  scopeId?: string;
+};
+
+export type EducationalVideoAccessEvaluation = {
+  decision: "ALLOWED" | "BLOCKED";
+  matchedEntry: EducationalVideoAllowlistEntry | null;
+  reason: "APPROVED_RESOURCE" | "GLOBAL_NEVER_ALLOWED" | "NOT_APPROVED";
+  url: string;
+};
+
 export type TenantWebFilterSettings = {
   blockedCategories: WebFilterCategory[];
+  educationalVideoAllowlist?: EducationalVideoAllowlistEntry[];
   neverAllowedUrls: string[];
   safeSearch: {
     google: boolean;
@@ -243,9 +258,19 @@ export type ExamReport = {
   generatedAt: string;
   attendance: { targeted: number; participated: number; absent: number };
   readiness: { ready: number; blocked: number; checkedAt: string | null };
-  integrityEvents: Array<{ deviceId: string; type: ExamIntegrityEventType; occurredAt: string }>;
+  integrityEvents: Array<{
+    deviceId: string;
+    type: ExamIntegrityEventType;
+    occurredAt: string;
+  }>;
   failures: Array<{ deviceId: string; reason: string; occurredAt: string }>;
-  unlocks: Array<{ deviceId: string; actorId: string | null; reason: string; durationMinutes: number; occurredAt: string }>;
+  unlocks: Array<{
+    deviceId: string;
+    actorId: string | null;
+    reason: string;
+    durationMinutes: number;
+    occurredAt: string;
+  }>;
 };
 
 export type ActivePolicyResolution = {

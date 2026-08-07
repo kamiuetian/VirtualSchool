@@ -23,6 +23,8 @@ import type {
   ExamIntegrityEventType,
   ExamReport,
   TenantWebFilterSettings,
+  EducationalVideoAccessEvaluation,
+  EducationalVideoAllowlistEntry,
 } from "@virtual-school/shared";
 import {
   type AppCatalogItem,
@@ -50,6 +52,8 @@ import type {
 import { starterPolicyTemplates } from "./starter-policy-templates";
 import { evaluateUrlPolicy } from "./url-policy-evaluator";
 import type { UpdateWebFilterSettingsDto } from "./dto/update-web-filter-settings.dto";
+import type { EvaluateEducationalVideoDto } from "./dto/evaluate-educational-video.dto";
+import { matchesEducationalVideo } from "./educational-video-evaluator";
 
 type PolicyAssignmentWithPolicy = PolicyAssignment & {
   policy: Policy;
@@ -67,6 +71,7 @@ const policyPrecedence: Record<LearningMode, number> = {
 
 const defaultWebFilterSettings: TenantWebFilterSettings = {
   blockedCategories: [],
+  educationalVideoAllowlist: [],
   neverAllowedUrls: [],
   provider: "MANAGED_BROWSER",
   safeSearch: { bing: true, google: true, youtubeRestrictedMode: "STRICT" },
@@ -97,10 +102,16 @@ export class PoliciesService {
     input: UpdateWebFilterSettingsDto,
     actorId?: string,
   ): Promise<TenantWebFilterSettings> {
-    const neverAllowedUrls = [...new Set(input.neverAllowedUrls.map((value) => value.trim()))];
+    const neverAllowedUrls = [
+      ...new Set(input.neverAllowedUrls.map((value) => value.trim())),
+    ];
     for (const rule of neverAllowedUrls) this.assertUrlRule(rule);
+    const educationalVideoAllowlist = (
+      input.educationalVideoAllowlist ?? []
+    ).map((entry) => this.normalizeEducationalVideoEntry(entry));
     const settings: TenantWebFilterSettings = {
       blockedCategories: [...new Set(input.blockedCategories)],
+      educationalVideoAllowlist,
       neverAllowedUrls,
       provider: "MANAGED_BROWSER",
       safeSearch: input.safeSearch,
@@ -125,6 +136,45 @@ export class PoliciesService {
       });
     });
     return settings;
+  }
+
+  async evaluateEducationalVideo(
+    tenantId: string,
+    input: EvaluateEducationalVideoDto,
+  ): Promise<EducationalVideoAccessEvaluation> {
+    const settings = await this.getWebFilterSettings(tenantId);
+    const globalDecision = evaluateUrlPolicy(input.url, {
+      defaultWebAccess: "DENY",
+      neverAllowedUrls: settings.neverAllowedUrls,
+      urlAllowlist: [],
+      urlBlocklist: [],
+    });
+    if (globalDecision.reason === "GLOBAL_NEVER_ALLOWED")
+      return {
+        decision: "BLOCKED",
+        matchedEntry: null,
+        reason: "GLOBAL_NEVER_ALLOWED",
+        url: input.url,
+      };
+    const applicable = (settings.educationalVideoAllowlist ?? []).filter(
+      (entry) =>
+        entry.scope === "TENANT" ||
+        (entry.scope === input.scope && entry.scopeId === input.scopeId),
+    );
+    const matchedEntry = matchesEducationalVideo(input.url, applicable);
+    return matchedEntry
+      ? {
+          decision: "ALLOWED",
+          matchedEntry,
+          reason: "APPROVED_RESOURCE",
+          url: input.url,
+        }
+      : {
+          decision: "BLOCKED",
+          matchedEntry: null,
+          reason: "NOT_APPROVED",
+          url: input.url,
+        };
   }
 
   async listPolicies(tenantId: string): Promise<PolicySummary[]> {
@@ -1588,7 +1638,11 @@ export class PoliciesService {
 
     const device = await this.prisma.device.findFirst({
       where: { id: deviceId, tenantId },
-      select: { classId: true },
+      select: {
+        classId: true,
+        class: { select: { grade: true } },
+        student: { select: { grade: true } },
+      },
     });
     const lmsLinks = device?.classId
       ? await this.prisma.lmsCourseMapping.findMany({
@@ -1604,15 +1658,29 @@ export class PoliciesService {
     const lmsUrls = lmsLinks.map((item) => item.launchUrl);
 
     const webFilterSettings = await this.getWebFilterSettings(tenantId);
+    const educationalVideoAllowlist = (
+      webFilterSettings.educationalVideoAllowlist ?? []
+    ).filter(
+      (entry) =>
+        entry.scope === "TENANT" ||
+        (entry.scope === "CLASS" && entry.scopeId === device?.classId) ||
+        (entry.scope === "GRADE" &&
+          entry.scopeId === (device?.class?.grade ?? device?.student?.grade)) ||
+        (entry.scope === "MODE" && entry.scopeId === rules.mode),
+    );
     return {
       browser: {
         blockedCategories: webFilterSettings.blockedCategories,
         defaultWebAccess: rules.defaultWebAccess,
         neverAllowedUrls: webFilterSettings.neverAllowedUrls,
         safeSearch: webFilterSettings.safeSearch,
+        educationalVideoAllowlist,
         urlAllowlist: [...new Set([...rules.urlAllowlist, ...lmsUrls])],
         urlBlocklist: [
-          ...new Set([...webFilterSettings.neverAllowedUrls, ...rules.urlBlocklist]),
+          ...new Set([
+            ...webFilterSettings.neverAllowedUrls,
+            ...rules.urlBlocklist,
+          ]),
         ],
       },
       cache: {
@@ -1878,22 +1946,46 @@ export class PoliciesService {
     return null;
   }
 
-  private parseWebFilterSettings(value: Prisma.JsonValue | null): TenantWebFilterSettings {
+  private parseWebFilterSettings(
+    value: Prisma.JsonValue | null,
+  ): TenantWebFilterSettings {
     if (!value || typeof value !== "object" || Array.isArray(value))
       return defaultWebFilterSettings;
     const candidate = value as Record<string, unknown>;
-    const safeSearch = candidate.safeSearch as Record<string, unknown> | undefined;
+    const safeSearch = candidate.safeSearch as
+      | Record<string, unknown>
+      | undefined;
     return {
       blockedCategories: Array.isArray(candidate.blockedCategories)
-        ? (candidate.blockedCategories.filter((item) => typeof item === "string") as TenantWebFilterSettings["blockedCategories"])
+        ? (candidate.blockedCategories.filter(
+            (item) => typeof item === "string",
+          ) as TenantWebFilterSettings["blockedCategories"])
+        : [],
+      educationalVideoAllowlist: Array.isArray(
+        candidate.educationalVideoAllowlist,
+      )
+        ? candidate.educationalVideoAllowlist.flatMap((item) => {
+            try {
+              return [
+                this.normalizeEducationalVideoEntry(
+                  item as EducationalVideoAllowlistEntry,
+                ),
+              ];
+            } catch {
+              return [];
+            }
+          })
         : [],
       neverAllowedUrls: Array.isArray(candidate.neverAllowedUrls)
-        ? candidate.neverAllowedUrls.filter((item): item is string => typeof item === "string")
+        ? candidate.neverAllowedUrls.filter(
+            (item): item is string => typeof item === "string",
+          )
         : [],
       provider: "MANAGED_BROWSER",
       safeSearch: {
         bing: typeof safeSearch?.bing === "boolean" ? safeSearch.bing : true,
-        google: typeof safeSearch?.google === "boolean" ? safeSearch.google : true,
+        google:
+          typeof safeSearch?.google === "boolean" ? safeSearch.google : true,
         youtubeRestrictedMode:
           safeSearch?.youtubeRestrictedMode === "OFF" ||
           safeSearch?.youtubeRestrictedMode === "MODERATE"
@@ -1910,7 +2002,9 @@ export class PoliciesService {
     const settings = await this.getWebFilterSettings(tenantId);
     return {
       ...rules,
-      urlBlocklist: [...new Set([...settings.neverAllowedUrls, ...rules.urlBlocklist])],
+      urlBlocklist: [
+        ...new Set([...settings.neverAllowedUrls, ...rules.urlBlocklist]),
+      ],
       webFilter: settings,
     };
   }
@@ -1931,6 +2025,47 @@ export class PoliciesService {
         `Never-allowed rule must be a valid HTTP(S) URL or trailing-wildcard URL: ${rule}`,
       );
     }
+  }
+
+  private normalizeEducationalVideoEntry(
+    entry: EducationalVideoAllowlistEntry,
+  ): EducationalVideoAllowlistEntry {
+    const value = entry.value.trim();
+    const scopeId = entry.scopeId?.trim();
+    if (!value || (entry.scope !== "TENANT" && !scopeId))
+      throw new BadRequestException(
+        "Video allowlist entries require a value and non-tenant scopes require a scope ID",
+      );
+    if (entry.kind === "DOMAIN") {
+      const domain = value
+        .toLowerCase()
+        .replace(/^https?:\/\//, "")
+        .replace(/\/$/, "");
+      if (
+        !/^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/.test(
+          domain,
+        )
+      )
+        throw new BadRequestException(
+          "Educational video domains must be hostnames without paths",
+        );
+      return {
+        kind: entry.kind,
+        scope: entry.scope,
+        ...(scopeId ? { scopeId } : {}),
+        value: domain,
+      };
+    }
+    if (!/^[A-Za-z0-9_-]{3,128}$/.test(value))
+      throw new BadRequestException(
+        "Video, playlist, and channel values must be provider IDs",
+      );
+    return {
+      kind: entry.kind,
+      scope: entry.scope,
+      ...(scopeId ? { scopeId } : {}),
+      value,
+    };
   }
 
   private toPolicyAssignmentSummary(

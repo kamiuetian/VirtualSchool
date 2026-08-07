@@ -21,7 +21,12 @@ import {
   unlockExamDeviceAction,
   updateWebFilterSettingsAction,
 } from "../../lib/actions";
-import { getAdminData, getExamReadiness, getExamReport, getWebFilterSettings } from "../../lib/api";
+import {
+  getAdminData,
+  getExamReadiness,
+  getExamReport,
+  getWebFilterSettings,
+} from "../../lib/api";
 import { formatCount, formatDateTime, humanize } from "../../lib/format";
 
 export const dynamic = "force-dynamic";
@@ -42,15 +47,26 @@ export default async function PoliciesPage({
   const supportPolicies = published.filter(
     (policy) => policy.rules.mode === "EMERGENCY_SUPPORT_OVERRIDE",
   );
-  const examPolicyIds = new Set(published.filter((policy) => policy.rules.mode === "EXAM").map((policy) => policy.id));
-  const examAssignments = data.policyAssignments.filter((assignment) => examPolicyIds.has(assignment.policyId));
-  const readinessResult = simulation?.examAssignmentId && data.selectedTenant
-    ? await getExamReadiness(data.selectedTenant.id, simulation.examAssignmentId)
-    : null;
+  const examPolicyIds = new Set(
+    published
+      .filter((policy) => policy.rules.mode === "EXAM")
+      .map((policy) => policy.id),
+  );
+  const examAssignments = data.policyAssignments.filter((assignment) =>
+    examPolicyIds.has(assignment.policyId),
+  );
+  const readinessResult =
+    simulation?.examAssignmentId && data.selectedTenant
+      ? await getExamReadiness(
+          data.selectedTenant.id,
+          simulation.examAssignmentId,
+        )
+      : null;
   const readiness = readinessResult?.readiness ?? null;
-  const reportResult = simulation?.examAssignmentId && data.selectedTenant
-    ? await getExamReport(data.selectedTenant.id, simulation.examAssignmentId)
-    : null;
+  const reportResult =
+    simulation?.examAssignmentId && data.selectedTenant
+      ? await getExamReport(data.selectedTenant.id, simulation.examAssignmentId)
+      : null;
   const report = reportResult?.report ?? null;
 
   return (
@@ -96,13 +112,22 @@ export default async function PoliciesPage({
           <PageSection kicker="Policy actions" title="Publish And Assign">
             <div className="form-grid">
               <ActionPanel title="Global web safety">
-                <form action={updateWebFilterSettingsAction} className="stacked-form">
-                  <input name="tenantId" type="hidden" value={data.selectedTenant.id} />
+                <form
+                  action={updateWebFilterSettingsAction}
+                  className="stacked-form"
+                >
+                  <input
+                    name="tenantId"
+                    type="hidden"
+                    value={data.selectedTenant.id}
+                  />
                   <Field label="Never-allowed URL rules">
                     <textarea
                       name="neverAllowedUrls"
                       defaultValue={webFilter?.neverAllowedUrls.join("\n")}
-                      placeholder={"https://unsafe.example/*\nhttps://blocked.example/"}
+                      placeholder={
+                        "https://unsafe.example/*\nhttps://blocked.example/"
+                      }
                       rows={4}
                     />
                   </Field>
@@ -121,17 +146,60 @@ export default async function PoliciesPage({
                       <option value="VIOLENCE">Violence</option>
                     </select>
                   </Field>
-                  <label><input defaultChecked={webFilter?.safeSearch.google ?? true} name="safeSearchGoogle" type="checkbox" /> Google SafeSearch</label>
-                  <label><input defaultChecked={webFilter?.safeSearch.bing ?? true} name="safeSearchBing" type="checkbox" /> Bing SafeSearch</label>
+                  <Field label="Educational video allowlist">
+                    <textarea
+                      name="educationalVideoAllowlist"
+                      defaultValue={(webFilter?.educationalVideoAllowlist ?? [])
+                        .map((entry) =>
+                          [
+                            entry.kind,
+                            entry.value,
+                            entry.scope,
+                            entry.scopeId ?? "",
+                          ].join(" | "),
+                        )
+                        .join("\n")}
+                      placeholder={
+                        "VIDEO | dQw4w9WgXcQ | TENANT |\nPLAYLIST | PL123 | GRADE | 8\nCHANNEL | UC123 | CLASS | class-id\nDOMAIN | media.school.edu | MODE | EXAM"
+                      }
+                      rows={6}
+                    />
+                  </Field>
+                  <label>
+                    <input
+                      defaultChecked={webFilter?.safeSearch.google ?? true}
+                      name="safeSearchGoogle"
+                      type="checkbox"
+                    />{" "}
+                    Google SafeSearch
+                  </label>
+                  <label>
+                    <input
+                      defaultChecked={webFilter?.safeSearch.bing ?? true}
+                      name="safeSearchBing"
+                      type="checkbox"
+                    />{" "}
+                    Bing SafeSearch
+                  </label>
                   <Field label="YouTube restricted mode">
-                    <select defaultValue={webFilter?.safeSearch.youtubeRestrictedMode ?? "STRICT"} name="youtubeRestrictedMode">
+                    <select
+                      defaultValue={
+                        webFilter?.safeSearch.youtubeRestrictedMode ?? "STRICT"
+                      }
+                      name="youtubeRestrictedMode"
+                    >
                       <option value="STRICT">Strict</option>
                       <option value="MODERATE">Moderate</option>
                       <option value="OFF">Off</option>
                     </select>
                   </Field>
                   <p className="form-help">
-                    Never-allowed rules apply across every grade, class, and mode and cannot be bypassed by teacher approvals. Category and safe-search enforcement is supplied to the managed browser; it does not control unmanaged browsers or guarantee how external providers classify content.
+                    Video entries use KIND | provider ID or domain | SCOPE |
+                    scope ID. TENANT scope leaves the final value blank. A
+                    video, playlist, or channel approval does not allow the rest
+                    of YouTube. Never-allowed rules still win. These controls
+                    are supplied to the managed browser and do not control
+                    unmanaged browsers or guarantee external provider metadata.
                   </p>
                   <SubmitButton>Save global web safety</SubmitButton>
                 </form>
@@ -453,48 +521,206 @@ export default async function PoliciesPage({
         ) : null}
 
         {data.selectedTenant && examAssignments.length > 0 ? (
-          <PageSection kicker="Assessment operations" title="Exam Readiness And Secure Launch">
+          <PageSection
+            kicker="Assessment operations"
+            title="Exam Readiness And Secure Launch"
+          >
             <div className="form-grid">
               <ActionPanel title="Run readiness check">
-                <form action={checkExamReadinessAction} className="stacked-form">
+                <form
+                  action={checkExamReadinessAction}
+                  className="stacked-form"
+                >
                   <Field label="Exam schedule">
-                    <select name="assignmentId" defaultValue={simulation?.examAssignmentId} required>
-                      {examAssignments.map((assignment) => <option key={assignment.id} value={assignment.id}>{assignment.policyName} — {assignment.scope} {assignment.scopeId}</option>)}
+                    <select
+                      name="assignmentId"
+                      defaultValue={simulation?.examAssignmentId}
+                      required
+                    >
+                      {examAssignments.map((assignment) => (
+                        <option key={assignment.id} value={assignment.id}>
+                          {assignment.policyName} — {assignment.scope}{" "}
+                          {assignment.scopeId}
+                        </option>
+                      ))}
                     </select>
                   </Field>
                   <SubmitButton>Check targeted devices</SubmitButton>
                 </form>
-                {readiness ? <p className="form-help" aria-live="polite"><strong>{readiness.ready} ready</strong>; {readiness.blocked} blocked. Checks cover connectivity, battery, policy, required apps, and managed browser support.</p> : null}
+                {readiness ? (
+                  <p className="form-help" aria-live="polite">
+                    <strong>{readiness.ready} ready</strong>;{" "}
+                    {readiness.blocked} blocked. Checks cover connectivity,
+                    battery, policy, required apps, and managed browser support.
+                  </p>
+                ) : null}
               </ActionPanel>
               <ActionPanel title="Launch approved assessment">
                 <form action={launchAssessmentAction} className="stacked-form">
-                  <input name="tenantId" type="hidden" value={data.selectedTenant.id} />
-                  <Field label="Exam schedule"><select name="assignmentId" defaultValue={simulation?.examAssignmentId} required>{examAssignments.map((assignment) => <option key={assignment.id} value={assignment.id}>{assignment.policyName} — {assignment.scope} {assignment.scopeId}</option>)}</select></Field>
-                  <Field label="Resource type"><select name="resourceType" required><option value="URL">Approved exam link</option><option value="APP">Approved exam app</option></select></Field>
-                  <Field label="Approved URL or package ID"><input name="resource" required /></Field>
-                  <Field label="Reason"><input name="reason" placeholder="Start scheduled assessment" /></Field>
+                  <input
+                    name="tenantId"
+                    type="hidden"
+                    value={data.selectedTenant.id}
+                  />
+                  <Field label="Exam schedule">
+                    <select
+                      name="assignmentId"
+                      defaultValue={simulation?.examAssignmentId}
+                      required
+                    >
+                      {examAssignments.map((assignment) => (
+                        <option key={assignment.id} value={assignment.id}>
+                          {assignment.policyName} — {assignment.scope}{" "}
+                          {assignment.scopeId}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Resource type">
+                    <select name="resourceType" required>
+                      <option value="URL">Approved exam link</option>
+                      <option value="APP">Approved exam app</option>
+                    </select>
+                  </Field>
+                  <Field label="Approved URL or package ID">
+                    <input name="resource" required />
+                  </Field>
+                  <Field label="Reason">
+                    <input
+                      name="reason"
+                      placeholder="Start scheduled assessment"
+                    />
+                  </Field>
                   <SubmitButton>Launch on ready devices</SubmitButton>
-                  {simulation?.launch === "queued" ? <p className="form-help" aria-live="polite">Secure launch queued for ready devices.</p> : null}
+                  {simulation?.launch === "queued" ? (
+                    <p className="form-help" aria-live="polite">
+                      Secure launch queued for ready devices.
+                    </p>
+                  ) : null}
                 </form>
               </ActionPanel>
               <ActionPanel title="Emergency device unlock">
                 <form action={unlockExamDeviceAction} className="stacked-form">
-                  <input name="tenantId" type="hidden" value={data.selectedTenant.id} />
-                  <Field label="Exam schedule"><select name="assignmentId" defaultValue={simulation?.examAssignmentId} required>{examAssignments.filter((assignment) => assignment.active).map((assignment) => <option key={assignment.id} value={assignment.id}>{assignment.policyName} — {assignment.scope} {assignment.scopeId}</option>)}</select></Field>
-                  <Field label="Device ID"><input name="deviceId" required /></Field>
-                  <Field label="Minutes"><input name="durationMinutes" type="number" min="1" max="15" defaultValue="5" required /></Field>
-                  <Field label="Reason"><input name="reason" minLength={3} required placeholder="Candidate support case" /></Field>
+                  <input
+                    name="tenantId"
+                    type="hidden"
+                    value={data.selectedTenant.id}
+                  />
+                  <Field label="Exam schedule">
+                    <select
+                      name="assignmentId"
+                      defaultValue={simulation?.examAssignmentId}
+                      required
+                    >
+                      {examAssignments
+                        .filter((assignment) => assignment.active)
+                        .map((assignment) => (
+                          <option key={assignment.id} value={assignment.id}>
+                            {assignment.policyName} — {assignment.scope}{" "}
+                            {assignment.scopeId}
+                          </option>
+                        ))}
+                    </select>
+                  </Field>
+                  <Field label="Device ID">
+                    <input name="deviceId" required />
+                  </Field>
+                  <Field label="Minutes">
+                    <input
+                      name="durationMinutes"
+                      type="number"
+                      min="1"
+                      max="15"
+                      defaultValue="5"
+                      required
+                    />
+                  </Field>
+                  <Field label="Reason">
+                    <input
+                      name="reason"
+                      minLength={3}
+                      required
+                      placeholder="Candidate support case"
+                    />
+                  </Field>
                   <SubmitButton>Queue audited unlock</SubmitButton>
-                  {simulation?.unlock === "queued" ? <p className="form-help" aria-live="polite">Bounded emergency unlock queued and audited.</p> : null}
+                  {simulation?.unlock === "queued" ? (
+                    <p className="form-help" aria-live="polite">
+                      Bounded emergency unlock queued and audited.
+                    </p>
+                  ) : null}
                 </form>
               </ActionPanel>
             </div>
-            {readiness && readiness.devices.length > 0 ? <div className="table-wrap"><table><thead><tr><th>Device</th><th>Status</th><th>Battery</th><th>Policy</th><th>Issues</th></tr></thead><tbody>{readiness.devices.map((device) => <tr key={device.deviceId}><td>{device.serialNumber}</td><td><StatusPill tone={device.ready ? "good" : "critical"}>{device.ready ? "Ready" : "Blocked"}</StatusPill></td><td>{device.batteryLevel === null ? "Unknown" : `${device.batteryLevel}%`}</td><td>{device.policyVersion === null ? "Unknown" : `v${device.policyVersion}`}</td><td>{device.issues.length ? device.issues.map(humanize).join(", ") : "—"}</td></tr>)}</tbody></table></div> : null}
-            {report ? <div className="card-grid" aria-label="Post-exam report">
-              <article className="record-card"><strong>Attendance</strong><p>{report.attendance.participated} participated; {report.attendance.absent} absent of {report.attendance.targeted} targeted.</p></article>
-              <article className="record-card"><strong>Readiness</strong><p>{report.readiness.ready} ready; {report.readiness.blocked} blocked.</p></article>
-              <article className="record-card"><strong>Integrity and support</strong><p>{report.integrityEvents.length} integrity events; {report.failures.length} failures; {report.unlocks.length} unlocks.</p></article>
-            </div> : null}
+            {readiness && readiness.devices.length > 0 ? (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Device</th>
+                      <th>Status</th>
+                      <th>Battery</th>
+                      <th>Policy</th>
+                      <th>Issues</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {readiness.devices.map((device) => (
+                      <tr key={device.deviceId}>
+                        <td>{device.serialNumber}</td>
+                        <td>
+                          <StatusPill tone={device.ready ? "good" : "critical"}>
+                            {device.ready ? "Ready" : "Blocked"}
+                          </StatusPill>
+                        </td>
+                        <td>
+                          {device.batteryLevel === null
+                            ? "Unknown"
+                            : `${device.batteryLevel}%`}
+                        </td>
+                        <td>
+                          {device.policyVersion === null
+                            ? "Unknown"
+                            : `v${device.policyVersion}`}
+                        </td>
+                        <td>
+                          {device.issues.length
+                            ? device.issues.map(humanize).join(", ")
+                            : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+            {report ? (
+              <div className="card-grid" aria-label="Post-exam report">
+                <article className="record-card">
+                  <strong>Attendance</strong>
+                  <p>
+                    {report.attendance.participated} participated;{" "}
+                    {report.attendance.absent} absent of{" "}
+                    {report.attendance.targeted} targeted.
+                  </p>
+                </article>
+                <article className="record-card">
+                  <strong>Readiness</strong>
+                  <p>
+                    {report.readiness.ready} ready; {report.readiness.blocked}{" "}
+                    blocked.
+                  </p>
+                </article>
+                <article className="record-card">
+                  <strong>Integrity and support</strong>
+                  <p>
+                    {report.integrityEvents.length} integrity events;{" "}
+                    {report.failures.length} failures; {report.unlocks.length}{" "}
+                    unlocks.
+                  </p>
+                </article>
+              </div>
+            ) : null}
           </PageSection>
         ) : null}
 
