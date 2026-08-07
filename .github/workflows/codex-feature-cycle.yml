@@ -23,6 +23,8 @@ jobs:
        github.event.workflow_run.head_branch == 'main')
     runs-on: virtualschool-codex
     timeout-minutes: 120
+    env:
+      DATABASE_URL: postgresql://virtualschool:virtualschool@localhost:5432/virtualschool?schema=public
 
     steps:
       - name: Check out verified main
