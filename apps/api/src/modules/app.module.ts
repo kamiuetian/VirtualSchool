@@ -22,6 +22,7 @@ import { TeacherSessionsModule } from "./teacher-sessions/teacher-sessions.modul
 import { GuardianModule } from "./guardian/guardian.module";
 import { ClassroomModule } from "./classroom/classroom.module";
 import { LmsModule } from "./lms/lms.module";
+import { EducationResourcesModule } from "./education-resources/education-resources.module";
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { LmsModule } from "./lms/lms.module";
     GuardianModule,
     ClassroomModule,
     LmsModule,
+    EducationResourcesModule,
   ],
 })
 export class AppModule {}

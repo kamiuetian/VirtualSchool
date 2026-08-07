@@ -1255,6 +1255,38 @@ export async function disableLmsAction(formData: FormData) {
   revalidateAll();
 }
 
+export async function configureEducationConnectionAction(formData: FormData) {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/integrations/education-resources`,
+    {
+      provider: required(formData, "provider"),
+      credentialReference: required(formData, "credentialReference"),
+    },
+  );
+  revalidateAll();
+}
+
+export async function mapEducationResourceAction(formData: FormData) {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  const connectionProvider = required(formData, "connectionProvider");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/integrations/education-resources/${connectionProvider}/resources`,
+    {
+      classId: required(formData, "classId"),
+      provider: required(formData, "provider"),
+      externalId: required(formData, "externalId"),
+      displayName: required(formData, "displayName"),
+      launchUrl: required(formData, "launchUrl"),
+    },
+  );
+  revalidateAll();
+}
+
 async function requireActionPermission(permission: Permission): Promise<void> {
   const session = await requireAdminSession();
 

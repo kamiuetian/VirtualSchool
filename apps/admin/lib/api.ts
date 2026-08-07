@@ -34,6 +34,7 @@ import type {
   UserSummary,
   ClassroomConnectionSummary,
   LmsConnectionSummary,
+  EducationConnectionSummary,
 } from "@virtual-school/shared";
 import {
   requirePortalRouteAccess,
@@ -299,6 +300,18 @@ export async function getLmsIntegrations(
 ): Promise<{ integrations: LmsConnectionSummary[]; connectionIssue: boolean }> {
   const result = await apiGet<LmsConnectionSummary[]>(
     `/tenants/${tenantId}/integrations/lms`,
+  );
+  return { integrations: result.data ?? [], connectionIssue: result.failed };
+}
+
+export async function getEducationResources(
+  tenantId: string,
+): Promise<{
+  integrations: EducationConnectionSummary[];
+  connectionIssue: boolean;
+}> {
+  const result = await apiGet<EducationConnectionSummary[]>(
+    `/tenants/${tenantId}/integrations/education-resources`,
   );
   return { integrations: result.data ?? [], connectionIssue: result.failed };
 }

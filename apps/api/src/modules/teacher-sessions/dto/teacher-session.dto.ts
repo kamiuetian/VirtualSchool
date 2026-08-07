@@ -1,4 +1,14 @@
-import { IsIn, IsInt, IsOptional, IsString, IsUrl, IsUUID, Length, Max, Min } from "class-validator";
+import {
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUrl,
+  IsUUID,
+  Length,
+  Max,
+  Min,
+} from "class-validator";
 
 export class AssignTeacherClassDto {
   @IsUUID()
@@ -16,7 +26,14 @@ export class CreateTeacherSessionTemplateDto {
   @IsOptional() @IsUUID() resourceId?: string;
   @IsOptional() @IsString() @Length(1, 500) focusMessage?: string;
   @IsOptional() @IsInt() @Min(1) @Max(10) focusDurationMinutes?: number;
-  @IsOptional() @IsUrl({ protocols: ["http", "https"], require_protocol: true, require_tld: false }) @Length(1, 2048) temporaryUrl?: string;
+  @IsOptional()
+  @IsUrl({
+    protocols: ["http", "https"],
+    require_protocol: true,
+    require_tld: false,
+  })
+  @Length(1, 2048)
+  temporaryUrl?: string;
   @IsOptional() @IsInt() @Min(1) @Max(60) temporaryUrlMinutes?: number;
 }
 
@@ -30,11 +47,21 @@ export class RecordTeacherDeviceEventDto {
   @IsUUID()
   deviceId!: string;
 
-  @IsIn(["DEVICE_OFFLINE", "DEVICE_ONLINE", "COMPLIANCE_CHANGED", "DEVICE_LEFT_CLASS"])
+  @IsIn([
+    "DEVICE_OFFLINE",
+    "DEVICE_ONLINE",
+    "COMPLIANCE_CHANGED",
+    "DEVICE_LEFT_CLASS",
+  ])
   type!: string;
 }
 
 export class PushTeacherResourceDto {
+  @IsUUID()
+  resourceId!: string;
+}
+
+export class PushEducationResourceDto {
   @IsUUID()
   resourceId!: string;
 }
@@ -51,7 +78,11 @@ export class ShowFocusScreenDto {
 }
 
 export class ApproveTemporaryUrlDto {
-  @IsUrl({ protocols: ["http", "https"], require_protocol: true, require_tld: false })
+  @IsUrl({
+    protocols: ["http", "https"],
+    require_protocol: true,
+    require_tld: false,
+  })
   @Length(1, 2048)
   url!: string;
 

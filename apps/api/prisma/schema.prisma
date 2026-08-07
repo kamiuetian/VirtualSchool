@@ -130,6 +130,43 @@ model Tenant {
   classroomSyncRuns       ClassroomSyncRun[]
   lmsConnections          LmsConnection[]
   lmsCourseMappings       LmsCourseMapping[]
+  educationConnections    EducationConnection[]
+  educationResources      EducationResource[]
+}
+
+model EducationConnection {
+  id                  String   @id @default(uuid())
+  tenantId            String
+  provider            String
+  credentialReference String
+  status              String   @default("ENABLED")
+  configuredBy        String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  tenant              Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  resources           EducationResource[]
+
+  @@unique([tenantId, provider])
+  @@index([tenantId, status])
+}
+
+model EducationResource {
+  id           String   @id @default(uuid())
+  tenantId     String
+  connectionId String
+  classId      String
+  provider     String
+  externalId   String
+  displayName  String
+  launchUrl    String
+  enabled      Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  connection   EducationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, externalId])
+  @@index([tenantId, classId, enabled])
 }
 
 model LmsConnection {

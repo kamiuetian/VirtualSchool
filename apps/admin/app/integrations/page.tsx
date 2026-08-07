@@ -17,11 +17,14 @@ import {
   mapLmsCourseAction,
   testLmsAction,
   disableLmsAction,
+  configureEducationConnectionAction,
+  mapEducationResourceAction,
 } from "../../lib/actions";
 import {
   getAdminData,
   getClassroomIntegration,
   getLmsIntegrations,
+  getEducationResources,
 } from "../../lib/api";
 
 export const dynamic = "force-dynamic";
@@ -35,12 +38,16 @@ export default async function IntegrationsPage() {
   const lmsResult = tenant
     ? await getLmsIntegrations(tenant.id)
     : { integrations: [], connectionIssue: false };
+  const educationResult = tenant
+    ? await getEducationResources(tenant.id)
+    : { integrations: [], connectionIssue: false };
   return (
     <AppShell
       connectionIssue={
         data.connectionIssue ||
         classroomResult.connectionIssue ||
-        lmsResult.connectionIssue
+        lmsResult.connectionIssue ||
+        educationResult.connectionIssue
       }
       tenant={tenant}
     >
@@ -367,6 +374,110 @@ export default async function IntegrationsPage() {
                   </ActionPanel>
                 );
               })}
+            </div>
+          ) : null}
+        </PageSection>
+        <PageSection
+          kicker="Live learning"
+          title="Microsoft 365 and approved meeting links"
+        >
+          {tenant ? (
+            <div className="form-grid two">
+              {(["MICROSOFT_365", "ZOOM", "GOOGLE_MEET"] as const).map(
+                (connectionProvider) => {
+                  const current = educationResult.integrations.find(
+                    (item) => item.provider === connectionProvider,
+                  );
+                  return (
+                    <ActionPanel
+                      key={connectionProvider}
+                      title={connectionProvider.replaceAll("_", " ")}
+                    >
+                      <form
+                        action={configureEducationConnectionAction}
+                        className="stacked-form"
+                      >
+                        <input
+                          name="tenantId"
+                          type="hidden"
+                          value={tenant.id}
+                        />
+                        <input
+                          name="provider"
+                          type="hidden"
+                          value={connectionProvider}
+                        />
+                        <Field label="Credential reference">
+                          <input
+                            name="credentialReference"
+                            defaultValue={current?.credentialReference}
+                            required
+                          />
+                        </Field>
+                        <SubmitButton>
+                          {current ? "Update and enable" : "Authorize"}
+                        </SubmitButton>
+                      </form>
+                      {current ? (
+                        <form
+                          action={mapEducationResourceAction}
+                          className="stacked-form"
+                        >
+                          <input
+                            name="tenantId"
+                            type="hidden"
+                            value={tenant.id}
+                          />
+                          <input
+                            name="connectionProvider"
+                            type="hidden"
+                            value={connectionProvider}
+                          />
+                          <Field label="Resource type">
+                            <select name="provider" required>
+                              {connectionProvider === "MICROSOFT_365" ? (
+                                <>
+                                  <option value="MICROSOFT_365">
+                                    Microsoft 365
+                                  </option>
+                                  <option value="TEAMS">Teams</option>
+                                </>
+                              ) : (
+                                <option value={connectionProvider}>
+                                  {connectionProvider.replaceAll("_", " ")}
+                                </option>
+                              )}
+                            </select>
+                          </Field>
+                          <Field label="Virtual School class">
+                            <select name="classId" required>
+                              <option value="">Select class</option>
+                              {data.classes.map((item) => (
+                                <option key={item.id} value={item.id}>
+                                  {item.name} · {item.grade}
+                                </option>
+                              ))}
+                            </select>
+                          </Field>
+                          <Field label="External resource ID">
+                            <input name="externalId" required />
+                          </Field>
+                          <Field label="Display name">
+                            <input name="displayName" required />
+                          </Field>
+                          <Field label="Approved HTTPS launch URL">
+                            <input name="launchUrl" type="url" required />
+                          </Field>
+                          <SubmitButton>Approve resource</SubmitButton>
+                          <small>
+                            {current.resources.length} class-scoped resources
+                          </small>
+                        </form>
+                      ) : null}
+                    </ActionPanel>
+                  );
+                },
+              )}
             </div>
           ) : null}
         </PageSection>

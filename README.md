@@ -52,6 +52,10 @@ The admin portal listens on `http://localhost:3000`.
 
 ## Current Development Slice
 
+### Education resource integrations
+
+Tenant administrators configure Microsoft 365, Zoom, and Google Meet from the Integrations page using a secret reference (`arn:`, `vault://`, or `secret://`), never a credential value. Resources are approved per class. Launch URLs must use HTTPS and the provider's canonical host; Microsoft 365 authorization can map Microsoft 365 and Teams resources. Teachers can push an enabled mapped resource only during their own active session for that class, and every configuration, mapping, and push is audited.
+
 The current codebase implements Milestone 1 foundations:
 
 - pnpm monorepo structure.
