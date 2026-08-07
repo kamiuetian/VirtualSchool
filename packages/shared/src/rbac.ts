@@ -8,7 +8,7 @@ export const roles = [
   "BILLING_ADMIN",
   "AUDITOR",
   "STUDENT",
-  "GUARDIAN"
+  "GUARDIAN",
 ] as const;
 
 export type Role = (typeof roles)[number];
@@ -30,7 +30,8 @@ export const permissions = [
   "report:export",
   "audit:read",
   "billing:read",
-  "billing:manage"
+  "billing:manage",
+  "guardian:read",
 ] as const;
 
 export type Permission = (typeof permissions)[number];
@@ -49,7 +50,7 @@ export const rolePermissions: Record<Role, Permission[]> = {
     "report:export",
     "audit:read",
     "billing:read",
-    "billing:manage"
+    "billing:manage",
   ],
   IT_ADMIN: [
     "tenant:read",
@@ -59,15 +60,21 @@ export const rolePermissions: Record<Role, Permission[]> = {
     "device:wipe",
     "policy:manage",
     "report:export",
-    "audit:read"
+    "audit:read",
   ],
-  ACADEMIC_ADMIN: ["tenant:read", "roster:manage", "class:manage", "policy:manage", "report:export"],
+  ACADEMIC_ADMIN: [
+    "tenant:read",
+    "roster:manage",
+    "class:manage",
+    "policy:manage",
+    "report:export",
+  ],
   TEACHER: ["tenant:read", "session:manage"],
   SUPPORT_AGENT: ["tenant:read", "device:read", "device:command"],
   BILLING_ADMIN: ["tenant:read", "billing:read", "billing:manage"],
   AUDITOR: ["tenant:read", "audit:read", "report:export"],
   STUDENT: [],
-  GUARDIAN: []
+  GUARDIAN: ["guardian:read"],
 };
 
 export function roleAllows(role: Role, permission: Permission): boolean {

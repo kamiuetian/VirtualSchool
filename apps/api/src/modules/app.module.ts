@@ -19,6 +19,7 @@ import { TenantsModule } from "./tenants/tenants.module";
 import { TimetableModule } from "./timetable/timetable.module";
 import { UsersModule } from "./users/users.module";
 import { TeacherSessionsModule } from "./teacher-sessions/teacher-sessions.module";
+import { GuardianModule } from "./guardian/guardian.module";
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { TeacherSessionsModule } from "./teacher-sessions/teacher-sessions.modul
     TimetableModule,
     SupportModule,
     TeacherSessionsModule,
+    GuardianModule,
   ],
 })
 export class AppModule {}

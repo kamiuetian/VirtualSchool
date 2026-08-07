@@ -6,6 +6,7 @@ import {
   Boxes,
   CalendarClock,
   GraduationCap,
+  HeartHandshake,
   Laptop,
   LayoutDashboard,
   QrCode,
@@ -39,6 +40,7 @@ const navigationIcons = {
   "/roster": Users,
   "/support": Headset,
   "/teacher": BookOpenCheck,
+  "/guardian": HeartHandshake,
   "/tenants": GraduationCap,
   "/timetable": CalendarClock,
 } satisfies Record<PortalHref, typeof LayoutDashboard>;
@@ -52,6 +54,7 @@ const roleLabels: Record<string, string> = {
   SCHOOL_ADMIN: "School admin",
   SUPPORT_AGENT: "Support agent",
   TEACHER: "Teacher",
+  GUARDIAN: "Guardian",
 };
 
 export async function AppShell({

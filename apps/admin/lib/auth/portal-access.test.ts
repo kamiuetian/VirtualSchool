@@ -56,8 +56,13 @@ describe("portal access", () => {
     expect(canAccessPortalRoute("BILLING_ADMIN", "/devices")).toBe(false);
   });
 
-  it("falls back to logout when a non-admin role has no portal area", () => {
+  it("gives guardians only their family portal and keeps students out", () => {
     expect(firstAccessiblePortalHref("STUDENT")).toBe("/logout");
+    expect(visiblePortalNavigation("GUARDIAN")).toEqual([
+      { href: "/guardian", label: "My children" },
+    ]);
+    expect(firstAccessiblePortalHref("GUARDIAN")).toBe("/guardian");
     expect(canAccessPortalRoute("GUARDIAN", "/")).toBe(false);
+    expect(canAccessPortalRoute("GUARDIAN", "/devices")).toBe(false);
   });
 });

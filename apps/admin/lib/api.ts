@@ -28,6 +28,7 @@ import type {
   TenantSummary,
   TimetableBlockSummary,
   TeacherDashboard,
+  GuardianDashboard,
   UserSummary,
 } from "@virtual-school/shared";
 import {
@@ -285,6 +286,19 @@ export async function getTeacherDashboard(tenantId: string): Promise<{
 }> {
   const result = await apiGet<TeacherDashboard>(
     `/tenants/${tenantId}/teacher/dashboard`,
+  );
+  return { dashboard: result.data, connectionIssue: result.failed };
+}
+
+export async function getGuardianDashboard(): Promise<{
+  dashboard: GuardianDashboard | null;
+  connectionIssue: boolean;
+}> {
+  const session = await requirePortalRouteAccess("/guardian");
+  const tenantId = session.tenantIds.find((item) => item !== "*");
+  if (!tenantId) return { dashboard: null, connectionIssue: true };
+  const result = await apiGet<GuardianDashboard>(
+    `/tenants/${tenantId}/guardian/dashboard`,
   );
   return { dashboard: result.data, connectionIssue: result.failed };
 }

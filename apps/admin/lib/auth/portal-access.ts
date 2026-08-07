@@ -12,6 +12,7 @@ export type PortalHref =
   | "/privacy"
   | "/timetable"
   | "/teacher"
+  | "/guardian"
   | "/apps"
   | "/alerts"
   | "/support"
@@ -29,6 +30,12 @@ type PortalRoute = PortalNavigationItem & {
 };
 
 export const portalRoutes: PortalRoute[] = [
+  {
+    href: "/guardian",
+    label: "My children",
+    anyPermissions: ["guardian:read"],
+    roles: ["GUARDIAN"],
+  },
   { href: "/", label: "Overview", anyPermissions: ["tenant:read"] },
   {
     href: "/tenants",
@@ -51,7 +58,12 @@ export const portalRoutes: PortalRoute[] = [
     anyPermissions: ["device:enroll"],
   },
   { href: "/devices", label: "Devices", anyPermissions: ["device:read"] },
-  { href: "/teacher", label: "Class Mode", anyPermissions: ["session:manage"], roles: ["TEACHER"] },
+  {
+    href: "/teacher",
+    label: "Class Mode",
+    anyPermissions: ["session:manage"],
+    roles: ["TEACHER"],
+  },
   { href: "/policies", label: "Policies", anyPermissions: ["policy:manage"] },
   { href: "/privacy", label: "Privacy", anyPermissions: ["tenant:update"] },
   { href: "/timetable", label: "Timetable", anyPermissions: ["policy:manage"] },
@@ -70,7 +82,7 @@ export function canAccessPortalRoute(role: Role, href: PortalHref): boolean {
   const route = portalRoutes.find((item) => item.href === href);
   return route
     ? (!route.roles || route.roles.includes(role)) &&
-      route.anyPermissions.some((permission) => roleCan(role, permission))
+        route.anyPermissions.some((permission) => roleCan(role, permission))
     : false;
 }
 

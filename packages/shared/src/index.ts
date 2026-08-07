@@ -13,3 +13,4 @@ export * from "./timetable";
 export * from "./teacher-session";
 export * from "./observability";
 export * from "./privacy";
+export * from "./guardian";
