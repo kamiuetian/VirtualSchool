@@ -289,11 +289,18 @@ describe("TeacherSessionsService", () => {
                 mode: "DEFAULT_SCHOOL",
                 defaultWebAccess: "DENY",
                 urlAllowlist: [],
-                urlBlocklist: ["https://games.example/*"],
+                urlBlocklist: [],
               },
             },
           },
         ],
+      },
+      tenant: {
+        findUnique: async () => ({
+          webFilterSettings: {
+            neverAllowedUrls: ["https://games.example/*"],
+          },
+        }),
       },
     } as never);
     await expect(

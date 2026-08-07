@@ -37,6 +37,7 @@ import type {
   EducationConnectionSummary,
   SisOperationsSummary,
   WebhookEndpointSummary,
+  TenantWebFilterSettings,
 } from "@virtual-school/shared";
 import {
   requirePortalRouteAccess,
@@ -477,6 +478,14 @@ export async function adminApiRawGet(path: string): Promise<Response> {
     cache: "no-store",
     headers: await authHeaders(),
   });
+}
+
+export async function getWebFilterSettings(
+  tenantId: string,
+): Promise<TenantWebFilterSettings | null> {
+  return (await apiGet<TenantWebFilterSettings>(
+    `/tenants/${tenantId}/policies/web-filter-settings`,
+  )).data;
 }
 
 async function apiGet<T>(path: string): Promise<ApiGetResult<T>> {

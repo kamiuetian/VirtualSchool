@@ -19,8 +19,9 @@ import {
   checkExamReadinessAction,
   launchAssessmentAction,
   unlockExamDeviceAction,
+  updateWebFilterSettingsAction,
 } from "../../lib/actions";
-import { getAdminData, getExamReadiness, getExamReport } from "../../lib/api";
+import { getAdminData, getExamReadiness, getExamReport, getWebFilterSettings } from "../../lib/api";
 import { formatCount, formatDateTime, humanize } from "../../lib/format";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +33,9 @@ export default async function PoliciesPage({
 }) {
   const simulation = await searchParams;
   const data = await getAdminData("/policies");
+  const webFilter = data.selectedTenant
+    ? await getWebFilterSettings(data.selectedTenant.id)
+    : null;
   const published = data.policies.filter(
     (policy) => policy.status === "PUBLISHED",
   );
@@ -91,6 +95,47 @@ export default async function PoliciesPage({
         {data.selectedTenant ? (
           <PageSection kicker="Policy actions" title="Publish And Assign">
             <div className="form-grid">
+              <ActionPanel title="Global web safety">
+                <form action={updateWebFilterSettingsAction} className="stacked-form">
+                  <input name="tenantId" type="hidden" value={data.selectedTenant.id} />
+                  <Field label="Never-allowed URL rules">
+                    <textarea
+                      name="neverAllowedUrls"
+                      defaultValue={webFilter?.neverAllowedUrls.join("\n")}
+                      placeholder={"https://unsafe.example/*\nhttps://blocked.example/"}
+                      rows={4}
+                    />
+                  </Field>
+                  <Field label="Blocked categories">
+                    <select
+                      name="blockedCategories"
+                      defaultValue={webFilter?.blockedCategories}
+                      multiple
+                      size={6}
+                    >
+                      <option value="ADULT_CONTENT">Adult content</option>
+                      <option value="GAMBLING">Gambling</option>
+                      <option value="MALWARE">Malware</option>
+                      <option value="SOCIAL_MEDIA">Social media</option>
+                      <option value="STREAMING_MEDIA">Streaming media</option>
+                      <option value="VIOLENCE">Violence</option>
+                    </select>
+                  </Field>
+                  <label><input defaultChecked={webFilter?.safeSearch.google ?? true} name="safeSearchGoogle" type="checkbox" /> Google SafeSearch</label>
+                  <label><input defaultChecked={webFilter?.safeSearch.bing ?? true} name="safeSearchBing" type="checkbox" /> Bing SafeSearch</label>
+                  <Field label="YouTube restricted mode">
+                    <select defaultValue={webFilter?.safeSearch.youtubeRestrictedMode ?? "STRICT"} name="youtubeRestrictedMode">
+                      <option value="STRICT">Strict</option>
+                      <option value="MODERATE">Moderate</option>
+                      <option value="OFF">Off</option>
+                    </select>
+                  </Field>
+                  <p className="form-help">
+                    Never-allowed rules apply across every grade, class, and mode and cannot be bypassed by teacher approvals. Category and safe-search enforcement is supplied to the managed browser; it does not control unmanaged browsers or guarantee how external providers classify content.
+                  </p>
+                  <SubmitButton>Save global web safety</SubmitButton>
+                </form>
+              </ActionPanel>
               <ActionPanel title="Starter templates">
                 <form
                   action={createStarterPoliciesAction}

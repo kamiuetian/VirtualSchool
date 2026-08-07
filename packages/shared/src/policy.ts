@@ -42,7 +42,12 @@ export type PolicyMdmPublishStatus = "PUBLISHED" | "FAILED" | "SKIPPED";
 export type UrlPolicySimulation = {
   decision: "ALLOWED" | "BLOCKED" | "UNMATCHED";
   effectiveAccess: "ALLOW" | "DENY";
-  reason: "ALLOWLIST" | "BLOCKLIST" | "DEFAULT_ALLOW" | "DEFAULT_DENY";
+  reason:
+    | "ALLOWLIST"
+    | "BLOCKLIST"
+    | "GLOBAL_NEVER_ALLOWED"
+    | "DEFAULT_ALLOW"
+    | "DEFAULT_DENY";
   matchedRule: string | null;
   policyId: string;
   policyVersion: number;
@@ -76,6 +81,7 @@ export type PolicyRuleSet = {
   urlAllowlist: string[];
   urlBlocklist: string[];
   defaultWebAccess: "ALLOW" | "DENY";
+  webFilter?: TenantWebFilterSettings;
   launcher: {
     showMessages: boolean;
     showSupportContact: boolean;
@@ -102,6 +108,28 @@ export type PolicyRuleSet = {
       powerButtonActions: "POWER_BUTTON_BLOCKED" | "POWER_BUTTON_AVAILABLE";
     };
   };
+};
+
+export const webFilterCategories = [
+  "ADULT_CONTENT",
+  "GAMBLING",
+  "MALWARE",
+  "SOCIAL_MEDIA",
+  "STREAMING_MEDIA",
+  "VIOLENCE",
+] as const;
+
+export type WebFilterCategory = (typeof webFilterCategories)[number];
+
+export type TenantWebFilterSettings = {
+  blockedCategories: WebFilterCategory[];
+  neverAllowedUrls: string[];
+  safeSearch: {
+    google: boolean;
+    bing: boolean;
+    youtubeRestrictedMode: "OFF" | "MODERATE" | "STRICT";
+  };
+  provider: "MANAGED_BROWSER";
 };
 
 export type PolicySummary = {
@@ -432,12 +460,22 @@ export function simulateUrlPolicy(
   rules: Pick<
     PolicyRuleSet,
     "defaultWebAccess" | "urlAllowlist" | "urlBlocklist"
-  >,
+  > & { neverAllowedUrls?: string[] },
 ): Omit<UrlPolicySimulation, "policyId" | "policyVersion" | "url"> {
   const parsed = parseHttpUrl(url);
   if (!parsed) {
     throw new Error("A valid HTTP(S) URL without credentials is required");
   }
+  const globallyBlocked = rules.neverAllowedUrls?.find((rule) =>
+    matchesUrlRule(parsed, rule),
+  );
+  if (globallyBlocked)
+    return {
+      decision: "BLOCKED",
+      effectiveAccess: "DENY",
+      matchedRule: globallyBlocked,
+      reason: "GLOBAL_NEVER_ALLOWED",
+    };
   const blocked = rules.urlBlocklist.find((rule) =>
     matchesUrlRule(parsed, rule),
   );

@@ -103,9 +103,17 @@ export class AndroidManagementPolicyMapper {
       installType: "FORCE_INSTALLED",
       managedConfiguration: {
         defaultWebAccess: input.rules.defaultWebAccess,
+        blockedCategories: input.rules.webFilter?.blockedCategories ?? [],
+        categoryProvider: input.rules.webFilter?.provider ?? "MANAGED_BROWSER",
+        neverAllowedUrls: input.rules.webFilter?.neverAllowedUrls ?? [],
         policyId: input.policyId,
         policyVersion: input.version,
         tenantId: input.tenantId,
+        safeSearch: input.rules.webFilter?.safeSearch ?? {
+          bing: true,
+          google: true,
+          youtubeRestrictedMode: "STRICT",
+        },
         urlAllowlist: input.rules.urlAllowlist,
         urlBlocklist: input.rules.urlBlocklist,
       },

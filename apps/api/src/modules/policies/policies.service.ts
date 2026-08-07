@@ -22,6 +22,7 @@ import type {
   AssessmentLaunchSummary,
   ExamIntegrityEventType,
   ExamReport,
+  TenantWebFilterSettings,
 } from "@virtual-school/shared";
 import {
   type AppCatalogItem,
@@ -48,6 +49,7 @@ import type {
 } from "./dto/exam-operations.dto";
 import { starterPolicyTemplates } from "./starter-policy-templates";
 import { evaluateUrlPolicy } from "./url-policy-evaluator";
+import type { UpdateWebFilterSettingsDto } from "./dto/update-web-filter-settings.dto";
 
 type PolicyAssignmentWithPolicy = PolicyAssignment & {
   policy: Policy;
@@ -63,6 +65,13 @@ const policyPrecedence: Record<LearningMode, number> = {
   DEFAULT_SCHOOL: 10,
 };
 
+const defaultWebFilterSettings: TenantWebFilterSettings = {
+  blockedCategories: [],
+  neverAllowedUrls: [],
+  provider: "MANAGED_BROWSER",
+  safeSearch: { bing: true, google: true, youtubeRestrictedMode: "STRICT" },
+};
+
 @Injectable()
 export class PoliciesService {
   constructor(
@@ -70,6 +79,53 @@ export class PoliciesService {
     @Inject(MdmConnectorRegistry)
     private readonly connectorRegistry: MdmConnectorRegistry,
   ) {}
+
+  async getWebFilterSettings(
+    tenantId: string,
+  ): Promise<TenantWebFilterSettings> {
+    const tenant = await this.prisma.tenant.findUnique({
+      select: { webFilterSettings: true },
+      where: { id: tenantId },
+    });
+    if (!tenant)
+      throw new NotFoundException(`Tenant ${tenantId} was not found`);
+    return this.parseWebFilterSettings(tenant.webFilterSettings);
+  }
+
+  async updateWebFilterSettings(
+    tenantId: string,
+    input: UpdateWebFilterSettingsDto,
+    actorId?: string,
+  ): Promise<TenantWebFilterSettings> {
+    const neverAllowedUrls = [...new Set(input.neverAllowedUrls.map((value) => value.trim()))];
+    for (const rule of neverAllowedUrls) this.assertUrlRule(rule);
+    const settings: TenantWebFilterSettings = {
+      blockedCategories: [...new Set(input.blockedCategories)],
+      neverAllowedUrls,
+      provider: "MANAGED_BROWSER",
+      safeSearch: input.safeSearch,
+    };
+    await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.tenant.updateMany({
+        data: { webFilterSettings: settings as Prisma.InputJsonValue },
+        where: { id: tenantId },
+      });
+      if (updated.count === 0)
+        throw new NotFoundException(`Tenant ${tenantId} was not found`);
+      await tx.auditEvent.create({
+        data: {
+          action: "policy.web_filter_settings.update",
+          actorId,
+          newValue: settings as Prisma.InputJsonValue,
+          object: "Tenant",
+          objectId: tenantId,
+          outcome: "SUCCESS",
+          tenantId,
+        },
+      });
+    });
+    return settings;
+  }
 
   async listPolicies(tenantId: string): Promise<PolicySummary[]> {
     await this.ensureTenantExists(tenantId);
@@ -89,16 +145,20 @@ export class PoliciesService {
     policyId: string,
     url: string,
   ): Promise<UrlPolicySimulation> {
-    const policy = await this.prisma.policy.findFirst({
-      where: { id: policyId, tenantId },
-    });
+    const [policy, settings] = await Promise.all([
+      this.prisma.policy.findFirst({ where: { id: policyId, tenantId } }),
+      this.getWebFilterSettings(tenantId),
+    ]);
     if (!policy)
       throw new NotFoundException(
         `Policy ${policyId} was not found for tenant ${tenantId}`,
       );
     try {
       return {
-        ...evaluateUrlPolicy(url, policy.rules as PolicyRuleSet),
+        ...evaluateUrlPolicy(url, {
+          ...(policy.rules as PolicyRuleSet),
+          neverAllowedUrls: settings.neverAllowedUrls,
+        }),
         policyId: policy.id,
         policyVersion: policy.version,
         url,
@@ -470,7 +530,10 @@ export class PoliciesService {
         policy: {
           id: updated.id,
           name: updated.name,
-          rules: updated.rules as PolicyRuleSet,
+          rules: await this.rulesWithGlobalWebFiltering(
+            tenantId,
+            updated.rules as PolicyRuleSet,
+          ),
           version: updated.version,
         },
         tenantId,
@@ -1540,11 +1603,17 @@ export class PoliciesService {
       : [];
     const lmsUrls = lmsLinks.map((item) => item.launchUrl);
 
+    const webFilterSettings = await this.getWebFilterSettings(tenantId);
     return {
       browser: {
+        blockedCategories: webFilterSettings.blockedCategories,
         defaultWebAccess: rules.defaultWebAccess,
+        neverAllowedUrls: webFilterSettings.neverAllowedUrls,
+        safeSearch: webFilterSettings.safeSearch,
         urlAllowlist: [...new Set([...rules.urlAllowlist, ...lmsUrls])],
-        urlBlocklist: rules.urlBlocklist,
+        urlBlocklist: [
+          ...new Set([...webFilterSettings.neverAllowedUrls, ...rules.urlBlocklist]),
+        ],
       },
       cache: {
         ttlSeconds: 3600,
@@ -1807,6 +1876,61 @@ export class PoliciesService {
     }
 
     return null;
+  }
+
+  private parseWebFilterSettings(value: Prisma.JsonValue | null): TenantWebFilterSettings {
+    if (!value || typeof value !== "object" || Array.isArray(value))
+      return defaultWebFilterSettings;
+    const candidate = value as Record<string, unknown>;
+    const safeSearch = candidate.safeSearch as Record<string, unknown> | undefined;
+    return {
+      blockedCategories: Array.isArray(candidate.blockedCategories)
+        ? (candidate.blockedCategories.filter((item) => typeof item === "string") as TenantWebFilterSettings["blockedCategories"])
+        : [],
+      neverAllowedUrls: Array.isArray(candidate.neverAllowedUrls)
+        ? candidate.neverAllowedUrls.filter((item): item is string => typeof item === "string")
+        : [],
+      provider: "MANAGED_BROWSER",
+      safeSearch: {
+        bing: typeof safeSearch?.bing === "boolean" ? safeSearch.bing : true,
+        google: typeof safeSearch?.google === "boolean" ? safeSearch.google : true,
+        youtubeRestrictedMode:
+          safeSearch?.youtubeRestrictedMode === "OFF" ||
+          safeSearch?.youtubeRestrictedMode === "MODERATE"
+            ? safeSearch.youtubeRestrictedMode
+            : "STRICT",
+      },
+    };
+  }
+
+  private async rulesWithGlobalWebFiltering(
+    tenantId: string,
+    rules: PolicyRuleSet,
+  ): Promise<PolicyRuleSet> {
+    const settings = await this.getWebFilterSettings(tenantId);
+    return {
+      ...rules,
+      urlBlocklist: [...new Set([...settings.neverAllowedUrls, ...rules.urlBlocklist])],
+      webFilter: settings,
+    };
+  }
+
+  private assertUrlRule(rule: string): void {
+    const target = rule.endsWith("*") ? rule.slice(0, -1) : rule;
+    try {
+      const url = new URL(target);
+      if (
+        !rule ||
+        (url.protocol !== "http:" && url.protocol !== "https:") ||
+        url.username ||
+        url.password
+      )
+        throw new Error();
+    } catch {
+      throw new BadRequestException(
+        `Never-allowed rule must be a valid HTTP(S) URL or trailing-wildcard URL: ${rule}`,
+      );
+    }
   }
 
   private toPolicyAssignmentSummary(

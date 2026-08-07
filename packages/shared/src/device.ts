@@ -178,6 +178,13 @@ export type DevicePolicyPayload = {
     defaultWebAccess: "ALLOW" | "DENY";
     urlAllowlist: string[];
     urlBlocklist: string[];
+    blockedCategories: string[];
+    neverAllowedUrls: string[];
+    safeSearch: {
+      google: boolean;
+      bing: boolean;
+      youtubeRestrictedMode: "OFF" | "MODERATE" | "STRICT";
+    };
   };
   restrictions: {
     blockSettings: boolean;

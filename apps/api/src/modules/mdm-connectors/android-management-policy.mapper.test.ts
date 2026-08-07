@@ -29,6 +29,12 @@ const rules = {
   },
   urlAllowlist: ["https://school.example"],
   urlBlocklist: [],
+  webFilter: {
+    blockedCategories: ["MALWARE" as const],
+    neverAllowedUrls: ["https://unsafe.example/*"],
+    provider: "MANAGED_BROWSER" as const,
+    safeSearch: { bing: true, google: true, youtubeRestrictedMode: "STRICT" as const },
+  },
   webShortcuts: [],
 };
 
@@ -77,6 +83,9 @@ describe("AndroidManagementPolicyMapper", () => {
           installType: "FORCE_INSTALLED",
           managedConfiguration: expect.objectContaining({
             defaultWebAccess: "DENY",
+            blockedCategories: ["MALWARE"],
+            neverAllowedUrls: ["https://unsafe.example/*"],
+            safeSearch: { bing: true, google: true, youtubeRestrictedMode: "STRICT" },
             urlAllowlist: ["https://school.example"],
           }),
           packageName: "com.virtualschool.browser",

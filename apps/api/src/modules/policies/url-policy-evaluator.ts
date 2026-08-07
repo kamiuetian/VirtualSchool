@@ -13,11 +13,21 @@ export function evaluateUrlPolicy(
   rules: Pick<
     PolicyRuleSet,
     "defaultWebAccess" | "urlAllowlist" | "urlBlocklist"
-  >,
+  > & { neverAllowedUrls?: string[] },
 ): Evaluation {
   const parsed = parseHttpUrl(url);
   if (!parsed)
     throw new Error("A valid HTTP(S) URL without credentials is required");
+  const globallyBlocked = rules.neverAllowedUrls?.find((rule) =>
+    matchesUrlRule(parsed, rule),
+  );
+  if (globallyBlocked)
+    return {
+      decision: "BLOCKED",
+      effectiveAccess: "DENY",
+      matchedRule: globallyBlocked,
+      reason: "GLOBAL_NEVER_ALLOWED",
+    };
   const blocked = rules.urlBlocklist.find((rule) =>
     matchesUrlRule(parsed, rule),
   );

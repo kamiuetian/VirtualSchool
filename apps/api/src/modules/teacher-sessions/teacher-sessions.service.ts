@@ -604,7 +604,27 @@ export class TeacherSessionsService {
       throw new NotFoundException(
         "No active published policy applies to this class",
       );
-    return selected.policy.rules as PolicyRuleSet;
+    const tenant = await this.prisma.tenant.findUnique({
+      select: { webFilterSettings: true },
+      where: { id: tenantId },
+    });
+    const configured = tenant?.webFilterSettings;
+    const neverAllowedUrls =
+      configured && typeof configured === "object" && !Array.isArray(configured)
+        ? (configured as Record<string, unknown>).neverAllowedUrls
+        : undefined;
+    const rules = selected.policy.rules as PolicyRuleSet;
+    return {
+      ...rules,
+      urlBlocklist: [
+        ...new Set([
+          ...(Array.isArray(neverAllowedUrls)
+            ? neverAllowedUrls.filter((item): item is string => typeof item === "string")
+            : []),
+          ...rules.urlBlocklist,
+        ]),
+      ],
+    };
   }
 
   private async validateTemplate(

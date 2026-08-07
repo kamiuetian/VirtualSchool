@@ -630,6 +630,30 @@ export async function updateAndroidPolicyControlsAction(
   revalidateAll();
 }
 
+export async function updateWebFilterSettingsAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("policy:manage");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "PATCH",
+    `/tenants/${tenantId}/policies/web-filter-settings`,
+    {
+      blockedCategories: formData.getAll("blockedCategories").map(String),
+      neverAllowedUrls: text(formData, "neverAllowedUrls")
+        .split(/\r?\n/)
+        .map((value) => value.trim())
+        .filter(Boolean),
+      safeSearch: {
+        bing: booleanValue(formData, "safeSearchBing"),
+        google: booleanValue(formData, "safeSearchGoogle"),
+        youtubeRestrictedMode: required(formData, "youtubeRestrictedMode"),
+      },
+    },
+  );
+  revalidateAll();
+}
+
 export async function rollbackPolicyAction(formData: FormData): Promise<void> {
   await requireActionPermission("policy:manage");
   const tenantId = required(formData, "tenantId");

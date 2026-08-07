@@ -45,6 +45,7 @@ describe("PoliciesService", () => {
   it("simulates URL policy decisions with the winning rule", async () => {
     const service = new PoliciesService(
       {
+        tenant: { findUnique: async () => ({ webFilterSettings: null }) },
         policy: {
           findFirst: async () => ({
             id: "policy-1",
@@ -68,6 +69,40 @@ describe("PoliciesService", () => {
       decision: "ALLOWED",
       matchedRule: "https://school.example/learn/*",
       policyVersion: 3,
+    });
+  });
+
+  it("gives tenant never-allowed rules precedence over a policy allowlist", async () => {
+    const service = new PoliciesService(
+      {
+        tenant: {
+          findUnique: async () => ({
+            webFilterSettings: {
+              neverAllowedUrls: ["https://school.example/unsafe/*"],
+              blockedCategories: ["MALWARE"],
+              safeSearch: { bing: true, google: true, youtubeRestrictedMode: "STRICT" },
+            },
+          }),
+        },
+        policy: {
+          findFirst: async () => ({
+            id: "policy-1",
+            rules: { ...baseRules, urlAllowlist: ["https://school.example/*"] },
+            version: 4,
+          }),
+        },
+      } as never,
+      connectorRegistry() as never,
+    );
+    await expect(
+      service.simulateUrlPolicy(
+        "tenant-1",
+        "policy-1",
+        "https://school.example/unsafe/game",
+      ),
+    ).resolves.toMatchObject({
+      decision: "BLOCKED",
+      reason: "GLOBAL_NEVER_ALLOWED",
     });
   });
 
@@ -304,6 +339,7 @@ describe("PoliciesService", () => {
         policy: {
           findFirst: async () => existing,
         },
+        tenant: { findUnique: async () => ({ webFilterSettings: null }) },
       } as never,
       connectorRegistry() as never,
     );
@@ -656,6 +692,15 @@ describe("PoliciesService", () => {
             },
           ],
         },
+        tenant: {
+          findUnique: async () => ({
+            webFilterSettings: {
+              blockedCategories: ["MALWARE"],
+              neverAllowedUrls: ["https://unsafe.example/*"],
+              safeSearch: { bing: true, google: true, youtubeRestrictedMode: "STRICT" },
+            },
+          }),
+        },
       } as never,
       connectorRegistry() as never,
     );
@@ -750,6 +795,15 @@ describe("PoliciesService", () => {
             },
           ],
         },
+        tenant: {
+          findUnique: async () => ({
+            webFilterSettings: {
+              blockedCategories: ["MALWARE"],
+              neverAllowedUrls: ["https://unsafe.example/*"],
+              safeSearch: { bing: true, google: true, youtubeRestrictedMode: "STRICT" },
+            },
+          }),
+        },
       } as never,
       connectorRegistry() as never,
     );
@@ -758,7 +812,9 @@ describe("PoliciesService", () => {
       service.getDevicePolicyPayload("tenant-1", "device-1"),
     ).resolves.toMatchObject({
       browser: {
+        blockedCategories: ["MALWARE"],
         defaultWebAccess: "DENY",
+        neverAllowedUrls: ["https://unsafe.example/*"],
       },
       launcher: {
         approvedApps: [

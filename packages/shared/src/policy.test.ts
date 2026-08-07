@@ -98,4 +98,16 @@ describe("simulateUrlPolicy", () => {
       matchedRule: null,
     });
   });
+
+  it("does not let an allowlist bypass a global never-allowed rule", () => {
+    expect(
+      simulateUrlPolicy("https://learning.example.edu/lessons/unsafe/1", {
+        ...rules,
+        neverAllowedUrls: ["https://learning.example.edu/lessons/unsafe/*"],
+      }),
+    ).toMatchObject({
+      decision: "BLOCKED",
+      reason: "GLOBAL_NEVER_ALLOWED",
+    });
+  });
 });

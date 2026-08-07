@@ -17,6 +17,7 @@ import type {
   PolicySummary,
   PolicyVersionSummary,
   UrlPolicySimulation,
+  TenantWebFilterSettings,
   BlockedDomainAggregate,
   ExamReadinessSummary,
   AssessmentLaunchSummary,
@@ -36,6 +37,7 @@ import type { AuthenticatedRequest } from "../auth/types/authenticated-request";
 import { CompleteExamDto, ScheduleExamDto } from "./dto/schedule-exam.dto";
 import { LaunchAssessmentDto } from "./dto/launch-assessment.dto";
 import { IngestExamIntegrityEventDto, UnlockExamDeviceDto } from "./dto/exam-operations.dto";
+import { UpdateWebFilterSettingsDto } from "./dto/update-web-filter-settings.dto";
 
 @ApiTags("policies")
 @Controller("tenants/:tenantId/policies")
@@ -43,6 +45,28 @@ export class PoliciesController {
   constructor(
     @Inject(PoliciesService) private readonly policiesService: PoliciesService,
   ) {}
+
+  @Get("web-filter-settings")
+  @RequirePermissions("tenant:read")
+  getWebFilterSettings(
+    @Param("tenantId") tenantId: string,
+  ): Promise<TenantWebFilterSettings> {
+    return this.policiesService.getWebFilterSettings(tenantId);
+  }
+
+  @Patch("web-filter-settings")
+  @RequirePermissions("policy:manage")
+  updateWebFilterSettings(
+    @Param("tenantId") tenantId: string,
+    @Body() body: UpdateWebFilterSettingsDto,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<TenantWebFilterSettings> {
+    return this.policiesService.updateWebFilterSettings(
+      tenantId,
+      body,
+      request.user?.subject,
+    );
+  }
 
   @Get()
   @RequirePermissions("tenant:read")
