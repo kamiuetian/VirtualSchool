@@ -24,7 +24,44 @@ export async function createTenantAction(formData: FormData): Promise<void> {
   revalidateAll();
 }
 
-export async function startTeacherSessionAction(formData: FormData): Promise<void> {
+export async function reportGuardianLostDeviceAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("guardian:read");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/guardian/children/${required(formData, "studentId")}/lost-device-reports`,
+    {
+      reason: required(formData, "reason"),
+      startLostWorkflow: booleanValue(formData, "startLostWorkflow"),
+    },
+  );
+  revalidatePath("/guardian");
+}
+
+export async function updateGuardianAfterSchoolAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("guardian:read");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "PATCH",
+    `/tenants/${tenantId}/guardian/children/${required(formData, "studentId")}/after-school-control`,
+    {
+      enabled: booleanValue(formData, "enabled"),
+      dailyLimitMinutes: numberValue(formData, "dailyLimitMinutes"),
+      allowedAppIds: formData
+        .getAll("allowedAppIds")
+        .filter((value): value is string => typeof value === "string"),
+    },
+  );
+  revalidatePath("/guardian");
+}
+
+export async function startTeacherSessionAction(
+  formData: FormData,
+): Promise<void> {
   await requireActionPermission("session:manage");
   const tenantId = required(formData, "tenantId");
   await adminApiMutation("POST", `/tenants/${tenantId}/teacher/sessions`, {
@@ -33,62 +70,107 @@ export async function startTeacherSessionAction(formData: FormData): Promise<voi
   revalidateAll();
 }
 
-export async function createTeacherSessionTemplateAction(formData: FormData): Promise<void> {
+export async function createTeacherSessionTemplateAction(
+  formData: FormData,
+): Promise<void> {
   await requireActionPermission("session:manage");
   const tenantId = required(formData, "tenantId");
   await adminApiMutation("POST", `/tenants/${tenantId}/teacher/templates`, {
-    name: required(formData, "name"), classId: required(formData, "classId"),
-    resourceId: text(formData, "resourceId"), focusMessage: text(formData, "focusMessage"),
+    name: required(formData, "name"),
+    classId: required(formData, "classId"),
+    resourceId: text(formData, "resourceId"),
+    focusMessage: text(formData, "focusMessage"),
     focusDurationMinutes: numberValue(formData, "focusDurationMinutes"),
-    temporaryUrl: text(formData, "temporaryUrl"), temporaryUrlMinutes: numberValue(formData, "temporaryUrlMinutes"),
+    temporaryUrl: text(formData, "temporaryUrl"),
+    temporaryUrlMinutes: numberValue(formData, "temporaryUrlMinutes"),
   });
   revalidateAll();
 }
 
-export async function startTeacherSessionTemplateAction(formData: FormData): Promise<void> {
+export async function startTeacherSessionTemplateAction(
+  formData: FormData,
+): Promise<void> {
   await requireActionPermission("session:manage");
   const tenantId = required(formData, "tenantId");
-  await adminApiMutation("POST", `/tenants/${tenantId}/teacher/templates/${required(formData, "templateId")}/start`, {});
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/teacher/templates/${required(formData, "templateId")}/start`,
+    {},
+  );
   revalidateAll();
 }
 
-export async function endTeacherSessionAction(formData: FormData): Promise<void> {
+export async function endTeacherSessionAction(
+  formData: FormData,
+): Promise<void> {
   await requireActionPermission("session:manage");
   const tenantId = required(formData, "tenantId");
   const sessionId = required(formData, "sessionId");
-  await adminApiMutation("POST", `/tenants/${tenantId}/teacher/sessions/${sessionId}/end`, {
-    reason: required(formData, "reason"),
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/teacher/sessions/${sessionId}/end`,
+    {
+      reason: required(formData, "reason"),
+    },
+  );
+  revalidateAll();
+}
+
+export async function pushTeacherResourceAction(
+  formData: FormData,
+): Promise<void> {
+  await teacherSessionMutation(formData, "resources", {
+    resourceId: required(formData, "resourceId"),
   });
-  revalidateAll();
 }
 
-export async function pushTeacherResourceAction(formData: FormData): Promise<void> {
-  await teacherSessionMutation(formData, "resources", { resourceId: required(formData, "resourceId") });
+export async function showTeacherFocusScreenAction(
+  formData: FormData,
+): Promise<void> {
+  await teacherSessionMutation(formData, "focus-screen", {
+    message: required(formData, "message"),
+    durationMinutes: numberValue(formData, "durationMinutes"),
+  });
 }
 
-export async function showTeacherFocusScreenAction(formData: FormData): Promise<void> {
-  await teacherSessionMutation(formData, "focus-screen", { message: required(formData, "message"), durationMinutes: numberValue(formData, "durationMinutes") });
+export async function approveTeacherTemporaryUrlAction(
+  formData: FormData,
+): Promise<void> {
+  await teacherSessionMutation(formData, "temporary-url-approvals", {
+    url: required(formData, "url"),
+    durationMinutes: numberValue(formData, "durationMinutes"),
+  });
 }
 
-export async function approveTeacherTemporaryUrlAction(formData: FormData): Promise<void> {
-  await teacherSessionMutation(formData, "temporary-url-approvals", { url: required(formData, "url"), durationMinutes: numberValue(formData, "durationMinutes") });
-}
-
-async function teacherSessionMutation(formData: FormData, action: string, body: Record<string, unknown>): Promise<void> {
+async function teacherSessionMutation(
+  formData: FormData,
+  action: string,
+  body: Record<string, unknown>,
+): Promise<void> {
   await requireActionPermission("session:manage");
   const tenantId = required(formData, "tenantId");
   const sessionId = required(formData, "sessionId");
-  await adminApiMutation("POST", `/tenants/${tenantId}/teacher/sessions/${sessionId}/${action}`, body);
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/teacher/sessions/${sessionId}/${action}`,
+    body,
+  );
   revalidateAll();
 }
 
-export async function assignTeacherClassAction(formData: FormData): Promise<void> {
+export async function assignTeacherClassAction(
+  formData: FormData,
+): Promise<void> {
   await requireActionPermission("class:manage");
   const tenantId = required(formData, "tenantId");
   const classId = required(formData, "classId");
-  await adminApiMutation("POST", `/tenants/${tenantId}/teacher/classes/${classId}/assignments`, {
-    teacherId: required(formData, "teacherId"),
-  });
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/teacher/classes/${classId}/assignments`,
+    {
+      teacherId: required(formData, "teacherId"),
+    },
+  );
   revalidateAll();
 }
 

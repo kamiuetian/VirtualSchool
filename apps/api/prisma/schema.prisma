@@ -121,6 +121,7 @@ model Tenant {
   teacherSessions        TeacherSession[]
   teacherSessionEvents   TeacherSessionEvent[]
   teacherSessionTemplates TeacherSessionTemplate[]
+  guardianAfterSchoolControls GuardianAfterSchoolControl[]
 }
 
 model OnboardingProgress {
@@ -255,6 +256,7 @@ model Student {
   guardians   StudentGuardian[]
   devices     Device[]
   classes     ClassMembership[]
+  guardianAfterSchoolControls GuardianAfterSchoolControl[]
 
   @@unique([tenantId, studentCode])
   @@index([tenantId, grade, section])
@@ -270,6 +272,7 @@ model Guardian {
   updatedAt DateTime          @updatedAt
   tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   students  StudentGuardian[]
+  afterSchoolControls GuardianAfterSchoolControl[]
 
   @@index([tenantId, email])
 }
@@ -282,6 +285,25 @@ model StudentGuardian {
   guardian     Guardian @relation(fields: [guardianId], references: [id], onDelete: Cascade)
 
   @@id([studentId, guardianId])
+}
+
+model GuardianAfterSchoolControl {
+  id                String   @id @default(uuid())
+  tenantId          String
+  guardianId        String
+  studentId         String
+  enabled           Boolean  @default(false)
+  dailyLimitMinutes Int      @default(60)
+  allowedAppIds     String[] @default([])
+  updatedBy         String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  guardian          Guardian @relation(fields: [guardianId], references: [id], onDelete: Cascade)
+  student           Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([guardianId, studentId])
+  @@index([tenantId, studentId])
 }
 
 model ClassSection {

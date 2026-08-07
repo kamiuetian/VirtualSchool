@@ -10,6 +10,7 @@ describe("GuardianService", () => {
         findFirst: async (query: unknown) => {
           guardianQuery = query;
           return {
+            id: "guardian-1",
             name: "Parent One",
             tenant: { name: "Example School", timezone: "UTC" },
             students: [
@@ -27,6 +28,7 @@ describe("GuardianService", () => {
                     },
                   ],
                   classes: [{ classId: "class-1" }],
+                  guardianAfterSchoolControls: [],
                 },
               },
             ],
@@ -56,12 +58,24 @@ describe("GuardianService", () => {
           },
         ],
       },
+      appCatalogItem: {
+        findMany: async () => [
+          {
+            id: "app-1",
+            name: "Math",
+            category: "Learning",
+            approvedGrades: ["5"],
+          },
+        ],
+      },
     };
     const result = await new GuardianService(prisma as never).dashboard(
       "tenant-1",
       "parent@example.com",
     );
     expect(result.children).toHaveLength(1);
+    expect(result.tenantId).toBe("tenant-1");
+    expect(result.children[0]!.availableAfterSchoolApps).toHaveLength(1);
     expect(result.children[0]).toMatchObject({
       id: "student-1",
       device: { availability: "ONLINE" },
@@ -75,6 +89,88 @@ describe("GuardianService", () => {
       where: { tenantId: "tenant-1", email: { equals: "parent@example.com" } },
       select: { students: { where: { student: { tenantId: "tenant-1" } } } },
     });
+  });
+
+  it("creates a school alert and guarded lost workflow only for a linked child", async () => {
+    const writes: string[] = [];
+    const prisma = {
+      guardian: {
+        findFirst: async () => ({
+          id: "guardian-1",
+          students: [
+            {
+              student: {
+                id: "student-1",
+                name: "Linked Child",
+                grade: "5",
+                devices: [{ id: "device-1", status: "ONLINE" }],
+              },
+            },
+          ],
+        }),
+      },
+      $transaction: async (work: (tx: unknown) => unknown) =>
+        work({
+          deviceAlert: {
+            create: async () => {
+              writes.push("alert");
+              return { id: "alert-1" };
+            },
+          },
+          device: { update: async () => writes.push("device-lost") },
+          deviceLifecycleEvent: {
+            create: async () => writes.push("lifecycle"),
+          },
+          auditEvent: { create: async () => writes.push("audit") },
+        }),
+    };
+    const result = await new GuardianService(prisma as never).reportLostDevice(
+      "tenant-1",
+      "student-1",
+      { reason: "Missing after pickup", startLostWorkflow: true },
+      "guardian-auth",
+      "parent@example.com",
+    );
+    expect(result).toEqual({
+      alertId: "alert-1",
+      lostWorkflowStarted: true,
+      status: "REPORTED",
+    });
+    expect(writes).toEqual(["alert", "device-lost", "lifecycle", "audit"]);
+  });
+
+  it("rejects after-school apps that are not school-approved for the linked child's grade", async () => {
+    const prisma = {
+      guardian: {
+        findFirst: async () => ({
+          id: "guardian-1",
+          students: [
+            {
+              student: {
+                id: "student-1",
+                name: "Linked Child",
+                grade: "5",
+                devices: [],
+              },
+            },
+          ],
+        }),
+      },
+      appCatalogItem: { findMany: async () => [] },
+    };
+    await expect(
+      new GuardianService(prisma as never).updateAfterSchoolControl(
+        "tenant-1",
+        "student-1",
+        {
+          enabled: true,
+          dailyLimitMinutes: 60,
+          allowedAppIds: ["foreign-app"],
+        },
+        "guardian-auth",
+        "parent@example.com",
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it("denies an account without a tenant-scoped guardian match", async () => {

@@ -1,6 +1,17 @@
 import { AppShell } from "../../components/app-shell";
-import { EmptyState, PageSection, StatusPill } from "../../components/ui";
+import {
+  ActionPanel,
+  EmptyState,
+  Field,
+  PageSection,
+  StatusPill,
+  SubmitButton,
+} from "../../components/ui";
 import { getGuardianDashboard } from "../../lib/api";
+import {
+  reportGuardianLostDeviceAction,
+  updateGuardianAfterSchoolAction,
+} from "../../lib/actions";
 import { formatDateTime, humanize } from "../../lib/format";
 
 export const dynamic = "force-dynamic";
@@ -61,6 +72,93 @@ export default async function GuardianPage() {
                   <strong>{child.schoolHours.length}</strong>
                   <small>Scheduled blocks this week</small>
                 </article>
+              </div>
+              <div className="two-column-grid">
+                <ActionPanel title="After-school learning choices">
+                  <form
+                    action={updateGuardianAfterSchoolAction}
+                    className="form-grid"
+                  >
+                    <input
+                      type="hidden"
+                      name="tenantId"
+                      value={dashboard.tenantId}
+                    />
+                    <input type="hidden" name="studentId" value={child.id} />
+                    <label className="checkbox-row">
+                      <input
+                        type="checkbox"
+                        name="enabled"
+                        defaultChecked={child.afterSchoolControl.enabled}
+                      />{" "}
+                      Enable after-school choices
+                    </label>
+                    <Field label="Daily limit (minutes)">
+                      <input
+                        type="number"
+                        name="dailyLimitMinutes"
+                        min={15}
+                        max={240}
+                        defaultValue={
+                          child.afterSchoolControl.dailyLimitMinutes
+                        }
+                        required
+                      />
+                    </Field>
+                    <fieldset>
+                      <legend>School-approved apps</legend>
+                      {child.availableAfterSchoolApps.map((app) => (
+                        <label className="checkbox-row" key={app.id}>
+                          <input
+                            type="checkbox"
+                            name="allowedAppIds"
+                            value={app.id}
+                            defaultChecked={child.afterSchoolControl.allowedAppIds.includes(
+                              app.id,
+                            )}
+                          />{" "}
+                          {app.name}
+                        </label>
+                      ))}
+                    </fieldset>
+                    <small>
+                      {child.afterSchoolControl.effective
+                        ? "Active now during after-school mode."
+                        : child.afterSchoolControl.inactiveReason}
+                    </small>
+                    <SubmitButton>Save choices</SubmitButton>
+                  </form>
+                </ActionPanel>
+                <ActionPanel title="Report a missing device">
+                  <form
+                    action={reportGuardianLostDeviceAction}
+                    className="form-grid"
+                  >
+                    <input
+                      type="hidden"
+                      name="tenantId"
+                      value={dashboard.tenantId}
+                    />
+                    <input type="hidden" name="studentId" value={child.id} />
+                    <Field label="What happened?">
+                      <textarea
+                        name="reason"
+                        minLength={3}
+                        maxLength={500}
+                        required
+                      />
+                    </Field>
+                    <label className="checkbox-row">
+                      <input type="checkbox" name="startLostWorkflow" /> Ask the
+                      school to start guarded lost-device mode now
+                    </label>
+                    <small>
+                      A high-priority school alert is always created. School and
+                      exam restrictions remain in control.
+                    </small>
+                    <SubmitButton>Send report</SubmitButton>
+                  </form>
+                </ActionPanel>
               </div>
               <h3>Recently approved learning access</h3>
               {child.approvedLearningAccess.length ? (

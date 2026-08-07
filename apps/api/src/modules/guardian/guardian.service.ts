@@ -5,6 +5,10 @@ import type {
   GuardianLearningAccessSummary,
 } from "@virtual-school/shared";
 import { PrismaService } from "../prisma/prisma.service";
+import type {
+  ReportLostDeviceDto,
+  UpdateAfterSchoolControlDto,
+} from "./dto/guardian-actions.dto";
 
 @Injectable()
 export class GuardianService {
@@ -20,6 +24,7 @@ export class GuardianService {
     const guardian = await this.prisma.guardian.findFirst({
       where: { tenantId, email: { equals: email, mode: "insensitive" } },
       select: {
+        id: true,
         name: true,
         tenant: { select: { name: true, timezone: true } },
         students: {
@@ -39,6 +44,14 @@ export class GuardianService {
                   select: { status: true, lastCheckInAt: true },
                 },
                 classes: { select: { classId: true } },
+                guardianAfterSchoolControls: {
+                  select: {
+                    guardianId: true,
+                    enabled: true,
+                    dailyLimitMinutes: true,
+                    allowedAppIds: true,
+                  },
+                },
               },
             },
           },
@@ -57,7 +70,10 @@ export class GuardianService {
         ),
       ),
     ];
-    const [hours, sessions, accessEvents] = await Promise.all([
+    const grades = [
+      ...new Set(guardian.students.map((link) => link.student.grade)),
+    ];
+    const [hours, sessions, accessEvents, approvedApps] = await Promise.all([
       this.prisma.timetableBlock.findMany({
         where: {
           tenantId,
@@ -92,6 +108,15 @@ export class GuardianService {
           session: { select: { classId: true } },
         },
       }),
+      this.prisma.appCatalogItem.findMany({
+        where: {
+          tenantId,
+          approvalStatus: "APPROVED",
+          approvedGrades: { hasSome: grades },
+        },
+        orderBy: { name: "asc" },
+        select: { id: true, name: true, category: true, approvedGrades: true },
+      }),
     ]);
 
     const children: GuardianChildSummary[] = guardian.students.map(
@@ -105,6 +130,14 @@ export class GuardianService {
         const classMode = sessions.some((item) =>
           studentClassIds.has(item.classId),
         );
+        const control = student.guardianAfterSchoolControls.find(
+          (item) => item.guardianId === guardian.id,
+        );
+        const expectedMode = classMode
+          ? "CLASS_MODE"
+          : this.isWithinHours(studentHours, guardian.tenant.timezone)
+            ? "SCHOOL_HOURS"
+            : "AFTER_SCHOOL";
         return {
           id: student.id,
           name: student.name,
@@ -118,20 +151,42 @@ export class GuardianService {
             endMinute: item.endMinute,
             timezone: item.timezone ?? guardian.tenant.timezone,
           })),
-          expectedMode: classMode
-            ? "CLASS_MODE"
-            : this.isWithinHours(studentHours, guardian.tenant.timezone)
-              ? "SCHOOL_HOURS"
-              : "AFTER_SCHOOL",
+          expectedMode,
           approvedLearningAccess: accessEvents
             .filter((event) => studentClassIds.has(event.session.classId))
             .slice(0, 8)
             .map((event) => this.accessSummary(event)),
+          availableAfterSchoolApps: approvedApps
+            .filter((app) => app.approvedGrades.includes(student.grade))
+            .map((app) => ({
+              id: app.id,
+              name: app.name,
+              category: app.category,
+            })),
+          afterSchoolControl: {
+            enabled: control?.enabled ?? false,
+            dailyLimitMinutes: control?.dailyLimitMinutes ?? 60,
+            allowedAppIds: control?.allowedAppIds ?? [],
+            effective: Boolean(
+              control?.enabled &&
+                expectedMode === "AFTER_SCHOOL" &&
+                student.devices[0]?.status !== "LOST",
+            ),
+            inactiveReason:
+              expectedMode !== "AFTER_SCHOOL"
+                ? "School and class modes always take precedence"
+                : student.devices[0]?.status === "LOST"
+                  ? "Lost-device mode always takes precedence"
+                  : control?.enabled
+                    ? null
+                    : "After-school control is off",
+          },
         };
       },
     );
 
     return {
+      tenantId,
       guardianName: guardian.name,
       schoolName: guardian.tenant.name,
       timezone: guardian.tenant.timezone,
@@ -139,6 +194,184 @@ export class GuardianService {
       privacyMessage:
         "This view shows school-approved learning activity only. Browsing history, device location, messages, diagnostics, and other children are not available.",
     };
+  }
+
+  async reportLostDevice(
+    tenantId: string,
+    studentId: string,
+    input: ReportLostDeviceDto,
+    actorId?: string,
+    email?: string,
+  ) {
+    const reason = input.reason.trim();
+    if (!reason) throw new ForbiddenException("A report reason is required");
+    const link = await this.linkedGuardian(tenantId, studentId, email);
+    const device = link.student.devices[0];
+    if (!device)
+      throw new ForbiddenException("No active device is linked to this child");
+    return this.prisma.$transaction(async (tx) => {
+      const alert = await tx.deviceAlert.create({
+        data: {
+          tenantId,
+          deviceId: device.id,
+          type: "GUARDIAN_LOST_DEVICE_REPORT",
+          severity: "S1",
+          status: "OPEN",
+          title: `Guardian reported ${link.student.name}'s device missing`,
+          message: reason,
+          source: "GUARDIAN_PORTAL",
+          metadata: {
+            guardianId: link.id,
+            studentId,
+            requestedLostWorkflow: Boolean(input.startLostWorkflow),
+          },
+        },
+      });
+      if (input.startLostWorkflow && device.status !== "LOST") {
+        await tx.device.update({
+          where: { id: device.id },
+          data: { status: "LOST" },
+        });
+        await tx.deviceLifecycleEvent.create({
+          data: {
+            tenantId,
+            deviceId: device.id,
+            type: "LOST",
+            reason,
+            actorId,
+            oldValue: { status: device.status },
+            newValue: { status: "LOST", source: "GUARDIAN_REPORT" },
+          },
+        });
+      }
+      await tx.auditEvent.create({
+        data: {
+          tenantId,
+          actorId,
+          action: "guardian.device.report_lost",
+          object: "Device",
+          objectId: device.id,
+          outcome: "SUCCESS",
+          reason,
+          newValue: {
+            alertId: alert.id,
+            studentId,
+            lostWorkflowStarted: Boolean(input.startLostWorkflow),
+          },
+        },
+      });
+      return {
+        alertId: alert.id,
+        lostWorkflowStarted: Boolean(input.startLostWorkflow),
+        status: "REPORTED" as const,
+      };
+    });
+  }
+
+  async updateAfterSchoolControl(
+    tenantId: string,
+    studentId: string,
+    input: UpdateAfterSchoolControlDto,
+    actorId?: string,
+    email?: string,
+  ) {
+    const link = await this.linkedGuardian(tenantId, studentId, email);
+    const approvedApps = await this.prisma.appCatalogItem.findMany({
+      where: {
+        id: { in: input.allowedAppIds },
+        tenantId,
+        approvalStatus: "APPROVED",
+        approvedGrades: { has: link.student.grade },
+      },
+      select: { id: true },
+    });
+    if (approvedApps.length !== input.allowedAppIds.length)
+      throw new ForbiddenException(
+        "Every selected app must be school-approved for this child's grade",
+      );
+    return this.prisma.$transaction(async (tx) => {
+      const control = await tx.guardianAfterSchoolControl.upsert({
+        where: { guardianId_studentId: { guardianId: link.id, studentId } },
+        create: {
+          tenantId,
+          guardianId: link.id,
+          studentId,
+          enabled: input.enabled,
+          dailyLimitMinutes: input.dailyLimitMinutes,
+          allowedAppIds: input.allowedAppIds,
+          updatedBy: actorId,
+        },
+        update: {
+          enabled: input.enabled,
+          dailyLimitMinutes: input.dailyLimitMinutes,
+          allowedAppIds: input.allowedAppIds,
+          updatedBy: actorId,
+        },
+      });
+      await tx.auditEvent.create({
+        data: {
+          tenantId,
+          actorId,
+          action: "guardian.after_school_control.update",
+          object: "GuardianAfterSchoolControl",
+          objectId: control.id,
+          outcome: "SUCCESS",
+          newValue: {
+            studentId,
+            enabled: input.enabled,
+            dailyLimitMinutes: input.dailyLimitMinutes,
+            allowedAppIds: input.allowedAppIds,
+          },
+        },
+      });
+      return {
+        enabled: control.enabled,
+        dailyLimitMinutes: control.dailyLimitMinutes,
+        allowedAppIds: control.allowedAppIds,
+      };
+    });
+  }
+
+  private async linkedGuardian(
+    tenantId: string,
+    studentId: string,
+    email?: string,
+  ) {
+    if (!email)
+      throw new ForbiddenException("Guardian email claim is required");
+    const guardian = await this.prisma.guardian.findFirst({
+      where: {
+        tenantId,
+        email: { equals: email, mode: "insensitive" },
+        students: { some: { studentId, student: { tenantId } } },
+      },
+      select: {
+        id: true,
+        students: {
+          where: { studentId, student: { tenantId } },
+          select: {
+            student: {
+              select: {
+                id: true,
+                name: true,
+                grade: true,
+                devices: {
+                  where: { status: { not: "RETIRED" } },
+                  orderBy: { updatedAt: "desc" },
+                  take: 1,
+                  select: { id: true, status: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!guardian || !guardian.students[0])
+      throw new ForbiddenException(
+        "This child is not linked to the authenticated guardian",
+      );
+    return { id: guardian.id, student: guardian.students[0].student };
   }
 
   private deviceSummary(device?: {

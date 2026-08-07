@@ -31,9 +31,24 @@ export type GuardianChildSummary = {
   schoolHours: GuardianSchoolHours[];
   expectedMode: "SCHOOL_HOURS" | "CLASS_MODE" | "AFTER_SCHOOL";
   approvedLearningAccess: GuardianLearningAccessSummary[];
+  availableAfterSchoolApps: GuardianAfterSchoolApp[];
+  afterSchoolControl: {
+    enabled: boolean;
+    dailyLimitMinutes: number;
+    allowedAppIds: string[];
+    effective: boolean;
+    inactiveReason: string | null;
+  };
+};
+
+export type GuardianAfterSchoolApp = {
+  id: string;
+  name: string;
+  category: string | null;
 };
 
 export type GuardianDashboard = {
+  tenantId: string;
   guardianName: string;
   schoolName: string;
   timezone: string;

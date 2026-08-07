@@ -918,6 +918,21 @@ export class PoliciesService {
     );
     const rules = resolution.activePolicy.rules;
 
+    const afterSchoolControl =
+      rules.mode === "HOMEWORK_AFTER_SCHOOL"
+        ? await this.prisma.guardianAfterSchoolControl.findFirst({
+            where: {
+              student: { devices: { some: { id: deviceId, tenantId } } },
+              tenantId,
+            },
+            select: {
+              allowedAppIds: true,
+              dailyLimitMinutes: true,
+              enabled: true,
+            },
+          })
+        : null;
+
     const apps =
       rules.approvedAppPackageIds.length === 0
         ? []
@@ -927,6 +942,9 @@ export class PoliciesService {
             },
             where: {
               approvalStatus: "APPROVED",
+              ...(afterSchoolControl?.enabled
+                ? { id: { in: afterSchoolControl.allowedAppIds } }
+                : {}),
               packageId: {
                 in: rules.approvedAppPackageIds,
               },
@@ -968,7 +986,7 @@ export class PoliciesService {
         webShortcuts: rules.webShortcuts,
       },
       policy: {
-        explanation: resolution.explanation,
+        explanation: `${resolution.explanation}${afterSchoolControl?.enabled ? ` Guardian after-school selection applied within the school app allowlist for ${afterSchoolControl.dailyLimitMinutes} minutes daily.` : ""}`,
         id: resolution.activePolicy.id,
         mode: rules.mode,
         name: resolution.activePolicy.name,
