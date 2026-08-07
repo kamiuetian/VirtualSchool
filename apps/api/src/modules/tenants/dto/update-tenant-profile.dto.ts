@@ -5,10 +5,16 @@ import {
   IsOptional,
   IsString,
   IsUrl,
+  IsIn,
   Matches,
 } from "class-validator";
 
 export class UpdateTenantProfileDto {
+  @ApiProperty({ enum: ["en", "ur"], required: false })
+  @IsOptional()
+  @IsIn(["en", "ur"])
+  language?: "en" | "ur";
+
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()

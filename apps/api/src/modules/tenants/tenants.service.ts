@@ -382,6 +382,7 @@ export class TenantsService {
     country: string;
     id: string;
     logoUrl?: string | null;
+    language: string;
     name: string;
     planKey: string;
     primaryColor?: string | null;
@@ -396,6 +397,7 @@ export class TenantsService {
       country: tenant.country,
       id: tenant.id,
       logoUrl: tenant.logoUrl,
+      language: tenant.language === "ur" ? "ur" : "en",
       name: tenant.name,
       planKey: tenant.planKey,
       primaryColor: tenant.primaryColor,
@@ -419,6 +421,7 @@ export class TenantsService {
     accentColor?: string | null;
     country: string;
     logoUrl?: string | null;
+    language: string;
     name: string;
     primaryColor?: string | null;
     supportEmail?: string | null;
@@ -430,6 +433,7 @@ export class TenantsService {
       accentColor: tenant.accentColor ?? null,
       country: tenant.country,
       logoUrl: tenant.logoUrl ?? null,
+      language: tenant.language,
       name: tenant.name,
       primaryColor: tenant.primaryColor ?? null,
       supportEmail: tenant.supportEmail ?? null,

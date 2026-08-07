@@ -5,6 +5,7 @@ export type TenantSummary = {
   name: string;
   country: string;
   timezone: string;
+  language?: "en" | "ur";
   status: TenantStatus;
   planKey: string;
   logoUrl?: string | null;

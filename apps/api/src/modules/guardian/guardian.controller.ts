@@ -17,6 +17,7 @@ import {
   CreateGuardianSupportRequestDto,
   ReportLostDeviceDto,
   UpdateGuardianNotificationsDto,
+  UpdateGuardianLanguageDto,
   UpdateAfterSchoolControlDto,
 } from "./dto/guardian-actions.dto";
 
@@ -87,6 +88,21 @@ export class GuardianController {
     return this.service.updateNotificationPreferences(
       tenantId,
       input,
+      request.user?.subject,
+      request.user?.email,
+    );
+  }
+
+  @Patch("language")
+  @RequirePermissions("guardian:read")
+  updateLanguage(
+    @Param("tenantId") tenantId: string,
+    @Body() input: UpdateGuardianLanguageDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.service.updateLanguage(
+      tenantId,
+      input.language,
       request.user?.subject,
       request.user?.email,
     );

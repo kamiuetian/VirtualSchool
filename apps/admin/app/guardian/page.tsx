@@ -13,49 +13,79 @@ import {
   createGuardianSupportRequestAction,
   reportGuardianLostDeviceAction,
   updateGuardianNotificationsAction,
+  updateGuardianLanguageAction,
   updateGuardianAfterSchoolAction,
 } from "../../lib/actions";
 import { formatDateTime, humanize } from "../../lib/format";
+import { guardianText } from "../../lib/guardian-i18n";
 
 export const dynamic = "force-dynamic";
 
 export default async function GuardianPage() {
   const { dashboard, connectionIssue } = await getGuardianDashboard();
+  const locale = dashboard?.locale ?? "en";
+  const t = (text: string) => guardianText(locale, text);
   return (
     <AppShell connectionIssue={connectionIssue} tenant={null}>
       <div className="content-stack">
         <section className="hero-panel">
           <div>
-            <span className="eyebrow">Guardian view</span>
+            <span className="eyebrow">{t("Guardian view")}</span>
             <h2>
               {dashboard
-                ? `Welcome, ${dashboard.guardianName}.`
-                : "Your family learning view"}
+                ? `${t("Welcome")}, ${dashboard.guardianName}.`
+                : t("Your family learning view")}
             </h2>
             <p>
               {dashboard?.privacyMessage ??
-                "Linked-child information will appear after your school connects your account."}
+                t(
+                  "Linked-child information will appear after your school connects your account.",
+                )}
             </p>
           </div>
         </section>
         {!dashboard ? (
           <EmptyState
-            title="Guardian profile unavailable"
-            body="Confirm that your sign-in email is linked to a student by your school."
+            title={t("Guardian profile unavailable")}
+            body={t(
+              "Confirm that your sign-in email is linked to a student by your school.",
+            )}
           />
         ) : dashboard.children.length === 0 ? (
           <EmptyState
-            title="No linked children"
-            body="Ask the school roster administrator to review your guardian link."
+            title={t("No linked children")}
+            body={t(
+              "Ask the school roster administrator to review your guardian link.",
+            )}
           />
         ) : (
           <>
             <PageSection
-              kicker="Family preferences"
-              title="Consent and notifications"
+              kicker={t("Family preferences")}
+              title={t("Consent and notifications")}
             >
               <div className="two-column-grid">
-                <ActionPanel title="Required forms">
+                <ActionPanel title={t("Language")}>
+                  <form
+                    action={updateGuardianLanguageAction}
+                    className="form-grid"
+                  >
+                    <input
+                      type="hidden"
+                      name="tenantId"
+                      value={dashboard.tenantId}
+                    />
+                    <select name="language" defaultValue={locale}>
+                      {dashboard.supportedLocales.map((item) => (
+                        <option key={item.code} value={item.code}>
+                          {item.label}
+                        </option>
+                      ))}
+                    </select>
+                    <SubmitButton>{t("Save language")}</SubmitButton>
+                  </form>
+                </ActionPanel>
+                <ActionPanel title={t("Required forms")}>
                   {dashboard.consentForms.length ? (
                     dashboard.consentForms.map((form) => (
                       <form
@@ -74,17 +104,21 @@ export default async function GuardianPage() {
                         </strong>
                         <p>{form.content}</p>
                         {form.accepted ? (
-                          <StatusPill tone="good">Accepted</StatusPill>
+                          <StatusPill tone="good">{t("Accepted")}</StatusPill>
                         ) : (
-                          <SubmitButton>Accept this version</SubmitButton>
+                          <SubmitButton>
+                            {t("Accept this version")}
+                          </SubmitButton>
                         )}
                       </form>
                     ))
                   ) : (
-                    <p>No guardian forms are currently awaiting review.</p>
+                    <p>
+                      {t("No guardian forms are currently awaiting review.")}
+                    </p>
                   )}
                 </ActionPanel>
-                <ActionPanel title="Notification channels">
+                <ActionPanel title={t("Notification channels")}>
                   <form
                     action={updateGuardianNotificationsAction}
                     className="form-grid"
@@ -108,10 +142,13 @@ export default async function GuardianPage() {
                       </label>
                     ))}
                     <small>
-                      Only contact methods registered with the school are
-                      available.
+                      {t(
+                        "Only contact methods registered with the school are available.",
+                      )}
                     </small>
-                    <SubmitButton>Save notification channels</SubmitButton>
+                    <SubmitButton>
+                      {t("Save notification channels")}
+                    </SubmitButton>
                   </form>
                 </ActionPanel>
               </div>
@@ -124,29 +161,29 @@ export default async function GuardianPage() {
               >
                 <div className="stat-grid">
                   <article className="stat-card">
-                    <span>Device availability</span>
-                    <strong>{humanize(child.device.availability)}</strong>
+                    <span>{t("Device availability")}</span>
+                    <strong>{t(humanize(child.device.availability))}</strong>
                     <small>
                       {child.device.lastSeenAt
-                        ? `Last seen ${formatDateTime(child.device.lastSeenAt)}`
-                        : "No check-in shared"}
+                        ? `${t("Last seen")} ${formatDateTime(child.device.lastSeenAt)}`
+                        : t("No check-in shared")}
                     </small>
                   </article>
                   <article className="stat-card">
-                    <span>Expected mode</span>
-                    <strong>{humanize(child.expectedMode)}</strong>
+                    <span>{t("Expected mode")}</span>
+                    <strong>{t(humanize(child.expectedMode))}</strong>
                     <small>
-                      Based on school schedule and active class mode
+                      {t("Based on school schedule and active class mode")}
                     </small>
                   </article>
                   <article className="stat-card">
-                    <span>School hours</span>
+                    <span>{t("School hours")}</span>
                     <strong>{child.schoolHours.length}</strong>
-                    <small>Scheduled blocks this week</small>
+                    <small>{t("Scheduled blocks this week")}</small>
                   </article>
                 </div>
                 <div className="two-column-grid">
-                  <ActionPanel title="After-school learning choices">
+                  <ActionPanel title={t("After-school learning choices")}>
                     <form
                       action={updateGuardianAfterSchoolAction}
                       className="form-grid"
@@ -163,9 +200,9 @@ export default async function GuardianPage() {
                           name="enabled"
                           defaultChecked={child.afterSchoolControl.enabled}
                         />{" "}
-                        Enable after-school choices
+                        {t("Enable after-school choices")}
                       </label>
-                      <Field label="Daily limit (minutes)">
+                      <Field label={t("Daily limit (minutes)")}>
                         <input
                           type="number"
                           name="dailyLimitMinutes"
@@ -178,7 +215,7 @@ export default async function GuardianPage() {
                         />
                       </Field>
                       <fieldset>
-                        <legend>School-approved apps</legend>
+                        <legend>{t("School-approved apps")}</legend>
                         {child.availableAfterSchoolApps.map((app) => (
                           <label className="checkbox-row" key={app.id}>
                             <input
@@ -195,13 +232,15 @@ export default async function GuardianPage() {
                       </fieldset>
                       <small>
                         {child.afterSchoolControl.effective
-                          ? "Active now during after-school mode."
-                          : child.afterSchoolControl.inactiveReason}
+                          ? t("Active now during after-school mode.")
+                          : child.afterSchoolControl.inactiveReason
+                            ? t(child.afterSchoolControl.inactiveReason)
+                            : null}
                       </small>
-                      <SubmitButton>Save choices</SubmitButton>
+                      <SubmitButton>{t("Save choices")}</SubmitButton>
                     </form>
                   </ActionPanel>
-                  <ActionPanel title="Report a missing device">
+                  <ActionPanel title={t("Report a missing device")}>
                     <form
                       action={reportGuardianLostDeviceAction}
                       className="form-grid"
@@ -212,7 +251,7 @@ export default async function GuardianPage() {
                         value={dashboard.tenantId}
                       />
                       <input type="hidden" name="studentId" value={child.id} />
-                      <Field label="What happened?">
+                      <Field label={t("What happened?")}>
                         <textarea
                           name="reason"
                           minLength={3}
@@ -221,18 +260,21 @@ export default async function GuardianPage() {
                         />
                       </Field>
                       <label className="checkbox-row">
-                        <input type="checkbox" name="startLostWorkflow" /> Ask
-                        the school to start guarded lost-device mode now
+                        <input type="checkbox" name="startLostWorkflow" />
+                        {t(
+                          "Ask the school to start guarded lost-device mode now",
+                        )}
                       </label>
                       <small>
-                        A high-priority school alert is always created. School
-                        and exam restrictions remain in control.
+                        {t(
+                          "A high-priority school alert is always created. School and exam restrictions remain in control.",
+                        )}
                       </small>
-                      <SubmitButton>Send report</SubmitButton>
+                      <SubmitButton>{t("Send report")}</SubmitButton>
                     </form>
                   </ActionPanel>
                 </div>
-                <h3>Recently approved learning access</h3>
+                <h3>{t("Recently approved learning access")}</h3>
                 {child.approvedLearningAccess.length ? (
                   <div className="list-panel">
                     {child.approvedLearningAccess.map((item, index) => (
@@ -243,7 +285,7 @@ export default async function GuardianPage() {
                         <div>
                           <strong>{item.label}</strong>
                           <span>
-                            Approved {formatDateTime(item.approvedAt)}
+                            {t("Approved")} {formatDateTime(item.approvedAt)}
                           </span>
                         </div>
                         <StatusPill tone="good">
@@ -254,11 +296,13 @@ export default async function GuardianPage() {
                   </div>
                 ) : (
                   <EmptyState
-                    title="No recent approved access"
-                    body="Teacher-approved resources and temporary websites will appear here without exposing browsing history."
+                    title={t("No recent approved access")}
+                    body={t(
+                      "Teacher-approved resources and temporary websites will appear here without exposing browsing history.",
+                    )}
                   />
                 )}
-                <ActionPanel title="Request device support">
+                <ActionPanel title={t("Request device support")}>
                   <form
                     action={createGuardianSupportRequestAction}
                     className="form-grid"
@@ -269,21 +313,23 @@ export default async function GuardianPage() {
                       value={dashboard.tenantId}
                     />
                     <input type="hidden" name="studentId" value={child.id} />
-                    <Field label="Issue type">
+                    <Field label={t("Issue type")}>
                       <select name="category" required>
-                        <option value="DEVICE">Device</option>
-                        <option value="CONNECTIVITY">Connectivity</option>
-                        <option value="ACCESS">Access</option>
-                        <option value="OTHER">Other</option>
+                        <option value="DEVICE">{t("Device")}</option>
+                        <option value="CONNECTIVITY">
+                          {t("Connectivity")}
+                        </option>
+                        <option value="ACCESS">{t("Access")}</option>
+                        <option value="OTHER">{t("Other")}</option>
                       </select>
                     </Field>
-                    <Field label="Subject">
+                    <Field label={t("Subject")}>
                       <input name="subject" maxLength={120} required />
                     </Field>
-                    <Field label="What help is needed?">
+                    <Field label={t("What help is needed?")}>
                       <textarea name="description" maxLength={1000} required />
                     </Field>
-                    <SubmitButton>Open support request</SubmitButton>
+                    <SubmitButton>{t("Open support request")}</SubmitButton>
                   </form>
                 </ActionPanel>
               </PageSection>

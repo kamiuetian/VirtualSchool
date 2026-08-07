@@ -32,6 +32,12 @@ export class UpdateGuardianNotificationsDto {
   channels!: string[];
 }
 
+export class UpdateGuardianLanguageDto {
+  @ApiProperty({ enum: ["en", "ur"] })
+  @IsIn(["en", "ur"])
+  language!: "en" | "ur";
+}
+
 export class CreateGuardianSupportRequestDto {
   @ApiProperty({ enum: ["DEVICE", "CONNECTIVITY", "ACCESS", "OTHER"] })
   @IsIn(["DEVICE", "CONNECTIVITY", "ACCESS", "OTHER"])

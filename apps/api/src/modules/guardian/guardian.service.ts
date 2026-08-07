@@ -31,9 +31,17 @@ export class GuardianService {
         name: true,
         email: true,
         phone: true,
+        language: true,
         notificationPreference: { select: { channels: true } },
         supportRequests: { orderBy: { createdAt: "desc" }, take: 10 },
-        tenant: { select: { name: true, timezone: true, supportEmail: true } },
+        tenant: {
+          select: {
+            name: true,
+            timezone: true,
+            supportEmail: true,
+            language: true,
+          },
+        },
         students: {
           where: { student: { tenantId } },
           select: {
@@ -224,14 +232,24 @@ export class GuardianService {
       ...(guardian.phone ? ["SMS"] : []),
       "IN_APP",
     ];
+    const locale = this.supportedLocale(
+      guardian.language ?? guardian.tenant.language,
+    );
     return {
       tenantId,
       guardianName: guardian.name,
       schoolName: guardian.tenant.name,
       timezone: guardian.tenant.timezone,
+      locale,
+      supportedLocales: [
+        { code: "en", label: "English" },
+        { code: "ur", label: "اردو" },
+      ],
       children,
       privacyMessage:
-        "This view shows school-approved learning activity only. Browsing history, device location, messages, diagnostics, and other children are not available.",
+        locale === "ur"
+          ? "یہ منظر صرف اسکول کی منظور شدہ تعلیمی سرگرمی دکھاتا ہے۔ براؤزنگ ہسٹری، آلے کا مقام، پیغامات، تشخیصی معلومات اور دوسرے بچے دستیاب نہیں ہیں۔"
+          : "This view shows school-approved learning activity only. Browsing history, device location, messages, diagnostics, and other children are not available.",
       notificationChannels: (
         guardian.notificationPreference?.channels ?? ["EMAIL"]
       ).filter((channel) => supportedNotificationChannels.includes(channel)),
@@ -255,6 +273,38 @@ export class GuardianService {
         createdAt: request.createdAt.toISOString(),
       })),
     };
+  }
+
+  async updateLanguage(
+    tenantId: string,
+    language: "en" | "ur",
+    actorId?: string,
+    email?: string,
+  ) {
+    const guardian = await this.linkedGuardianAccount(tenantId, email);
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.guardian.update({
+        where: { id: guardian.id },
+        data: { language },
+        select: { language: true },
+      });
+      await tx.auditEvent.create({
+        data: {
+          tenantId,
+          actorId,
+          action: "guardian.language.update",
+          object: "Guardian",
+          objectId: guardian.id,
+          outcome: "SUCCESS",
+          newValue: { language },
+        },
+      });
+      return updated;
+    });
+  }
+
+  private supportedLocale(value?: string | null): "en" | "ur" {
+    return value?.toLowerCase().split("-")[0] === "ur" ? "ur" : "en";
   }
 
   async updateNotificationPreferences(

@@ -52,6 +52,8 @@ export type GuardianDashboard = {
   guardianName: string;
   schoolName: string;
   timezone: string;
+  locale: "en" | "ur";
+  supportedLocales: Array<{ code: "en" | "ur"; label: string }>;
   children: GuardianChildSummary[];
   privacyMessage: string;
   notificationChannels: string[];

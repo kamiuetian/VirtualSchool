@@ -89,6 +89,17 @@ export async function updateGuardianNotificationsAction(
   revalidatePath("/guardian");
 }
 
+export async function updateGuardianLanguageAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("guardian:read");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation("PATCH", `/tenants/${tenantId}/guardian/language`, {
+    language: required(formData, "language"),
+  });
+  revalidatePath("/guardian");
+}
+
 export async function createGuardianSupportRequestAction(
   formData: FormData,
 ): Promise<void> {
@@ -239,6 +250,7 @@ export async function updateTenantProfileAction(
   await adminApiMutation("PATCH", `/tenants/${tenantId}`, {
     accentColor: text(formData, "accentColor"),
     country: text(formData, "country"),
+    language: text(formData, "language"),
     logoUrl: text(formData, "logoUrl"),
     name: text(formData, "name"),
     primaryColor: text(formData, "primaryColor"),

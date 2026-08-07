@@ -85,6 +85,7 @@ describe("GuardianService", () => {
     );
     expect(result.children).toHaveLength(1);
     expect(result.tenantId).toBe("tenant-1");
+    expect(result.locale).toBe("en");
     expect(result.children[0]!.availableAfterSchoolApps).toHaveLength(1);
     expect(result.children[0]).toMatchObject({
       id: "student-1",
@@ -99,6 +100,41 @@ describe("GuardianService", () => {
       where: { tenantId: "tenant-1", email: { equals: "parent@example.com" } },
       select: { students: { where: { student: { tenantId: "tenant-1" } } } },
     });
+  });
+
+  it("persists a supported guardian language and audits the profile override", async () => {
+    const writes: unknown[] = [];
+    const prisma = {
+      guardian: { findFirst: async () => ({ id: "guardian-1" }) },
+      $transaction: async (work: (tx: any) => unknown) =>
+        work({
+          guardian: {
+            update: async (input: unknown) => {
+              writes.push(input);
+              return { language: "ur" };
+            },
+          },
+          auditEvent: { create: async (input: unknown) => writes.push(input) },
+        }),
+    };
+    const result = await new GuardianService(prisma as never).updateLanguage(
+      "tenant-1",
+      "ur",
+      "guardian-auth",
+      "parent@example.com",
+    );
+    expect(result).toEqual({ language: "ur" });
+    expect(writes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ data: { language: "ur" } }),
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: "guardian.language.update",
+            newValue: { language: "ur" },
+          }),
+        }),
+      ]),
+    );
   });
 
   it("creates a school alert and guarded lost workflow only for a linked child", async () => {

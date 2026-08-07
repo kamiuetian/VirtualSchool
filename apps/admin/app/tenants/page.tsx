@@ -159,6 +159,15 @@ export default async function TenantsPage() {
                           />
                         </Field>
                       </div>
+                      <Field label="Guardian portal default language">
+                        <select
+                          name="language"
+                          defaultValue={selectedTenant.language ?? "en"}
+                        >
+                          <option value="en">English</option>
+                          <option value="ur">Urdu (اردو)</option>
+                        </select>
+                      </Field>
                       <Field label="Logo URL">
                         <input
                           name="logoUrl"
