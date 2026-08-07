@@ -663,6 +663,24 @@ export async function issueSupportUnlockAction(
   revalidateAll();
 }
 
+export async function checkExamReadinessAction(formData: FormData): Promise<void> {
+  await requireActionPermission("policy:manage");
+  redirect(`/policies?examAssignmentId=${encodeURIComponent(required(formData, "assignmentId"))}`);
+}
+
+export async function launchAssessmentAction(formData: FormData): Promise<void> {
+  await requireActionPermission("policy:manage");
+  const tenantId = required(formData, "tenantId");
+  const assignmentId = required(formData, "assignmentId");
+  await adminApiMutation("POST", `/tenants/${tenantId}/policies/exam-schedules/${assignmentId}/launch`, {
+    reason: text(formData, "reason"),
+    resource: required(formData, "resource"),
+    resourceType: required(formData, "resourceType"),
+  });
+  revalidateAll();
+  redirect(`/policies?examAssignmentId=${encodeURIComponent(assignmentId)}&launch=queued`);
+}
+
 export async function assignPolicyAction(formData: FormData): Promise<void> {
   await requireActionPermission("policy:manage");
   const tenantId = required(formData, "tenantId");

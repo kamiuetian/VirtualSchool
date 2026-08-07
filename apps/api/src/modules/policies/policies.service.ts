@@ -18,6 +18,8 @@ import type {
   PolicyVersionSummary,
   UrlPolicySimulation,
   BlockedDomainAggregate,
+  ExamReadinessSummary,
+  AssessmentLaunchSummary,
 } from "@virtual-school/shared";
 import {
   type AppCatalogItem,
@@ -37,6 +39,7 @@ import type { PublishPolicyDto } from "./dto/publish-policy.dto";
 import type { RollbackPolicyDto } from "./dto/rollback-policy.dto";
 import type { UpdateAndroidControlsDto } from "./dto/update-android-controls.dto";
 import type { IngestBlockedDomainEventDto } from "./dto/ingest-blocked-domain-event.dto";
+import type { LaunchAssessmentDto } from "./dto/launch-assessment.dto";
 import { starterPolicyTemplates } from "./starter-policy-templates";
 import { evaluateUrlPolicy } from "./url-policy-evaluator";
 
@@ -746,6 +749,102 @@ export class PoliciesService {
     return this.toPolicyAssignmentSummary(completed);
   }
 
+  async getExamReadiness(
+    tenantId: string,
+    assignmentId: string,
+  ): Promise<ExamReadinessSummary> {
+    const assignment = await this.getExamAssignment(tenantId, assignmentId);
+    const rules = assignment.policy.rules as PolicyRuleSet;
+    const devices = await this.prisma.device.findMany({
+      include: { diagnostics: { orderBy: { reportedAt: "desc" }, take: 1 } },
+      orderBy: { serialNumber: "asc" },
+      where: { tenantId, status: { not: "RETIRED" }, ...this.examDeviceScope(assignment.scope, assignment.scopeId) },
+    });
+    const checkedAt = new Date();
+    const recentCutoff = checkedAt.getTime() - 15 * 60_000;
+    const results = devices.map((device) => {
+      const diagnostic = device.diagnostics[0];
+      const details = diagnostic?.details;
+      const installed = typeof details === "object" && details !== null && !Array.isArray(details) &&
+        "installedPackageIds" in details && Array.isArray(details.installedPackageIds)
+        ? details.installedPackageIds.filter((value): value is string => typeof value === "string")
+        : [];
+      const missingAppPackageIds = rules.approvedAppPackageIds.filter((packageId) => !installed.includes(packageId));
+      const issues: ExamReadinessSummary["devices"][number]["issues"] = [];
+      if (device.status !== "ONLINE" || !diagnostic || diagnostic.reportedAt.getTime() < recentCutoff || diagnostic.networkStatus === "OFFLINE") issues.push("OFFLINE");
+      if (diagnostic?.batteryLevel !== null && diagnostic?.batteryLevel !== undefined && diagnostic.batteryLevel <= 20) issues.push("LOW_BATTERY");
+      if ((diagnostic?.policyVersion ?? device.policyVersion) !== assignment.policy.version) issues.push("WRONG_POLICY");
+      if (missingAppPackageIds.length > 0) issues.push("MISSING_APP");
+      if (!diagnostic?.browserVersion || !/^[1-9]\d*(?:\.|$)/.test(diagnostic.browserVersion)) issues.push("UNSUPPORTED_BROWSER");
+      return {
+        batteryLevel: diagnostic?.batteryLevel ?? null,
+        browserVersion: diagnostic?.browserVersion ?? null,
+        deviceId: device.id,
+        issues,
+        lastReportedAt: diagnostic?.reportedAt.toISOString() ?? null,
+        missingAppPackageIds,
+        policyVersion: diagnostic?.policyVersion ?? device.policyVersion ?? null,
+        ready: issues.length === 0,
+        serialNumber: device.serialNumber,
+      };
+    });
+    return {
+      assignmentId,
+      blocked: results.filter((device) => !device.ready).length,
+      checkedAt: checkedAt.toISOString(),
+      devices: results,
+      policyId: assignment.policy.id,
+      policyVersion: assignment.policy.version,
+      ready: results.filter((device) => device.ready).length,
+    };
+  }
+
+  async launchAssessment(
+    tenantId: string,
+    assignmentId: string,
+    input: LaunchAssessmentDto,
+    actorId: string,
+  ): Promise<AssessmentLaunchSummary> {
+    const assignment = await this.getExamAssignment(tenantId, assignmentId);
+    const now = new Date();
+    if (!assignment.active || (assignment.startsAt && assignment.startsAt > now) || (assignment.endsAt && assignment.endsAt <= now)) {
+      throw new BadRequestException("Assessment launch requires an active Exam Mode window");
+    }
+    const rules = assignment.policy.rules as PolicyRuleSet;
+    const resource = input.resource.trim();
+    const approvedApp = input.resourceType === "APP" && rules.approvedAppPackageIds.includes(resource)
+      ? await this.prisma.appCatalogItem.findFirst({
+          where: { approvalStatus: "APPROVED", packageId: resource, tenantId },
+        })
+      : null;
+    const approved = input.resourceType === "APP"
+      ? Boolean(approvedApp)
+      : rules.webShortcuts.some((shortcut) => shortcut.url === resource) && evaluateUrlPolicy(resource, rules).effectiveAccess === "ALLOW";
+    if (!approved) throw new BadRequestException("Assessment resource is not approved by the scheduled Exam Mode policy");
+
+    const readiness = await this.getExamReadiness(tenantId, assignmentId);
+    const readyDeviceIds = readiness.devices.filter((device) => device.ready).map((device) => device.deviceId);
+    const expiresAt = assignment.endsAt ?? new Date(now.getTime() + 60 * 60_000);
+    const commandIds = await this.prisma.$transaction(async (tx) => {
+      const ids: string[] = [];
+      for (const deviceId of readyDeviceIds) {
+        const command = await tx.remoteCommand.create({ data: {
+          deviceId, expiresAt, maxAttempts: 3,
+          payload: { action: "ASSESSMENT_LAUNCH", assignmentId, policyId: assignment.policy.id, policyVersion: assignment.policy.version, resource, resourceType: input.resourceType, strictProfile: true },
+          reason: input.reason, requestedBy: actorId, status: "QUEUED", tenantId, type: "SEND_MESSAGE",
+        } });
+        ids.push(command.id);
+      }
+      await tx.auditEvent.create({ data: {
+        action: "exam.assessment.launch", actorId,
+        newValue: { assignmentId, policyId: assignment.policy.id, policyVersion: assignment.policy.version, queued: ids.length, resource, resourceType: input.resourceType, skipped: readiness.blocked },
+        object: "PolicyAssignment", objectId: assignmentId, outcome: "SUCCESS", reason: input.reason, tenantId,
+      } });
+      return ids;
+    });
+    return { assignmentId, commandIds, queued: commandIds.length, resource, resourceType: input.resourceType, skipped: readiness.blocked };
+  }
+
   async listPolicyAssignments(
     tenantId: string,
   ): Promise<PolicyAssignmentSummary[]> {
@@ -766,6 +865,21 @@ export class PoliciesService {
     return assignments.map((assignment) =>
       this.toPolicyAssignmentSummary(assignment),
     );
+  }
+
+  private async getExamAssignment(tenantId: string, assignmentId: string) {
+    const assignment = await this.prisma.policyAssignment.findFirst({ include: { policy: true }, where: { id: assignmentId, tenantId } });
+    if (!assignment || (assignment.policy.rules as PolicyRuleSet).mode !== "EXAM") {
+      throw new NotFoundException(`Exam schedule ${assignmentId} was not found for tenant ${tenantId}`);
+    }
+    return assignment;
+  }
+
+  private examDeviceScope(scope: string, scopeId: string | null) {
+    if (scope === "GRADE") return { student: { grade: scopeId ?? "" } };
+    if (scope === "CLASS") return { classId: scopeId };
+    if (scope === "STUDENT") return { studentId: scopeId };
+    return { id: "__unsupported_exam_scope__" };
   }
 
   async assignPolicy(

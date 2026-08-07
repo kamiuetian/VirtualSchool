@@ -856,4 +856,42 @@ describe("PoliciesService", () => {
     await expect(service.completeExam("tenant-1", "exam-1", "All submissions received", "staff-2")).resolves.toMatchObject({ active: false });
     expect(auditCreate).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ action: "exam.complete", actorId: "staff-2", reason: "All submissions received" }) }));
   });
+
+  it("reports all bounded exam readiness failures for devices in the scheduled scope", async () => {
+    const reportedAt = new Date();
+    const assignment = { id: "exam-1", scope: "CLASS", scopeId: "class-1", policy: { id: "exam-policy", version: 4, rules: { ...baseRules, mode: "EXAM", approvedAppPackageIds: ["com.exam.app"] } } };
+    const service = new PoliciesService({
+      policyAssignment: { findFirst: async () => assignment },
+      device: { findMany: async () => [
+        { id: "ready", serialNumber: "A", status: "ONLINE", policyVersion: 4, diagnostics: [{ batteryLevel: 80, browserVersion: "1.2.0", details: { installedPackageIds: ["com.exam.app"] }, networkStatus: "ONLINE", policyVersion: 4, reportedAt }] },
+        { id: "blocked", serialNumber: "B", status: "OFFLINE", policyVersion: 3, diagnostics: [{ batteryLevel: 10, browserVersion: "0.9", details: { installedPackageIds: [] }, networkStatus: "OFFLINE", policyVersion: 3, reportedAt }] },
+      ] },
+    } as never, connectorRegistry() as never);
+
+    const result = await service.getExamReadiness("tenant-1", "exam-1");
+    expect(result).toMatchObject({ ready: 1, blocked: 1, policyVersion: 4 });
+    expect(result.devices[1]?.issues).toEqual(["OFFLINE", "LOW_BATTERY", "WRONG_POLICY", "MISSING_APP", "UNSUPPORTED_BROWSER"]);
+  });
+
+  it("queues only ready devices for an approved strict-profile assessment launch", async () => {
+    const reportedAt = new Date();
+    const assignment = { active: true, endsAt: new Date(Date.now() + 3_600_000), id: "exam-1", startsAt: new Date(Date.now() - 60_000), scope: "CLASS", scopeId: "class-1", policy: { id: "exam-policy", version: 2, rules: { ...baseRules, mode: "EXAM", webShortcuts: [{ title: "Assessment", url: "https://exam.example/start" }], urlAllowlist: ["https://exam.example/start"] } } };
+    const commandCreate = vi.fn(async () => ({ id: "command-1" }));
+    const auditCreate = vi.fn();
+    const service = new PoliciesService({
+      policyAssignment: { findFirst: async () => assignment },
+      device: { findMany: async () => [{ id: "ready", serialNumber: "A", status: "ONLINE", policyVersion: 2, diagnostics: [{ batteryLevel: 80, browserVersion: "2.0", details: { installedPackageIds: [] }, networkStatus: "ONLINE", policyVersion: 2, reportedAt }] }] },
+      $transaction: async (callback: (tx: any) => Promise<unknown>) => callback({ auditEvent: { create: auditCreate }, remoteCommand: { create: commandCreate } }),
+    } as never, connectorRegistry() as never);
+
+    await expect(service.launchAssessment("tenant-1", "exam-1", { resource: "https://exam.example/start", resourceType: "URL", reason: "Begin" }, "staff-1")).resolves.toMatchObject({ queued: 1, skipped: 0 });
+    expect(commandCreate).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ deviceId: "ready", status: "QUEUED", payload: expect.objectContaining({ strictProfile: true }) }) }));
+    expect(auditCreate).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ action: "exam.assessment.launch", actorId: "staff-1" }) }));
+  });
+
+  it("rejects assessment resources outside the scheduled exam policy", async () => {
+    const assignment = { active: true, endsAt: new Date(Date.now() + 3_600_000), id: "exam-1", startsAt: new Date(Date.now() - 60_000), scope: "CLASS", scopeId: "class-1", policy: { id: "exam-policy", version: 2, rules: { ...baseRules, mode: "EXAM" } } };
+    const service = new PoliciesService({ policyAssignment: { findFirst: async () => assignment } } as never, connectorRegistry() as never);
+    await expect(service.launchAssessment("tenant-1", "exam-1", { resource: "https://unapproved.example", resourceType: "URL" }, "staff-1")).rejects.toThrow("not approved");
+  });
 });

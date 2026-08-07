@@ -18,6 +18,8 @@ import type {
   PolicyVersionSummary,
   UrlPolicySimulation,
   BlockedDomainAggregate,
+  ExamReadinessSummary,
+  AssessmentLaunchSummary,
 } from "@virtual-school/shared";
 import { RequirePermissions } from "../auth/decorators/require-permissions.decorator";
 import { AssignPolicyDto } from "./dto/assign-policy.dto";
@@ -31,6 +33,7 @@ import { IngestBlockedDomainEventDto } from "./dto/ingest-blocked-domain-event.d
 import { PoliciesService } from "./policies.service";
 import type { AuthenticatedRequest } from "../auth/types/authenticated-request";
 import { CompleteExamDto, ScheduleExamDto } from "./dto/schedule-exam.dto";
+import { LaunchAssessmentDto } from "./dto/launch-assessment.dto";
 
 @ApiTags("policies")
 @Controller("tenants/:tenantId/policies")
@@ -209,6 +212,28 @@ export class PoliciesController {
     @Req() request: AuthenticatedRequest,
   ): Promise<PolicyAssignmentSummary> {
     return this.policiesService.completeExam(tenantId, assignmentId, body.reason, request.user!.subject);
+  }
+
+  @Get("exam-schedules/:assignmentId/readiness")
+  @RequirePermissions("policy:manage")
+  @ApiOkResponse({ description: "Privacy-limited readiness for devices targeted by an exam" })
+  getExamReadiness(
+    @Param("tenantId") tenantId: string,
+    @Param("assignmentId") assignmentId: string,
+  ): Promise<ExamReadinessSummary> {
+    return this.policiesService.getExamReadiness(tenantId, assignmentId);
+  }
+
+  @Post("exam-schedules/:assignmentId/launch")
+  @RequirePermissions("policy:manage")
+  @ApiCreatedResponse({ description: "Queue an approved assessment resource for ready devices" })
+  launchAssessment(
+    @Param("tenantId") tenantId: string,
+    @Param("assignmentId") assignmentId: string,
+    @Body() body: LaunchAssessmentDto,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<AssessmentLaunchSummary> {
+    return this.policiesService.launchAssessment(tenantId, assignmentId, body, request.user!.subject);
   }
 
   @Post(":policyId/assignments")

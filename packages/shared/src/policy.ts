@@ -158,6 +158,44 @@ export type PolicyAssignmentSummary = {
   createdAt: string;
 };
 
+export type ExamReadinessIssue =
+  | "OFFLINE"
+  | "LOW_BATTERY"
+  | "WRONG_POLICY"
+  | "MISSING_APP"
+  | "UNSUPPORTED_BROWSER";
+
+export type ExamDeviceReadiness = {
+  deviceId: string;
+  serialNumber: string;
+  ready: boolean;
+  issues: ExamReadinessIssue[];
+  batteryLevel: number | null;
+  policyVersion: number | null;
+  browserVersion: string | null;
+  missingAppPackageIds: string[];
+  lastReportedAt: string | null;
+};
+
+export type ExamReadinessSummary = {
+  assignmentId: string;
+  policyId: string;
+  policyVersion: number;
+  checkedAt: string;
+  ready: number;
+  blocked: number;
+  devices: ExamDeviceReadiness[];
+};
+
+export type AssessmentLaunchSummary = {
+  assignmentId: string;
+  resourceType: "APP" | "URL";
+  resource: string;
+  queued: number;
+  skipped: number;
+  commandIds: string[];
+};
+
 export type ActivePolicyResolution = {
   deviceId: string;
   tenantId: string;

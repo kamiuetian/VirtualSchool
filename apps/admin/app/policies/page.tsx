@@ -16,8 +16,10 @@ import {
   rollbackPolicyAction,
   simulateUrlPolicyAction,
   updateAndroidPolicyControlsAction,
+  checkExamReadinessAction,
+  launchAssessmentAction,
 } from "../../lib/actions";
-import { getAdminData } from "../../lib/api";
+import { getAdminData, getExamReadiness } from "../../lib/api";
 import { formatCount, formatDateTime, humanize } from "../../lib/format";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +37,12 @@ export default async function PoliciesPage({
   const supportPolicies = published.filter(
     (policy) => policy.rules.mode === "EMERGENCY_SUPPORT_OVERRIDE",
   );
+  const examPolicyIds = new Set(published.filter((policy) => policy.rules.mode === "EXAM").map((policy) => policy.id));
+  const examAssignments = data.policyAssignments.filter((assignment) => assignment.active && examPolicyIds.has(assignment.policyId));
+  const readinessResult = simulation?.examAssignmentId && data.selectedTenant
+    ? await getExamReadiness(data.selectedTenant.id, simulation.examAssignmentId)
+    : null;
+  const readiness = readinessResult?.readiness ?? null;
 
   return (
     <AppShell
@@ -391,6 +399,36 @@ export default async function PoliciesPage({
                 </ActionPanel>
               ) : null}
             </div>
+          </PageSection>
+        ) : null}
+
+        {data.selectedTenant && examAssignments.length > 0 ? (
+          <PageSection kicker="Assessment operations" title="Exam Readiness And Secure Launch">
+            <div className="form-grid">
+              <ActionPanel title="Run readiness check">
+                <form action={checkExamReadinessAction} className="stacked-form">
+                  <Field label="Exam schedule">
+                    <select name="assignmentId" defaultValue={simulation?.examAssignmentId} required>
+                      {examAssignments.map((assignment) => <option key={assignment.id} value={assignment.id}>{assignment.policyName} — {assignment.scope} {assignment.scopeId}</option>)}
+                    </select>
+                  </Field>
+                  <SubmitButton>Check targeted devices</SubmitButton>
+                </form>
+                {readiness ? <p className="form-help" aria-live="polite"><strong>{readiness.ready} ready</strong>; {readiness.blocked} blocked. Checks cover connectivity, battery, policy, required apps, and managed browser support.</p> : null}
+              </ActionPanel>
+              <ActionPanel title="Launch approved assessment">
+                <form action={launchAssessmentAction} className="stacked-form">
+                  <input name="tenantId" type="hidden" value={data.selectedTenant.id} />
+                  <Field label="Exam schedule"><select name="assignmentId" defaultValue={simulation?.examAssignmentId} required>{examAssignments.map((assignment) => <option key={assignment.id} value={assignment.id}>{assignment.policyName} — {assignment.scope} {assignment.scopeId}</option>)}</select></Field>
+                  <Field label="Resource type"><select name="resourceType" required><option value="URL">Approved exam link</option><option value="APP">Approved exam app</option></select></Field>
+                  <Field label="Approved URL or package ID"><input name="resource" required /></Field>
+                  <Field label="Reason"><input name="reason" placeholder="Start scheduled assessment" /></Field>
+                  <SubmitButton>Launch on ready devices</SubmitButton>
+                  {simulation?.launch === "queued" ? <p className="form-help" aria-live="polite">Secure launch queued for ready devices.</p> : null}
+                </form>
+              </ActionPanel>
+            </div>
+            {readiness && readiness.devices.length > 0 ? <div className="table-wrap"><table><thead><tr><th>Device</th><th>Status</th><th>Battery</th><th>Policy</th><th>Issues</th></tr></thead><tbody>{readiness.devices.map((device) => <tr key={device.deviceId}><td>{device.serialNumber}</td><td><StatusPill tone={device.ready ? "good" : "critical"}>{device.ready ? "Ready" : "Blocked"}</StatusPill></td><td>{device.batteryLevel === null ? "Unknown" : `${device.batteryLevel}%`}</td><td>{device.policyVersion === null ? "Unknown" : `v${device.policyVersion}`}</td><td>{device.issues.length ? device.issues.map(humanize).join(", ") : "—"}</td></tr>)}</tbody></table></div> : null}
           </PageSection>
         ) : null}
 
