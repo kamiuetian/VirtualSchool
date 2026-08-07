@@ -122,6 +122,8 @@ model Tenant {
   teacherSessionEvents   TeacherSessionEvent[]
   teacherSessionTemplates TeacherSessionTemplate[]
   guardianAfterSchoolControls GuardianAfterSchoolControl[]
+  guardianNotificationPreferences GuardianNotificationPreference[]
+  guardianSupportRequests GuardianSupportRequest[]
 }
 
 model OnboardingProgress {
@@ -257,6 +259,7 @@ model Student {
   devices     Device[]
   classes     ClassMembership[]
   guardianAfterSchoolControls GuardianAfterSchoolControl[]
+  guardianSupportRequests GuardianSupportRequest[]
 
   @@unique([tenantId, studentCode])
   @@index([tenantId, grade, section])
@@ -273,6 +276,8 @@ model Guardian {
   tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   students  StudentGuardian[]
   afterSchoolControls GuardianAfterSchoolControl[]
+  notificationPreference GuardianNotificationPreference?
+  supportRequests GuardianSupportRequest[]
 
   @@index([tenantId, email])
 }
@@ -304,6 +309,44 @@ model GuardianAfterSchoolControl {
 
   @@unique([guardianId, studentId])
   @@index([tenantId, studentId])
+}
+
+model GuardianNotificationPreference {
+  id         String   @id @default(uuid())
+  tenantId   String
+  guardianId String   @unique
+  channels   String[] @default(["EMAIL"])
+  updatedBy  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  guardian   Guardian @relation(fields: [guardianId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, guardianId])
+}
+
+model GuardianSupportRequest {
+  id           String   @id @default(uuid())
+  tenantId     String
+  guardianId   String
+  studentId    String
+  deviceId     String
+  category     String
+  priority     String   @default("NORMAL")
+  status       String   @default("OPEN")
+  subject      String
+  description  String
+  routedTo     String?
+  createdBy    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  guardian     Guardian @relation(fields: [guardianId], references: [id], onDelete: Cascade)
+  student      Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  device       Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, guardianId, studentId])
 }
 
 model ClassSection {
@@ -398,6 +441,7 @@ model Device {
   alerts              DeviceAlert[]
   blockedDomainEvents BlockedDomainEvent[]
   supportNotes        SupportNote[]
+  guardianSupportRequests GuardianSupportRequest[]
   assignmentHistory   DeviceAssignment[]
   lifecycleEvents     DeviceLifecycleEvent[]
   teacherSessionEvents TeacherSessionEvent[]

@@ -54,4 +54,28 @@ export type GuardianDashboard = {
   timezone: string;
   children: GuardianChildSummary[];
   privacyMessage: string;
+  notificationChannels: string[];
+  supportedNotificationChannels: string[];
+  consentForms: GuardianConsentForm[];
+  supportRequests: GuardianSupportRequestSummary[];
+};
+
+export type GuardianConsentForm = {
+  id: string;
+  noticeType: string;
+  version: number;
+  title: string;
+  content: string;
+  accepted: boolean;
+};
+
+export type GuardianSupportRequestSummary = {
+  id: string;
+  studentId: string;
+  category: string;
+  priority: string;
+  status: string;
+  subject: string;
+  routedTo: string | null;
+  createdAt: string;
 };

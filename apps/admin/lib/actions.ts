@@ -59,6 +59,53 @@ export async function updateGuardianAfterSchoolAction(
   revalidatePath("/guardian");
 }
 
+export async function acceptGuardianConsentAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("guardian:read");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/privacy/notices/${required(formData, "noticeId")}/accept`,
+    { channel: "PORTAL" },
+  );
+  revalidatePath("/guardian");
+}
+
+export async function updateGuardianNotificationsAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("guardian:read");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "PATCH",
+    `/tenants/${tenantId}/guardian/notification-preferences`,
+    {
+      channels: formData
+        .getAll("channels")
+        .filter((value): value is string => typeof value === "string"),
+    },
+  );
+  revalidatePath("/guardian");
+}
+
+export async function createGuardianSupportRequestAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("guardian:read");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/guardian/children/${required(formData, "studentId")}/support-requests`,
+    {
+      category: required(formData, "category"),
+      subject: required(formData, "subject"),
+      description: required(formData, "description"),
+    },
+  );
+  revalidatePath("/guardian");
+}
+
 export async function startTeacherSessionAction(
   formData: FormData,
 ): Promise<void> {

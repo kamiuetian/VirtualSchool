@@ -6,7 +6,9 @@ import type {
 } from "@virtual-school/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import type {
+  CreateGuardianSupportRequestDto,
   ReportLostDeviceDto,
+  UpdateGuardianNotificationsDto,
   UpdateAfterSchoolControlDto,
 } from "./dto/guardian-actions.dto";
 
@@ -17,6 +19,7 @@ export class GuardianService {
   async dashboard(
     tenantId: string,
     email?: string,
+    subjectId?: string,
   ): Promise<GuardianDashboard> {
     if (!email)
       throw new ForbiddenException("Guardian email claim is required");
@@ -26,7 +29,11 @@ export class GuardianService {
       select: {
         id: true,
         name: true,
-        tenant: { select: { name: true, timezone: true } },
+        email: true,
+        phone: true,
+        notificationPreference: { select: { channels: true } },
+        supportRequests: { orderBy: { createdAt: "desc" }, take: 10 },
+        tenant: { select: { name: true, timezone: true, supportEmail: true } },
         students: {
           where: { student: { tenantId } },
           select: {
@@ -73,51 +80,72 @@ export class GuardianService {
     const grades = [
       ...new Set(guardian.students.map((link) => link.student.grade)),
     ];
-    const [hours, sessions, accessEvents, approvedApps] = await Promise.all([
-      this.prisma.timetableBlock.findMany({
-        where: {
-          tenantId,
-          active: true,
-          OR: [{ classId: { in: classIds } }, { scope: "TENANT" }],
-        },
-        select: {
-          classId: true,
-          grade: true,
-          dayOfWeek: true,
-          startMinute: true,
-          endMinute: true,
-          timezone: true,
-        },
-      }),
-      this.prisma.teacherSession.findMany({
-        where: { tenantId, classId: { in: classIds }, status: "ACTIVE" },
-        select: { classId: true },
-      }),
-      this.prisma.teacherSessionEvent.findMany({
-        where: {
-          tenantId,
-          session: { classId: { in: classIds } },
-          type: { in: ["RESOURCE_PUSHED", "TEMPORARY_URL_APPROVED"] },
-        },
-        orderBy: { createdAt: "desc" },
-        take: 50,
-        select: {
-          type: true,
-          details: true,
-          createdAt: true,
-          session: { select: { classId: true } },
-        },
-      }),
-      this.prisma.appCatalogItem.findMany({
-        where: {
-          tenantId,
-          approvalStatus: "APPROVED",
-          approvedGrades: { hasSome: grades },
-        },
-        orderBy: { name: "asc" },
-        select: { id: true, name: true, category: true, approvedGrades: true },
-      }),
-    ]);
+    const [hours, sessions, accessEvents, approvedApps, notices, acceptances] =
+      await Promise.all([
+        this.prisma.timetableBlock.findMany({
+          where: {
+            tenantId,
+            active: true,
+            OR: [{ classId: { in: classIds } }, { scope: "TENANT" }],
+          },
+          select: {
+            classId: true,
+            grade: true,
+            dayOfWeek: true,
+            startMinute: true,
+            endMinute: true,
+            timezone: true,
+          },
+        }),
+        this.prisma.teacherSession.findMany({
+          where: { tenantId, classId: { in: classIds }, status: "ACTIVE" },
+          select: { classId: true },
+        }),
+        this.prisma.teacherSessionEvent.findMany({
+          where: {
+            tenantId,
+            session: { classId: { in: classIds } },
+            type: { in: ["RESOURCE_PUSHED", "TEMPORARY_URL_APPROVED"] },
+          },
+          orderBy: { createdAt: "desc" },
+          take: 50,
+          select: {
+            type: true,
+            details: true,
+            createdAt: true,
+            session: { select: { classId: true } },
+          },
+        }),
+        this.prisma.appCatalogItem.findMany({
+          where: {
+            tenantId,
+            approvalStatus: "APPROVED",
+            approvedGrades: { hasSome: grades },
+          },
+          orderBy: { name: "asc" },
+          select: {
+            id: true,
+            name: true,
+            category: true,
+            approvedGrades: true,
+          },
+        }),
+        this.prisma.privacyNotice.findMany({
+          where: { tenantId, channel: "PORTAL" },
+          orderBy: [{ noticeType: "asc" }, { version: "desc" }],
+        }),
+        subjectId
+          ? this.prisma.privacyAcceptance.findMany({
+              where: {
+                tenantId,
+                subjectType: "GUARDIAN",
+                subjectId,
+                revokedAt: null,
+              },
+              select: { noticeId: true },
+            })
+          : Promise.resolve([]),
+      ]);
 
     const children: GuardianChildSummary[] = guardian.students.map(
       ({ relationship, student }) => {
@@ -185,6 +213,17 @@ export class GuardianService {
       },
     );
 
+    const latestNotices = notices.filter(
+      (notice, index) =>
+        notices.findIndex((item) => item.noticeType === notice.noticeType) ===
+        index,
+    );
+    const acceptedNoticeIds = new Set(acceptances.map((item) => item.noticeId));
+    const supportedNotificationChannels = [
+      ...(guardian.email ? ["EMAIL"] : []),
+      ...(guardian.phone ? ["SMS"] : []),
+      "IN_APP",
+    ];
     return {
       tenantId,
       guardianName: guardian.name,
@@ -193,7 +232,124 @@ export class GuardianService {
       children,
       privacyMessage:
         "This view shows school-approved learning activity only. Browsing history, device location, messages, diagnostics, and other children are not available.",
+      notificationChannels: (
+        guardian.notificationPreference?.channels ?? ["EMAIL"]
+      ).filter((channel) => supportedNotificationChannels.includes(channel)),
+      supportedNotificationChannels,
+      consentForms: latestNotices.map((notice) => ({
+        id: notice.id,
+        noticeType: notice.noticeType,
+        version: notice.version,
+        title: notice.title,
+        content: notice.content,
+        accepted: acceptedNoticeIds.has(notice.id),
+      })),
+      supportRequests: guardian.supportRequests.map((request) => ({
+        id: request.id,
+        studentId: request.studentId,
+        category: request.category,
+        priority: request.priority,
+        status: request.status,
+        subject: request.subject,
+        routedTo: request.routedTo,
+        createdAt: request.createdAt.toISOString(),
+      })),
     };
+  }
+
+  async updateNotificationPreferences(
+    tenantId: string,
+    input: UpdateGuardianNotificationsDto,
+    actorId?: string,
+    email?: string,
+  ) {
+    const guardian = await this.linkedGuardianAccount(tenantId, email);
+    const supported = new Set([
+      ...(guardian.email ? ["EMAIL"] : []),
+      ...(guardian.phone ? ["SMS"] : []),
+      "IN_APP",
+    ]);
+    if (input.channels.some((channel) => !supported.has(channel)))
+      throw new ForbiddenException(
+        "A selected notification channel is not available for this guardian profile",
+      );
+    return this.prisma.$transaction(async (tx) => {
+      const preference = await tx.guardianNotificationPreference.upsert({
+        where: { guardianId: guardian.id },
+        create: {
+          tenantId,
+          guardianId: guardian.id,
+          channels: input.channels,
+          updatedBy: actorId,
+        },
+        update: { channels: input.channels, updatedBy: actorId },
+      });
+      await tx.auditEvent.create({
+        data: {
+          tenantId,
+          actorId,
+          action: "guardian.notification_preferences.update",
+          object: "GuardianNotificationPreference",
+          objectId: preference.id,
+          outcome: "SUCCESS",
+          newValue: { channels: input.channels },
+        },
+      });
+      return { channels: preference.channels };
+    });
+  }
+
+  async createSupportRequest(
+    tenantId: string,
+    studentId: string,
+    input: CreateGuardianSupportRequestDto,
+    actorId?: string,
+    email?: string,
+  ) {
+    const link = await this.linkedGuardian(tenantId, studentId, email);
+    const device = link.student.devices[0];
+    if (!device)
+      throw new ForbiddenException("No active device is linked to this child");
+    return this.prisma.$transaction(async (tx) => {
+      const tenant = await tx.tenant.findUnique({
+        where: { id: tenantId },
+        select: { supportEmail: true },
+      });
+      const request = await tx.guardianSupportRequest.create({
+        data: {
+          tenantId,
+          guardianId: link.id,
+          studentId,
+          deviceId: device.id,
+          category: input.category,
+          subject: input.subject.trim(),
+          description: input.description.trim(),
+          routedTo: tenant?.supportEmail ?? null,
+          createdBy: actorId,
+        },
+      });
+      await tx.auditEvent.create({
+        data: {
+          tenantId,
+          actorId,
+          action: "guardian.support_request.create",
+          object: "GuardianSupportRequest",
+          objectId: request.id,
+          outcome: "ROUTED",
+          newValue: {
+            studentId,
+            deviceId: device.id,
+            category: input.category,
+            routedTo: request.routedTo,
+          },
+        },
+      });
+      return {
+        id: request.id,
+        status: request.status,
+        routedTo: request.routedTo,
+      };
+    });
   }
 
   async reportLostDevice(
@@ -372,6 +528,20 @@ export class GuardianService {
         "This child is not linked to the authenticated guardian",
       );
     return { id: guardian.id, student: guardian.students[0].student };
+  }
+
+  private async linkedGuardianAccount(tenantId: string, email?: string) {
+    if (!email)
+      throw new ForbiddenException("Guardian email claim is required");
+    const guardian = await this.prisma.guardian.findFirst({
+      where: { tenantId, email: { equals: email, mode: "insensitive" } },
+      select: { id: true, email: true, phone: true },
+    });
+    if (!guardian)
+      throw new ForbiddenException(
+        "No guardian profile is linked to this account",
+      );
+    return guardian;
   }
 
   private deviceSummary(device?: {

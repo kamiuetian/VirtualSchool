@@ -14,7 +14,9 @@ import { RequirePermissions } from "../auth/decorators/require-permissions.decor
 import type { AuthenticatedRequest } from "../auth/types/authenticated-request";
 import { GuardianService } from "./guardian.service";
 import {
+  CreateGuardianSupportRequestDto,
   ReportLostDeviceDto,
+  UpdateGuardianNotificationsDto,
   UpdateAfterSchoolControlDto,
 } from "./dto/guardian-actions.dto";
 
@@ -34,7 +36,11 @@ export class GuardianController {
     @Param("tenantId") tenantId: string,
     @Req() request: AuthenticatedRequest,
   ): Promise<GuardianDashboard> {
-    return this.service.dashboard(tenantId, request.user?.email);
+    return this.service.dashboard(
+      tenantId,
+      request.user?.email,
+      request.user?.subject,
+    );
   }
 
   @Post("children/:studentId/lost-device-reports")
@@ -63,6 +69,38 @@ export class GuardianController {
     @Req() request: AuthenticatedRequest,
   ) {
     return this.service.updateAfterSchoolControl(
+      tenantId,
+      studentId,
+      input,
+      request.user?.subject,
+      request.user?.email,
+    );
+  }
+
+  @Patch("notification-preferences")
+  @RequirePermissions("guardian:read")
+  updateNotificationPreferences(
+    @Param("tenantId") tenantId: string,
+    @Body() input: UpdateGuardianNotificationsDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.service.updateNotificationPreferences(
+      tenantId,
+      input,
+      request.user?.subject,
+      request.user?.email,
+    );
+  }
+
+  @Post("children/:studentId/support-requests")
+  @RequirePermissions("guardian:read")
+  createSupportRequest(
+    @Param("tenantId") tenantId: string,
+    @Param("studentId") studentId: string,
+    @Body() input: CreateGuardianSupportRequestDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.service.createSupportRequest(
       tenantId,
       studentId,
       input,

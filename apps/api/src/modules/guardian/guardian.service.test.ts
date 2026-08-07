@@ -12,7 +12,15 @@ describe("GuardianService", () => {
           return {
             id: "guardian-1",
             name: "Parent One",
-            tenant: { name: "Example School", timezone: "UTC" },
+            email: "parent@example.com",
+            phone: null,
+            notificationPreference: null,
+            supportRequests: [],
+            tenant: {
+              name: "Example School",
+              timezone: "UTC",
+              supportEmail: "help@example.com",
+            },
             students: [
               {
                 relationship: "mother",
@@ -68,6 +76,8 @@ describe("GuardianService", () => {
           },
         ],
       },
+      privacyNotice: { findMany: async () => [] },
+      privacyAcceptance: { findMany: async () => [] },
     };
     const result = await new GuardianService(prisma as never).dashboard(
       "tenant-1",
@@ -171,6 +181,98 @@ describe("GuardianService", () => {
         "parent@example.com",
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it("limits notification channels to contact methods on the tenant-scoped guardian", async () => {
+    const writes: unknown[] = [];
+    const prisma = {
+      guardian: {
+        findFirst: async () => ({
+          id: "guardian-1",
+          email: "parent@example.com",
+          phone: null,
+        }),
+      },
+      $transaction: async (work: (tx: any) => unknown) =>
+        work({
+          guardianNotificationPreference: {
+            upsert: async ({ create }: any) => ({
+              id: "preference-1",
+              ...create,
+            }),
+          },
+          auditEvent: { create: async (value: unknown) => writes.push(value) },
+        }),
+    };
+    const service = new GuardianService(prisma as never);
+    await expect(
+      service.updateNotificationPreferences(
+        "tenant-1",
+        { channels: ["SMS"] },
+        "guardian-auth",
+        "parent@example.com",
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(
+      service.updateNotificationPreferences(
+        "tenant-1",
+        { channels: ["EMAIL", "IN_APP"] },
+        "guardian-auth",
+        "parent@example.com",
+      ),
+    ).resolves.toEqual({ channels: ["EMAIL", "IN_APP"] });
+    expect(writes).toHaveLength(1);
+  });
+
+  it("routes a support request only for the guardian's linked active device", async () => {
+    const prisma = {
+      guardian: {
+        findFirst: async () => ({
+          id: "guardian-1",
+          students: [
+            {
+              student: {
+                id: "student-1",
+                name: "Child",
+                grade: "5",
+                devices: [{ id: "device-1", status: "ONLINE" }],
+              },
+            },
+          ],
+        }),
+      },
+      $transaction: async (work: (tx: any) => unknown) =>
+        work({
+          tenant: {
+            findUnique: async () => ({ supportEmail: "help@school.test" }),
+          },
+          guardianSupportRequest: {
+            create: async ({ data }: any) => ({
+              id: "request-1",
+              status: "OPEN",
+              ...data,
+            }),
+          },
+          auditEvent: { create: async () => undefined },
+        }),
+    };
+    await expect(
+      new GuardianService(prisma as never).createSupportRequest(
+        "tenant-1",
+        "student-1",
+        {
+          category: "DEVICE",
+          subject: "Screen issue",
+          description: "The screen is not responding",
+        },
+        "guardian-auth",
+        "parent@example.com",
+      ),
+    ).resolves.toEqual({
+      id: "request-1",
+      status: "OPEN",
+      routedTo: "help@school.test",
+    });
   });
 
   it("denies an account without a tenant-scoped guardian match", async () => {
