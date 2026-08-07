@@ -15,6 +15,8 @@ import type {
   PolicyPublishSummary,
   PolicySummary,
   PolicyVersionSummary,
+  UrlPolicySimulation,
+  BlockedDomainAggregate,
 } from "@virtual-school/shared";
 import { RequirePermissions } from "../auth/decorators/require-permissions.decorator";
 import { AssignPolicyDto } from "./dto/assign-policy.dto";
@@ -23,6 +25,8 @@ import { IssueSupportUnlockDto } from "./dto/issue-support-unlock.dto";
 import { PublishPolicyDto } from "./dto/publish-policy.dto";
 import { RollbackPolicyDto } from "./dto/rollback-policy.dto";
 import { UpdateAndroidControlsDto } from "./dto/update-android-controls.dto";
+import { SimulateUrlPolicyDto } from "./dto/simulate-url-policy.dto";
+import { IngestBlockedDomainEventDto } from "./dto/ingest-blocked-domain-event.dto";
 import { PoliciesService } from "./policies.service";
 
 @ApiTags("policies")
@@ -46,6 +50,29 @@ export class PoliciesController {
     @Param("tenantId") tenantId: string,
   ): Promise<PolicyAssignmentSummary[]> {
     return this.policiesService.listPolicyAssignments(tenantId);
+  }
+
+  @Post("events/blocked-domains")
+  @RequirePermissions("device:read")
+  @ApiCreatedResponse({
+    description: "Ingest a privacy-limited blocked-domain event",
+  })
+  ingestBlockedDomainEvent(
+    @Param("tenantId") tenantId: string,
+    @Body() body: IngestBlockedDomainEventDto,
+  ): Promise<{ id: string }> {
+    return this.policiesService.ingestBlockedDomainEvent(tenantId, body);
+  }
+
+  @Get("events/blocked-domains/aggregates")
+  @RequirePermissions("policy:manage")
+  @ApiOkResponse({
+    description: "Blocked domains aggregated for the last 30 days",
+  })
+  listBlockedDomainAggregates(
+    @Param("tenantId") tenantId: string,
+  ): Promise<BlockedDomainAggregate[]> {
+    return this.policiesService.listBlockedDomainAggregates(tenantId);
   }
 
   @Get("devices/:deviceId/active")
@@ -107,6 +134,19 @@ export class PoliciesController {
     @Body() body: UpdateAndroidControlsDto,
   ): Promise<PolicySummary> {
     return this.policiesService.updateAndroidControls(tenantId, policyId, body);
+  }
+
+  @Post(":policyId/simulate-url")
+  @RequirePermissions("policy:manage")
+  @ApiOkResponse({
+    description: "Simulate URL rules without recording browsing data",
+  })
+  simulateUrlPolicy(
+    @Param("tenantId") tenantId: string,
+    @Param("policyId") policyId: string,
+    @Body() body: SimulateUrlPolicyDto,
+  ): Promise<UrlPolicySimulation> {
+    return this.policiesService.simulateUrlPolicy(tenantId, policyId, body.url);
   }
 
   @Post(":policyId/publish")

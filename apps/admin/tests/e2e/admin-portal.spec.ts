@@ -257,6 +257,19 @@ test.describe("admin portal regression", () => {
     );
 
     await page.goto("/policies");
+    const simulator = page
+      .locator("form")
+      .filter({ hasText: "Simulate access" });
+    await simulator.getByLabel("URL").fill("https://blocked.example/lesson");
+    await simulator.getByRole("button", { name: "Simulate access" }).click();
+    await expect(page.getByText("BLOCKED (DENY) — BLOCKLIST")).toBeVisible();
+    await expectMutation(
+      request,
+      "POST",
+      "/tenants/tenant-northview/policies/policy-supervised/simulate-url",
+      { url: "https://blocked.example/lesson" },
+    );
+
     const androidControls = page
       .locator("form")
       .filter({ hasText: "Save Android controls" });

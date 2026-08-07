@@ -339,6 +339,11 @@ const routes = [
   ["GET", `/tenants/${tenantId}/apps`, () => json([app])],
   [
     "GET",
+    `/tenants/${tenantId}/policies/events/blocked-domains/aggregates`,
+    () => json([]),
+  ],
+  [
+    "GET",
     `/tenants/${tenantId}/reports/app-deployments`,
     () =>
       json({
@@ -603,9 +608,19 @@ const server = createServer(async (request, response) => {
     });
     response.end(
       JSON.stringify(
-        pathname.endsWith("/roster-imports/preview")
-          ? rosterImport
-          : { ok: true, id: "mutation-ok" },
+        pathname.endsWith("/simulate-url")
+          ? {
+              decision: "BLOCKED",
+              effectiveAccess: "DENY",
+              matchedRule: "https://blocked.example/*",
+              policyId,
+              policyVersion: 3,
+              reason: "BLOCKLIST",
+              url: body.url,
+            }
+          : pathname.endsWith("/roster-imports/preview")
+            ? rosterImport
+            : { ok: true, id: "mutation-ok" },
       ),
     );
     return;

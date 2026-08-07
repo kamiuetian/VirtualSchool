@@ -2,7 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { Permission, RosterImportSummary } from "@virtual-school/shared";
+import type {
+  Permission,
+  RosterImportSummary,
+  UrlPolicySimulation,
+} from "@virtual-school/shared";
 import { adminApiJsonMutation, adminApiMutation } from "./api";
 import { roleCan } from "./auth/portal-access";
 import { requireAdminSession } from "./auth/session";
@@ -433,6 +437,25 @@ export async function assignPolicyAction(formData: FormData): Promise<void> {
     },
   );
   revalidateAll();
+}
+
+export async function simulateUrlPolicyAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("policy:manage");
+  const tenantId = required(formData, "tenantId");
+  const result = await adminApiJsonMutation<UrlPolicySimulation>(
+    "POST",
+    `/tenants/${tenantId}/policies/${required(formData, "policyId")}/simulate-url`,
+    { url: required(formData, "url") },
+  );
+  const params = new URLSearchParams({
+    decision: result.decision,
+    effectiveAccess: result.effectiveAccess,
+    matchedRule: result.matchedRule ?? "",
+    reason: result.reason,
+  });
+  redirect(`/policies?${params.toString()}`);
 }
 
 export async function createTimetableBlockAction(

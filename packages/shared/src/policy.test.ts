@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { resolvePolicy, starterPolicyTemplates } from "./policy";
+import {
+  resolvePolicy,
+  simulateUrlPolicy,
+  starterPolicyTemplates,
+} from "./policy";
 
 describe("resolvePolicy", () => {
   it("selects the highest precedence mode", () => {
@@ -57,5 +61,41 @@ describe("resolvePolicy", () => {
       "MAINTENANCE",
       "DEFAULT_SCHOOL",
     ]);
+  });
+});
+
+describe("simulateUrlPolicy", () => {
+  const rules = {
+    defaultWebAccess: "DENY" as const,
+    urlAllowlist: ["https://learning.example.edu/lessons/*"],
+    urlBlocklist: ["https://learning.example.edu/lessons/blocked"],
+  };
+
+  it("gives a matching block rule precedence over an allow rule", () => {
+    expect(
+      simulateUrlPolicy(
+        "https://learning.example.edu/lessons/blocked/1?student=secret",
+        rules,
+      ),
+    ).toEqual({
+      decision: "BLOCKED",
+      effectiveAccess: "DENY",
+      matchedRule: "https://learning.example.edu/lessons/blocked",
+      reason: "BLOCKLIST",
+    });
+  });
+
+  it("distinguishes a rule match from the default outcome", () => {
+    expect(
+      simulateUrlPolicy("https://learning.example.edu/lessons/1", rules)
+        .decision,
+    ).toBe("ALLOWED");
+    expect(
+      simulateUrlPolicy("https://elsewhere.example/", rules),
+    ).toMatchObject({
+      decision: "UNMATCHED",
+      effectiveAccess: "DENY",
+      matchedRule: null,
+    });
   });
 });

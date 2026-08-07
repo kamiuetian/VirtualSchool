@@ -109,6 +109,7 @@ model Tenant {
   retentionRuns       DataRetentionRun[]
   billingSubscription BillingSubscription?
   auditEvents         AuditEvent[]
+  blockedDomainEvents BlockedDomainEvent[]
 }
 
 model BillingSubscription {
@@ -309,6 +310,7 @@ model Device {
   commands            RemoteCommand[]
   diagnostics         DeviceDiagnostic[]
   alerts              DeviceAlert[]
+  blockedDomainEvents BlockedDomainEvent[]
   supportNotes        SupportNote[]
 
   @@unique([tenantId, serialNumber])
@@ -479,9 +481,30 @@ model Policy {
   assignments        PolicyAssignment[]
   timetableBlocks    TimetableBlock[]
   calendarExceptions AcademicCalendarException[]
+  blockedDomainEvents BlockedDomainEvent[]
 
   @@index([tenantId, status])
   @@index([tenantId, mdmPublishStatus])
+}
+
+model BlockedDomainEvent {
+  id            String   @id @default(uuid())
+  tenantId      String
+  deviceId      String?
+  policyId      String
+  policyVersion Int
+  domain        String
+  reason        String
+  matchedRule   String?
+  occurredAt    DateTime
+  createdAt     DateTime @default(now())
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  policy        Policy   @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  device        Device?  @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, occurredAt])
+  @@index([tenantId, domain, occurredAt])
+  @@index([policyId, policyVersion])
 }
 
 model TimetableBlock {

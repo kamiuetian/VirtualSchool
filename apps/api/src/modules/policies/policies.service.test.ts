@@ -42,6 +42,114 @@ function connectorRegistry(overrides: Record<string, unknown> = {}) {
 }
 
 describe("PoliciesService", () => {
+  it("simulates URL policy decisions with the winning rule", async () => {
+    const service = new PoliciesService(
+      {
+        policy: {
+          findFirst: async () => ({
+            id: "policy-1",
+            rules: {
+              ...baseRules,
+              urlAllowlist: ["https://school.example/learn/*"],
+            },
+            version: 3,
+          }),
+        },
+      } as never,
+      connectorRegistry() as never,
+    );
+    await expect(
+      service.simulateUrlPolicy(
+        "tenant-1",
+        "policy-1",
+        "https://school.example/learn/math?student=1",
+      ),
+    ).resolves.toMatchObject({
+      decision: "ALLOWED",
+      matchedRule: "https://school.example/learn/*",
+      policyVersion: 3,
+    });
+  });
+
+  it("rejects events containing URL paths and cross-tenant devices", async () => {
+    const create = vi.fn().mockResolvedValue({ id: "event-1" });
+    const service = new PoliciesService(
+      {
+        blockedDomainEvent: { create },
+        device: { findFirst: async () => null },
+        policy: {
+          findFirst: async () => ({
+            id: "policy-1",
+            rules: baseRules,
+            version: 1,
+          }),
+        },
+      } as never,
+      connectorRegistry() as never,
+    );
+    const event = {
+      domain: "school.example",
+      occurredAt: now.toISOString(),
+      policyId: "policy-1",
+      policyVersion: 1,
+      reason: "BLOCKLIST",
+    };
+    await expect(
+      service.ingestBlockedDomainEvent("tenant-1", {
+        ...event,
+        deviceId: "other-device",
+      }),
+    ).rejects.toThrow("was not found for tenant tenant-1");
+    await expect(
+      service.ingestBlockedDomainEvent("tenant-1", {
+        ...event,
+        domain: "https://school.example/private?student=1",
+      }),
+    ).rejects.toThrow("hostname only");
+    await expect(
+      service.ingestBlockedDomainEvent("tenant-1", {
+        ...event,
+        domain: "School.Example",
+      }),
+    ).resolves.toEqual({ id: "event-1" });
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          domain: "school.example",
+          tenantId: "tenant-1",
+        }),
+      }),
+    );
+  });
+
+  it("aggregates blocked domains", async () => {
+    const service = new PoliciesService(
+      {
+        blockedDomainEvent: {
+          findMany: async () => [
+            { domain: "school.example", occurredAt: now, reason: "BLOCKLIST" },
+            {
+              domain: "school.example",
+              occurredAt: new Date(now.getTime() + 1000),
+              reason: "DEFAULT_DENY",
+            },
+          ],
+        },
+        tenant: { findUnique: async () => ({ id: "tenant-1" }) },
+      } as never,
+      connectorRegistry() as never,
+    );
+    await expect(
+      service.listBlockedDomainAggregates("tenant-1"),
+    ).resolves.toEqual([
+      {
+        count: 2,
+        domain: "school.example",
+        lastOccurredAt: "2026-05-17T10:00:01.000Z",
+        reasons: ["BLOCKLIST", "DEFAULT_DENY"],
+      },
+    ]);
+  });
   it("creates a policy with an initial version and audit event", async () => {
     const auditEvents: unknown[] = [];
     const versions: unknown[] = [];

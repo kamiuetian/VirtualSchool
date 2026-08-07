@@ -14,6 +14,7 @@ import {
   issueSupportUnlockAction,
   publishPolicyAction,
   rollbackPolicyAction,
+  simulateUrlPolicyAction,
   updateAndroidPolicyControlsAction,
 } from "../../lib/actions";
 import { getAdminData } from "../../lib/api";
@@ -21,7 +22,12 @@ import { formatCount, formatDateTime, humanize } from "../../lib/format";
 
 export const dynamic = "force-dynamic";
 
-export default async function PoliciesPage() {
+export default async function PoliciesPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | undefined>>;
+}) {
+  const simulation = await searchParams;
   const data = await getAdminData("/policies");
   const published = data.policies.filter(
     (policy) => policy.status === "PUBLISHED",
@@ -92,6 +98,44 @@ export default async function PoliciesPage() {
 
               {data.policies.length > 0 ? (
                 <>
+                  <ActionPanel title="Test URL policy">
+                    <form
+                      action={simulateUrlPolicyAction}
+                      className="stacked-form"
+                    >
+                      <input
+                        name="tenantId"
+                        type="hidden"
+                        value={data.selectedTenant.id}
+                      />
+                      <Field label="Policy">
+                        <select name="policyId" required>
+                          {data.policies.map((policy) => (
+                            <option key={policy.id} value={policy.id}>
+                              {policy.name}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      <Field label="URL">
+                        <input
+                          name="url"
+                          placeholder="https://learning.example.edu/lesson"
+                          required
+                          type="url"
+                        />
+                      </Field>
+                      <SubmitButton>Simulate access</SubmitButton>
+                      {simulation?.decision ? (
+                        <p className="form-help" aria-live="polite">
+                          <strong>{simulation.decision}</strong> (
+                          {simulation.effectiveAccess}) — {simulation.reason}.
+                          Winning rule:{" "}
+                          {simulation.matchedRule || "default policy"}.
+                        </p>
+                      ) : null}
+                    </form>
+                  </ActionPanel>
                   <ActionPanel title="Publish policy">
                     <form action={publishPolicyAction} className="stacked-form">
                       <input
@@ -438,6 +482,38 @@ export default async function PoliciesPage() {
             <EmptyState
               title="No active assignments"
               body="Assign published policies to the whole school, grades, classes, students, or individual devices."
+            />
+          )}
+        </PageSection>
+
+        <PageSection title="Blocked Domains — Last 30 Days">
+          {data.blockedDomainAggregates.length > 0 ? (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Domain</th>
+                    <th>Blocked events</th>
+                    <th>Reasons</th>
+                    <th>Last seen</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.blockedDomainAggregates.map((item) => (
+                    <tr key={item.domain}>
+                      <td>{item.domain}</td>
+                      <td>{formatCount(item.count)}</td>
+                      <td>{item.reasons.map(humanize).join(", ")}</td>
+                      <td>{formatDateTime(item.lastOccurredAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <EmptyState
+              title="No blocked-domain events"
+              body="Privacy-limited domain totals appear after managed browsers report blocked navigation."
             />
           )}
         </PageSection>

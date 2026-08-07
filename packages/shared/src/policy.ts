@@ -39,6 +39,33 @@ export type PolicyStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
 
 export type PolicyMdmPublishStatus = "PUBLISHED" | "FAILED" | "SKIPPED";
 
+export type UrlPolicySimulation = {
+  decision: "ALLOWED" | "BLOCKED" | "UNMATCHED";
+  effectiveAccess: "ALLOW" | "DENY";
+  reason: "ALLOWLIST" | "BLOCKLIST" | "DEFAULT_ALLOW" | "DEFAULT_DENY";
+  matchedRule: string | null;
+  policyId: string;
+  policyVersion: number;
+  url: string;
+};
+
+export type BlockedDomainEventInput = {
+  deviceId?: string;
+  domain: string;
+  matchedRule?: string;
+  occurredAt: string;
+  policyId: string;
+  policyVersion: number;
+  reason: string;
+};
+
+export type BlockedDomainAggregate = {
+  count: number;
+  domain: string;
+  lastOccurredAt: string;
+  reasons: string[];
+};
+
 export type PolicyRuleSet = {
   mode: LearningMode;
   approvedAppPackageIds: string[];
@@ -336,4 +363,84 @@ export function resolvePolicy(candidates: PolicyCandidate[]): PolicyResolution {
     evaluated: sorted,
     explanation: `${active.mode} from ${active.source} won with precedence ${policyPrecedence[active.mode]} and policy version ${active.policyVersion}.`,
   };
+}
+
+export function simulateUrlPolicy(
+  url: string,
+  rules: Pick<
+    PolicyRuleSet,
+    "defaultWebAccess" | "urlAllowlist" | "urlBlocklist"
+  >,
+): Omit<UrlPolicySimulation, "policyId" | "policyVersion" | "url"> {
+  const parsed = parseHttpUrl(url);
+  if (!parsed) {
+    throw new Error("A valid HTTP(S) URL without credentials is required");
+  }
+  const blocked = rules.urlBlocklist.find((rule) =>
+    matchesUrlRule(parsed, rule),
+  );
+  if (blocked)
+    return {
+      decision: "BLOCKED",
+      effectiveAccess: "DENY",
+      matchedRule: blocked,
+      reason: "BLOCKLIST",
+    };
+  const allowed = rules.urlAllowlist.find((rule) =>
+    matchesUrlRule(parsed, rule),
+  );
+  if (allowed)
+    return {
+      decision: "ALLOWED",
+      effectiveAccess: "ALLOW",
+      matchedRule: allowed,
+      reason: "ALLOWLIST",
+    };
+  return {
+    decision: "UNMATCHED",
+    effectiveAccess: rules.defaultWebAccess,
+    matchedRule: null,
+    reason:
+      rules.defaultWebAccess === "ALLOW" ? "DEFAULT_ALLOW" : "DEFAULT_DENY",
+  };
+}
+
+function parseHttpUrl(value: string): URL | null {
+  try {
+    const url = new URL(value.trim());
+    return (url.protocol === "http:" || url.protocol === "https:") &&
+      !url.username &&
+      !url.password
+      ? url
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function matchesUrlRule(url: URL, rawRule: string): boolean {
+  const rule = rawRule.trim();
+  if (!rule) return false;
+  const wildcard = rule.endsWith("*");
+  const parsedRule = parseHttpUrl(wildcard ? rule.slice(0, -1) : rule);
+  if (
+    !parsedRule ||
+    parsedRule.protocol !== url.protocol ||
+    parsedRule.hostname.toLowerCase() !== url.hostname.toLowerCase() ||
+    effectivePort(parsedRule) !== effectivePort(url)
+  )
+    return false;
+  const rulePath = parsedRule.pathname || "/";
+  const urlPath = url.pathname || "/";
+  if (wildcard) return urlPath.toLowerCase().startsWith(rulePath.toLowerCase());
+  return (
+    urlPath.toLowerCase() === rulePath.toLowerCase() ||
+    (rulePath.endsWith("/")
+      ? urlPath.toLowerCase().startsWith(rulePath.toLowerCase())
+      : urlPath.toLowerCase().startsWith(`${rulePath.toLowerCase()}/`))
+  );
+}
+
+function effectivePort(url: URL): string {
+  return url.port || (url.protocol === "https:" ? "443" : "80");
 }

@@ -2,78 +2,78 @@
 
 This is the ordered queue used by the Codex app feature cycle. Only one item may be `in-progress` at a time.
 
-| Order | Status   | Feature                                                                                                          | Completion evidence                                                                                                          |
-| ----: | -------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-|     1 | complete | Replace the worker's stub-only Android Management command dispatch with the configured production connector path | Worker tests cover production dispatch, retries, and safe stub fallback; worker integration documentation is updated         |
-|     2 | complete | Implement Terraform foundations for the AWS staging environment                                                  | Terraform validates and defines network, database, Redis, storage, secrets, and ECS foundations without embedded credentials |
-|     3 | complete | Harden Android launcher into a managed-device pilot candidate                                                    | Launcher policy behavior, offline handling, managed configuration, lint, unit tests, and debug build pass                    |
-|     4 | complete | Harden the secure browser into a managed-device pilot candidate                                                  | Allow/block rules, blocked-event reporting, offline policy behavior, lint, unit tests, and debug build pass                  |
-|     5 | complete | Expand end-to-end regression coverage for the complete admin critical path                                       | Playwright covers tenant setup, roster, enrollment, policy, device command, reporting, and role restrictions                 |
-|     6 | complete | Add staging observability and operational readiness checks                                                       | Health signals, structured logs, alerts, dashboards/runbooks, backup and recovery checks are documented and verified         |
-|     7 | complete | Complete academic calendar exceptions and academic-year rollover | Tenant-local holidays, closures, and dated exceptions override recurring timetables; admins can archive/duplicate class structures with history preserved; tests cover timezone boundaries |
-|     8 | complete | Add policy rollback and time-bound emergency support unlock | An authorized admin can republish a prior policy snapshot and issue an expiring support unlock with reason; both paths are permissioned, audited, and covered by tests |
-|     9 | complete | Add Android update-window, reset-restriction, and kiosk-customization controls | Policy UI/API validates the controls, Android Management mapping emits supported settings, unsupported capability limits are shown, and mapper/service tests pass |
-|    10 | ready | Add URL policy simulation and blocked-domain event ingestion | Admins can test a URL and see Allowed/Blocked/Unmatched plus the winning rule; privacy-limited browser events are ingested, aggregated, tenant-isolated, and tested |
-|    11 | ready | Add device lifecycle operations and assignment history | Retirement/unenrollment and student reassignment require reasons, preserve prior assignments, stop policy delivery to retired devices, and expose an audited history |
-|    12 | ready | Add tenant notification preferences and email alert delivery | Admins can configure recipients and thresholds; offline, policy, app, lost-device, and repeated-enrollment alerts send deduplicated email and record delivery outcomes |
-|    13 | ready | Add versioned privacy notices and guardian/admin acceptance records | Notices can be published and accepted by subject/channel/version; consent is revocable and auditable; tenant-scoped API/UI and tests enforce access boundaries |
-|    14 | ready | Add in-product guided onboarding and contextual help | The setup checklist links to actionable steps, validates first enrollment readiness, persists progress, and lets a new admin finish onboarding without external documentation |
-|    15 | ready | Build the scoped teacher dashboard and live-session lifecycle | Teachers see only assigned classes/devices, can start/end a guarded class mode, and session state and major device changes are durably logged and tested |
-|    16 | ready | Add teacher resource push, focus screen, and temporary URL approval | Teachers can push only approved resources, display a bounded attention screen, and grant class-scoped expiring URL access without bypassing never-allowed rules |
-|    17 | ready | Add reusable teacher session templates | Teachers can create and reuse lesson-mode templates only within school policy guardrails; ownership, validation, audit, and assigned-class authorization are tested |
-|    18 | ready | Build the privacy-limited guardian portal | Authenticated guardians see only linked children, device status, school hours, expected modes, and approved learning-access summaries; unrelated or sensitive data is denied |
-|    19 | ready | Add guardian lost-device reporting and guarded after-school controls | A guardian report creates a school alert and optional lost workflow; parent-selected settings remain within school allowlists and cannot override school/exam modes |
-|    20 | ready | Add guardian consent, notifications, and device support requests | Guardians can accept versioned forms, configure supported notification channels, and open routed tickets for linked devices with tenant and child scoping tested |
-|    21 | ready | Add localized guardian-facing labels and messages | Tenant/profile language selection supports English plus one configured launch language, fallback behavior is deterministic, and guardian privacy copy remains complete |
-|    22 | ready | Add Exam Mode scheduling and deterministic precedence | Authorized staff can schedule exams by class/grade/student; Exam Mode overrides ordinary schedules and releases automatically at completion or scheduled end |
-|    23 | ready | Add exam readiness checks and secure assessment launch | Readiness identifies offline, low-battery, wrong-policy, missing-app, and unsupported-browser devices; approved exam links/apps launch under the strict profile |
-|    24 | ready | Add exam integrity events, emergency unlock, and reports | Non-invasive integrity events and privileged unlocks are audited; post-exam reports include attendance, readiness, timings, failures, and unlocks |
-|    25 | ready | Add Google Classroom connection, mapping, and selective sync | An admin authorizes Classroom, maps courses and identities, syncs selected rosters/materials, and can inspect retryable tenant-scoped sync outcomes |
-|    26 | ready | Add Moodle and Canvas course-link integrations | Admins configure credentials by reference, map courses/classes, expose approved launcher links, test connections, and disable either provider without orphaning mappings |
-|    27 | ready | Add Microsoft 365 Education and approved meeting-link management | Authorized Teams/Microsoft resources plus Zoom/Google Meet links can be mapped and pushed through teacher sessions with URL validation and audit coverage |
-|    28 | ready | Add SIS reconciliation API and integration operations dashboard | Documented endpoints reconcile student/class/teacher/guardian/enrollment IDs; admins see sync history, affected records, failures, last success, and retry controls |
-|    29 | ready | Add signed outbound education-operation webhooks | Tenant endpoints receive signed, replay-resistant events for required Phase 2 event types with secret rotation, bounded retries, delivery logs, and disable controls |
-|    30 | ready | Build consent-gated BYOD study sessions | Students join a session-limited secure-browser experience only after required consent; product copy and APIs explicitly avoid claiming whole-device control |
-|    31 | ready | Add BYOD readiness, policy eligibility, and participation reporting | Class/exam/grade policy controls eligibility; device/browser checks run before entry; reports retain only join time, duration, approved access, and exit status |
-|    32 | ready | Add category filtering, safe search, and global never-allowed rules | Rules apply by tenant/grade/class/mode, provider limitations are visible, and teacher/session overrides cannot bypass global prohibitions |
-|    33 | ready | Add granular educational video allowlisting | Approved channels, playlists, videos, and educational domains can be scoped and evaluated without granting unrestricted video-platform access |
-|    34 | ready | Build the categorized content library with expiry | Admins manage approved apps, links, PDFs, worksheets, videos, LMS and exam resources by grade/subject/class; expired resources disappear and are reported |
-|    35 | ready | Add managed-device offline lesson packs | Approved content is cached with integrity/version metadata, available in an explicit Offline Mode, refreshed safely, and removed on expiry or policy revocation |
-|    36 | ready | Add configurable attendance capture and correction | Attendance derives from configured session/device/LMS/teacher signals, authorized staff can correct it with audit history, and tenant-scoped exports are tested |
-|    37 | ready | Add learning-access and device-usage analytics | Reports cover participation, approved resource launches, missed sessions, offline devices, and trends by class/grade/device group/category/time window |
-|    38 | ready | Add engagement-risk alerts and scheduled summaries | Explainable rules detect repeated missed sessions/offline/compliance failures; weekly admin and optional guardian summaries honor tenant preferences and privacy scopes |
-|    39 | ready | Build the event-driven automation rule engine | Admins can create, test, enable, and disable bounded trigger-condition-action rules; offline and repeated-policy-failure examples notify or create tickets without loops |
-|    40 | ready | Upgrade support notes into a helpdesk ticket workflow | Admins, teachers, guardians, and automation can create linked tickets with priority/status/assignee/SLA, scoped notes, routing, and a complete audit trail |
-|    41 | ready | Add consented remote-assistance sessions and troubleshooting playbooks | Assistance requires authorization and visible notice, logs start/end, never enables covert monitoring, and guided playbooks cover the four specified common issues |
-|    42 | ready | Apply tenant branding across all customer surfaces | Tenant logo, colors, terminology, contacts, launcher/portal presentation, and email templates use validated branding with accessible fallbacks |
-|    43 | ready | Add localized core UI strings | Student, guardian, and admin surfaces support English plus one launch-market language, tenant defaults and user overrides, missing-key checks, and fallback tests |
-|    44 | ready | Add targeted announcements and structured pilot feedback | Announcements are role-targeted, schedulable, archivable, and audited; feedback records tenant, role, module, severity, status, and privacy-safe context |
-|    45 | ready | Add the multi-OS capability catalog and unified inventory model | Admins can inspect support by OS/version/enrollment/ownership; unified inventory filters platform/provider/compliance and clearly distinguishes unsupported controls |
-|    46 | ready | Add cross-platform policy mapping, overrides, and simulation | A business policy maps to platform controls, permits explicit OS overrides, and previews conflicts and unsupported controls before publication |
-|    47 | ready | Add unified compliance scoring and OS lifecycle governance | Explainable scores account for platform capabilities; unsupported OS versions and update recommendations/restrictions are visible and reportable |
-|    48 | ready | Add Google Workspace and ChromeOS management integration | Guided authorization maps organizational units, ingests device inventory, and exposes kiosk, managed-session, extension/app, and web-policy status where supported |
-|    49 | ready | Add Apple School Manager and external iPadOS MDM integration | Guided token/setup workflows show ADE/supervision, restriction mapping, app/book status, managed configuration, and certificate/token expiry alerts |
-|    50 | ready | Add Microsoft Intune for Education integration | Guided authorization maps groups/devices, ingests inventory/health, and reports kiosk, assessment, Autopilot, and application deployment capability/status |
-|    51 | ready | Add enterprise SSO and SCIM lifecycle management | Tenants configure SAML/OIDC with break-glass access and SCIM create/update/suspend/delete plus group-to-role mapping; all identity changes are audited |
-|    52 | ready | Add delegated administration, custom roles, and access reviews | Region/branch scopes prevent lateral access; permission templates create bounded roles; periodic privileged-access review can confirm/revoke/export evidence |
-|    53 | ready | Add high-risk policy approval and admin change comparison | Configurable approvals gate broad unlock, web-block removal, and exam changes; auditors can compare versions, actors, approvers, and outcomes |
-|    54 | ready | Add data-residency and multi-region tenant governance | Supported regions are selectable and visible; region/school hierarchy preserves local boundaries while authorized reports roll up across regions |
-|    55 | ready | Publish the tenant/partner REST API with scoped machine credentials | Versioned OpenAPI documentation, sandbox examples, OAuth client credentials/API keys, granular scopes, rate limits, rotation/revocation, and audit logs are verified |
-|    56 | ready | Add the enterprise signed-webhook platform | Webhooks include the specified envelope, tenant/object metadata, signatures, retries, replay defense, delivery inspection, and endpoint lifecycle controls |
-|    57 | ready | Build the integration marketplace and partner submission review | Admins can enable/test/disable approved integrations; partners submit versioned integrations through review, approval, rejection, and publication states |
-|    58 | ready | Build the reseller customer portfolio and tenant provisioning workflow | Scoped partners view assigned customers and provision tenants within commercial/approval limits; onboarding, counts, tickets, renewals, and actions are isolated and audited |
-|    59 | ready | Add reseller white-labeling and aggregated commercial reporting | Approved partner domains/branding/email senders are validated; portfolio reports show customer-level and aggregate usage, renewals, and billing without learning records |
-|    60 | ready | Add implementation project and go-live readiness tracking | Partner/customer teams track milestones, owners, risks, evidence, decisions, and release readiness with tenant/portfolio permissions and history |
-|    61 | ready | Build the enterprise security and privacy center | Privacy officers see data settings, access controls, retention, incident contacts, policy documents, audit exports, and child-safety guardrails in one scoped view |
-|    62 | ready | Add downloadable compliance evidence packs | Authorized users generate immutable, time-bounded packs containing selected logs, access reviews, retention settings, controls summaries, and policy exports |
-|    63 | ready | Add governed data-subject export and deletion requests | Requests require authorization and approval, produce scoped export/deletion results, honor retention/legal holds, and preserve a non-sensitive audit record |
-|    64 | ready | Add security/privacy incident management | Incidents support classification, severity, ownership, timeline updates, evidence references, closure, customer export, and strict security-role access |
-|    65 | ready | Add customer-facing service status, maintenance, and DR evidence | Enterprise customers see current/history incidents, affected modules and maintenance; contractual RPO/RTO and latest DR exercise evidence are publishable by tier |
-|    66 | ready | Add operator backup verification and controlled restore records | Platform admins can inspect backup freshness and record approved restore drills/results against runbooks without exposing infrastructure credentials |
-|    67 | ready | Add procurement batches, shipment, RMA, and replacement lifecycle | Device batches progress from purchase through enrollment/shipment/assignment; replacement preserves student assignment history, support notes, and auditable custody |
-|    68 | ready | Add hierarchical enterprise analytics and scheduled warehouse exports | Authorized dashboards roll up compliance, attendance, engagement, and support from school to enterprise/partner; scheduled CSV/API-storage delivery is scoped and logged |
-|    69 | ready | Add explainable policy recommendations and anomaly alerts | Suggestions cite supporting compliance/usage evidence and require approval; unusual device/policy/admin activity creates evidence-backed security-center alerts |
-|    70 | ready | Generate enterprise quarterly business review packs | Customer-success users generate packs with adoption, health, policy success, support, mode usage, trends, and explainable recommendations from tenant-scoped data |
+| Order | Status      | Feature                                                                                                          | Completion evidence                                                                                                                                                                        |
+| ----: | ----------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+|     1 | complete    | Replace the worker's stub-only Android Management command dispatch with the configured production connector path | Worker tests cover production dispatch, retries, and safe stub fallback; worker integration documentation is updated                                                                       |
+|     2 | complete    | Implement Terraform foundations for the AWS staging environment                                                  | Terraform validates and defines network, database, Redis, storage, secrets, and ECS foundations without embedded credentials                                                               |
+|     3 | complete    | Harden Android launcher into a managed-device pilot candidate                                                    | Launcher policy behavior, offline handling, managed configuration, lint, unit tests, and debug build pass                                                                                  |
+|     4 | complete    | Harden the secure browser into a managed-device pilot candidate                                                  | Allow/block rules, blocked-event reporting, offline policy behavior, lint, unit tests, and debug build pass                                                                                |
+|     5 | complete    | Expand end-to-end regression coverage for the complete admin critical path                                       | Playwright covers tenant setup, roster, enrollment, policy, device command, reporting, and role restrictions                                                                               |
+|     6 | complete    | Add staging observability and operational readiness checks                                                       | Health signals, structured logs, alerts, dashboards/runbooks, backup and recovery checks are documented and verified                                                                       |
+|     7 | complete    | Complete academic calendar exceptions and academic-year rollover                                                 | Tenant-local holidays, closures, and dated exceptions override recurring timetables; admins can archive/duplicate class structures with history preserved; tests cover timezone boundaries |
+|     8 | complete    | Add policy rollback and time-bound emergency support unlock                                                      | An authorized admin can republish a prior policy snapshot and issue an expiring support unlock with reason; both paths are permissioned, audited, and covered by tests                     |
+|     9 | complete    | Add Android update-window, reset-restriction, and kiosk-customization controls                                   | Policy UI/API validates the controls, Android Management mapping emits supported settings, unsupported capability limits are shown, and mapper/service tests pass                          |
+|    10 | complete    | Add URL policy simulation and blocked-domain event ingestion                                                     | Admins can test a URL and see Allowed/Blocked/Unmatched plus the winning rule; privacy-limited browser events are ingested, aggregated, tenant-isolated, and tested                        |
+|    11 | ready       | Add device lifecycle operations and assignment history                                                           | Retirement/unenrollment and student reassignment require reasons, preserve prior assignments, stop policy delivery to retired devices, and expose an audited history                       |
+|    12 | ready       | Add tenant notification preferences and email alert delivery                                                     | Admins can configure recipients and thresholds; offline, policy, app, lost-device, and repeated-enrollment alerts send deduplicated email and record delivery outcomes                     |
+|    13 | ready       | Add versioned privacy notices and guardian/admin acceptance records                                              | Notices can be published and accepted by subject/channel/version; consent is revocable and auditable; tenant-scoped API/UI and tests enforce access boundaries                             |
+|    14 | ready       | Add in-product guided onboarding and contextual help                                                             | The setup checklist links to actionable steps, validates first enrollment readiness, persists progress, and lets a new admin finish onboarding without external documentation              |
+|    15 | ready       | Build the scoped teacher dashboard and live-session lifecycle                                                    | Teachers see only assigned classes/devices, can start/end a guarded class mode, and session state and major device changes are durably logged and tested                                   |
+|    16 | ready       | Add teacher resource push, focus screen, and temporary URL approval                                              | Teachers can push only approved resources, display a bounded attention screen, and grant class-scoped expiring URL access without bypassing never-allowed rules                            |
+|    17 | ready       | Add reusable teacher session templates                                                                           | Teachers can create and reuse lesson-mode templates only within school policy guardrails; ownership, validation, audit, and assigned-class authorization are tested                        |
+|    18 | ready       | Build the privacy-limited guardian portal                                                                        | Authenticated guardians see only linked children, device status, school hours, expected modes, and approved learning-access summaries; unrelated or sensitive data is denied               |
+|    19 | ready       | Add guardian lost-device reporting and guarded after-school controls                                             | A guardian report creates a school alert and optional lost workflow; parent-selected settings remain within school allowlists and cannot override school/exam modes                        |
+|    20 | ready       | Add guardian consent, notifications, and device support requests                                                 | Guardians can accept versioned forms, configure supported notification channels, and open routed tickets for linked devices with tenant and child scoping tested                           |
+|    21 | ready       | Add localized guardian-facing labels and messages                                                                | Tenant/profile language selection supports English plus one configured launch language, fallback behavior is deterministic, and guardian privacy copy remains complete                     |
+|    22 | ready       | Add Exam Mode scheduling and deterministic precedence                                                            | Authorized staff can schedule exams by class/grade/student; Exam Mode overrides ordinary schedules and releases automatically at completion or scheduled end                               |
+|    23 | ready       | Add exam readiness checks and secure assessment launch                                                           | Readiness identifies offline, low-battery, wrong-policy, missing-app, and unsupported-browser devices; approved exam links/apps launch under the strict profile                            |
+|    24 | ready       | Add exam integrity events, emergency unlock, and reports                                                         | Non-invasive integrity events and privileged unlocks are audited; post-exam reports include attendance, readiness, timings, failures, and unlocks                                          |
+|    25 | ready       | Add Google Classroom connection, mapping, and selective sync                                                     | An admin authorizes Classroom, maps courses and identities, syncs selected rosters/materials, and can inspect retryable tenant-scoped sync outcomes                                        |
+|    26 | ready       | Add Moodle and Canvas course-link integrations                                                                   | Admins configure credentials by reference, map courses/classes, expose approved launcher links, test connections, and disable either provider without orphaning mappings                   |
+|    27 | ready       | Add Microsoft 365 Education and approved meeting-link management                                                 | Authorized Teams/Microsoft resources plus Zoom/Google Meet links can be mapped and pushed through teacher sessions with URL validation and audit coverage                                  |
+|    28 | ready       | Add SIS reconciliation API and integration operations dashboard                                                  | Documented endpoints reconcile student/class/teacher/guardian/enrollment IDs; admins see sync history, affected records, failures, last success, and retry controls                        |
+|    29 | ready       | Add signed outbound education-operation webhooks                                                                 | Tenant endpoints receive signed, replay-resistant events for required Phase 2 event types with secret rotation, bounded retries, delivery logs, and disable controls                       |
+|    30 | ready       | Build consent-gated BYOD study sessions                                                                          | Students join a session-limited secure-browser experience only after required consent; product copy and APIs explicitly avoid claiming whole-device control                                |
+|    31 | ready       | Add BYOD readiness, policy eligibility, and participation reporting                                              | Class/exam/grade policy controls eligibility; device/browser checks run before entry; reports retain only join time, duration, approved access, and exit status                            |
+|    32 | ready       | Add category filtering, safe search, and global never-allowed rules                                              | Rules apply by tenant/grade/class/mode, provider limitations are visible, and teacher/session overrides cannot bypass global prohibitions                                                  |
+|    33 | ready       | Add granular educational video allowlisting                                                                      | Approved channels, playlists, videos, and educational domains can be scoped and evaluated without granting unrestricted video-platform access                                              |
+|    34 | ready       | Build the categorized content library with expiry                                                                | Admins manage approved apps, links, PDFs, worksheets, videos, LMS and exam resources by grade/subject/class; expired resources disappear and are reported                                  |
+|    35 | ready       | Add managed-device offline lesson packs                                                                          | Approved content is cached with integrity/version metadata, available in an explicit Offline Mode, refreshed safely, and removed on expiry or policy revocation                            |
+|    36 | ready       | Add configurable attendance capture and correction                                                               | Attendance derives from configured session/device/LMS/teacher signals, authorized staff can correct it with audit history, and tenant-scoped exports are tested                            |
+|    37 | ready       | Add learning-access and device-usage analytics                                                                   | Reports cover participation, approved resource launches, missed sessions, offline devices, and trends by class/grade/device group/category/time window                                     |
+|    38 | ready       | Add engagement-risk alerts and scheduled summaries                                                               | Explainable rules detect repeated missed sessions/offline/compliance failures; weekly admin and optional guardian summaries honor tenant preferences and privacy scopes                    |
+|    39 | ready       | Build the event-driven automation rule engine                                                                    | Admins can create, test, enable, and disable bounded trigger-condition-action rules; offline and repeated-policy-failure examples notify or create tickets without loops                   |
+|    40 | ready       | Upgrade support notes into a helpdesk ticket workflow                                                            | Admins, teachers, guardians, and automation can create linked tickets with priority/status/assignee/SLA, scoped notes, routing, and a complete audit trail                                 |
+|    41 | ready       | Add consented remote-assistance sessions and troubleshooting playbooks                                           | Assistance requires authorization and visible notice, logs start/end, never enables covert monitoring, and guided playbooks cover the four specified common issues                         |
+|    42 | ready       | Apply tenant branding across all customer surfaces                                                               | Tenant logo, colors, terminology, contacts, launcher/portal presentation, and email templates use validated branding with accessible fallbacks                                             |
+|    43 | ready       | Add localized core UI strings                                                                                    | Student, guardian, and admin surfaces support English plus one launch-market language, tenant defaults and user overrides, missing-key checks, and fallback tests                          |
+|    44 | ready       | Add targeted announcements and structured pilot feedback                                                         | Announcements are role-targeted, schedulable, archivable, and audited; feedback records tenant, role, module, severity, status, and privacy-safe context                                   |
+|    45 | ready       | Add the multi-OS capability catalog and unified inventory model                                                  | Admins can inspect support by OS/version/enrollment/ownership; unified inventory filters platform/provider/compliance and clearly distinguishes unsupported controls                       |
+|    46 | ready       | Add cross-platform policy mapping, overrides, and simulation                                                     | A business policy maps to platform controls, permits explicit OS overrides, and previews conflicts and unsupported controls before publication                                             |
+|    47 | ready       | Add unified compliance scoring and OS lifecycle governance                                                       | Explainable scores account for platform capabilities; unsupported OS versions and update recommendations/restrictions are visible and reportable                                           |
+|    48 | ready       | Add Google Workspace and ChromeOS management integration                                                         | Guided authorization maps organizational units, ingests device inventory, and exposes kiosk, managed-session, extension/app, and web-policy status where supported                         |
+|    49 | ready       | Add Apple School Manager and external iPadOS MDM integration                                                     | Guided token/setup workflows show ADE/supervision, restriction mapping, app/book status, managed configuration, and certificate/token expiry alerts                                        |
+|    50 | ready       | Add Microsoft Intune for Education integration                                                                   | Guided authorization maps groups/devices, ingests inventory/health, and reports kiosk, assessment, Autopilot, and application deployment capability/status                                 |
+|    51 | ready       | Add enterprise SSO and SCIM lifecycle management                                                                 | Tenants configure SAML/OIDC with break-glass access and SCIM create/update/suspend/delete plus group-to-role mapping; all identity changes are audited                                     |
+|    52 | ready       | Add delegated administration, custom roles, and access reviews                                                   | Region/branch scopes prevent lateral access; permission templates create bounded roles; periodic privileged-access review can confirm/revoke/export evidence                               |
+|    53 | ready       | Add high-risk policy approval and admin change comparison                                                        | Configurable approvals gate broad unlock, web-block removal, and exam changes; auditors can compare versions, actors, approvers, and outcomes                                              |
+|    54 | ready       | Add data-residency and multi-region tenant governance                                                            | Supported regions are selectable and visible; region/school hierarchy preserves local boundaries while authorized reports roll up across regions                                           |
+|    55 | ready       | Publish the tenant/partner REST API with scoped machine credentials                                              | Versioned OpenAPI documentation, sandbox examples, OAuth client credentials/API keys, granular scopes, rate limits, rotation/revocation, and audit logs are verified                       |
+|    56 | ready       | Add the enterprise signed-webhook platform                                                                       | Webhooks include the specified envelope, tenant/object metadata, signatures, retries, replay defense, delivery inspection, and endpoint lifecycle controls                                 |
+|    57 | ready       | Build the integration marketplace and partner submission review                                                  | Admins can enable/test/disable approved integrations; partners submit versioned integrations through review, approval, rejection, and publication states                                   |
+|    58 | ready       | Build the reseller customer portfolio and tenant provisioning workflow                                           | Scoped partners view assigned customers and provision tenants within commercial/approval limits; onboarding, counts, tickets, renewals, and actions are isolated and audited               |
+|    59 | ready       | Add reseller white-labeling and aggregated commercial reporting                                                  | Approved partner domains/branding/email senders are validated; portfolio reports show customer-level and aggregate usage, renewals, and billing without learning records                   |
+|    60 | ready       | Add implementation project and go-live readiness tracking                                                        | Partner/customer teams track milestones, owners, risks, evidence, decisions, and release readiness with tenant/portfolio permissions and history                                           |
+|    61 | ready       | Build the enterprise security and privacy center                                                                 | Privacy officers see data settings, access controls, retention, incident contacts, policy documents, audit exports, and child-safety guardrails in one scoped view                         |
+|    62 | ready       | Add downloadable compliance evidence packs                                                                       | Authorized users generate immutable, time-bounded packs containing selected logs, access reviews, retention settings, controls summaries, and policy exports                               |
+|    63 | ready       | Add governed data-subject export and deletion requests                                                           | Requests require authorization and approval, produce scoped export/deletion results, honor retention/legal holds, and preserve a non-sensitive audit record                                |
+|    64 | ready       | Add security/privacy incident management                                                                         | Incidents support classification, severity, ownership, timeline updates, evidence references, closure, customer export, and strict security-role access                                    |
+|    65 | ready       | Add customer-facing service status, maintenance, and DR evidence                                                 | Enterprise customers see current/history incidents, affected modules and maintenance; contractual RPO/RTO and latest DR exercise evidence are publishable by tier                          |
+|    66 | ready       | Add operator backup verification and controlled restore records                                                  | Platform admins can inspect backup freshness and record approved restore drills/results against runbooks without exposing infrastructure credentials                                       |
+|    67 | ready       | Add procurement batches, shipment, RMA, and replacement lifecycle                                                | Device batches progress from purchase through enrollment/shipment/assignment; replacement preserves student assignment history, support notes, and auditable custody                       |
+|    68 | ready       | Add hierarchical enterprise analytics and scheduled warehouse exports                                            | Authorized dashboards roll up compliance, attendance, engagement, and support from school to enterprise/partner; scheduled CSV/API-storage delivery is scoped and logged                   |
+|    69 | ready       | Add explainable policy recommendations and anomaly alerts                                                        | Suggestions cite supporting compliance/usage evidence and require approval; unusual device/policy/admin activity creates evidence-backed security-center alerts                            |
+|    70 | ready       | Generate enterprise quarterly business review packs                                                              | Customer-success users generate packs with adoption, health, policy success, support, mode usage, trends, and explainable recommendations from tenant-scoped data                          |
 
 ## Status values
 
@@ -95,74 +95,75 @@ Record dated blockers, CI failures, and material scope decisions here.
 - 2026-08-07: Feature 7 completed. Tenant-local closures and policy overrides now take precedence over recurring timetable blocks, including timezone date boundaries. Academic-year rollover archives selected source classes and creates linked target-year structures while preserving history. Admin calendar and roster workflows, Prisma validation, typecheck, unit tests, build, and admin E2E passed.
 - 2026-08-07: Feature 8 completed. Authorized admins can republish a tenant-scoped prior policy snapshot as a new immutable version and issue a reason-required, device-scoped emergency support policy assignment that expires after 5 to 480 minutes. Policy/controller tests, Prisma validation, typecheck, unit tests, build, and admin E2E passed.
 - 2026-08-07: Feature 9 completed. Draft policies now validate Android update behavior, factory-reset restriction, and supported kiosk navigation, status-bar, and power-button controls; publishing maps them to Android Management policy fields while preserving safe legacy defaults. Prisma validation, typecheck, unit tests, build, and admin E2E passed.
+- 2026-08-07: Feature 10 completed. Admins can simulate HTTP(S) URLs against policy rules with block-before-allow precedence and see matched/default outcomes. Managed-browser blocked events accept hostname-only, policy-version-validated data and expose tenant-scoped 30-day aggregates. Prisma validation, typecheck, unit tests, build, and admin E2E (37 passed, 1 project-specific skip) passed; E2E used ports 3201/4101 because the defaults were occupied by a separate checkout.
 
 ## Specification traceability
 
 The ready queue was derived from `Virtual_School_MDM_Functional_Requirements_Specification.pdf` version 1.0. Existing implementation was not re-queued; the mappings below identify the missing or materially incomplete requirements covered by each feature.
 
-| Order | Specification references |
-| ----: | ------------------------ |
-| 7 | P1-FR-007, P1-FR-021, P1-FR-059; pages 6, 7, 9 |
-| 8 | P1-FR-039, P1-FR-040; page 8; P1-TC-008, page 17 |
-| 9 | P1-FR-035, P1-FR-037, P1-FR-038; page 8 |
-| 10 | P1-FR-050, P1-FR-052; page 8; P1-TC-006, page 17 |
-| 11 | P1-FR-028, P1-FR-029; page 7 |
-| 12 | P1-FR-074, P1-FR-075; pages 9-10 |
-| 13 | P1-FR-076 and consent data object; pages 5, 10; privacy guardrails, page 19 |
-| 14 | P1-FR-080; page 10; Phase 1 operational exit criteria, pages 17-18 |
-| 15 | P2-FR-001, P2-FR-002, P2-FR-004, P2-FR-008, P2-FR-009; pages 10-11; P2-TC-001, page 17 |
-| 16 | P2-FR-003, P2-FR-005, P2-FR-006; pages 10-11 |
-| 17 | P2-FR-007; page 11 |
-| 18 | P2-FR-010, P2-FR-011, P2-FR-018; page 11 |
-| 19 | P2-FR-012, P2-FR-013; page 11; P2-TC-002, page 17 |
-| 20 | P2-FR-014, P2-FR-015, P2-FR-016; page 11 |
-| 21 | P2-FR-017; page 11 |
-| 22 | P2-FR-019, P2-FR-020, P2-FR-026; page 11 |
-| 23 | P2-FR-021, P2-FR-022, P2-FR-023; page 11; P2-TC-003, page 17 |
-| 24 | P2-FR-024, P2-FR-025, P2-FR-027; page 11 |
-| 25 | P2-FR-028; page 12; P2-TC-004, page 17 |
-| 26 | P2-FR-029, P2-FR-030; page 12 |
-| 27 | P2-FR-031, P2-FR-032; page 12 |
-| 28 | P2-FR-033, P2-FR-034, P2-FR-035; page 12 |
-| 29 | P2-FR-036; page 12 |
-| 30 | P2-FR-037, P2-FR-038, P2-FR-039; page 12; P2-TC-005, page 17 |
-| 31 | P2-FR-040, P2-FR-041, P2-FR-042; page 12 |
-| 32 | P2-FR-043, P2-FR-044, P2-FR-046; page 12 |
-| 33 | P2-FR-045; page 12 |
-| 34 | P2-FR-047, P2-FR-049; pages 12-13 |
-| 35 | P2-FR-048; page 12 |
-| 36 | P2-FR-050; page 13 |
-| 37 | P2-FR-051, P2-FR-052; page 13 |
-| 38 | P2-FR-053, P2-FR-054; page 13 |
-| 39 | P2-FR-055; page 13; P2-TC-006, page 17 |
-| 40 | P2-FR-056 and ticket data object; pages 5, 13 |
-| 41 | P2-FR-057, P2-FR-058; page 13; privacy guardrails, page 19 |
-| 42 | P2-FR-059; page 13 |
-| 43 | P2-FR-060; page 13 |
-| 44 | P2-FR-061, P2-FR-062; page 13 |
-| 45 | P3-FR-001, P3-FR-005; page 14 |
-| 46 | P3-FR-002, P3-FR-003, P3-FR-004; page 14; P3-TC-001, page 17 |
-| 47 | P3-FR-006, P3-FR-007; page 14 |
-| 48 | P3-FR-008 through P3-FR-013; page 14 |
-| 49 | P3-FR-014 through P3-FR-019; page 14 |
-| 50 | P3-FR-020 through P3-FR-026; pages 14-15 |
-| 51 | P3-FR-027, P3-FR-028; page 15; P3-TC-002, page 17 |
-| 52 | P3-FR-029, P3-FR-030, P3-FR-050; pages 15-16 |
-| 53 | P3-FR-031, P3-FR-032; page 15 |
-| 54 | P3-FR-033, P3-FR-034; page 15 |
-| 55 | P3-FR-035, P3-FR-037, P3-FR-038; page 15 |
-| 56 | P3-FR-036; page 15 |
-| 57 | P3-FR-039, P3-FR-040; page 15 |
-| 58 | P3-FR-041, P3-FR-042; page 15; P3-TC-003, page 17 |
-| 59 | P3-FR-043, P3-FR-044; pages 15-16 |
-| 60 | P3-FR-045; page 16 |
-| 61 | P3-FR-046, P3-FR-051; page 16 |
-| 62 | P3-FR-047; page 16; P3-TC-004, page 17 |
-| 63 | P3-FR-048; page 16; privacy guardrails, page 19 |
-| 64 | P3-FR-049; page 16 |
-| 65 | P3-FR-052, P3-FR-054; page 16 |
-| 66 | P3-FR-053; page 16 |
-| 67 | P3-FR-055, P3-FR-056; page 16 |
-| 68 | P3-FR-057, P3-FR-058; page 16 |
-| 69 | P3-FR-059, P3-FR-060; page 16 |
-| 70 | P3-FR-061; page 16 |
+| Order | Specification references                                                               |
+| ----: | -------------------------------------------------------------------------------------- |
+|     7 | P1-FR-007, P1-FR-021, P1-FR-059; pages 6, 7, 9                                         |
+|     8 | P1-FR-039, P1-FR-040; page 8; P1-TC-008, page 17                                       |
+|     9 | P1-FR-035, P1-FR-037, P1-FR-038; page 8                                                |
+|    10 | P1-FR-050, P1-FR-052; page 8; P1-TC-006, page 17                                       |
+|    11 | P1-FR-028, P1-FR-029; page 7                                                           |
+|    12 | P1-FR-074, P1-FR-075; pages 9-10                                                       |
+|    13 | P1-FR-076 and consent data object; pages 5, 10; privacy guardrails, page 19            |
+|    14 | P1-FR-080; page 10; Phase 1 operational exit criteria, pages 17-18                     |
+|    15 | P2-FR-001, P2-FR-002, P2-FR-004, P2-FR-008, P2-FR-009; pages 10-11; P2-TC-001, page 17 |
+|    16 | P2-FR-003, P2-FR-005, P2-FR-006; pages 10-11                                           |
+|    17 | P2-FR-007; page 11                                                                     |
+|    18 | P2-FR-010, P2-FR-011, P2-FR-018; page 11                                               |
+|    19 | P2-FR-012, P2-FR-013; page 11; P2-TC-002, page 17                                      |
+|    20 | P2-FR-014, P2-FR-015, P2-FR-016; page 11                                               |
+|    21 | P2-FR-017; page 11                                                                     |
+|    22 | P2-FR-019, P2-FR-020, P2-FR-026; page 11                                               |
+|    23 | P2-FR-021, P2-FR-022, P2-FR-023; page 11; P2-TC-003, page 17                           |
+|    24 | P2-FR-024, P2-FR-025, P2-FR-027; page 11                                               |
+|    25 | P2-FR-028; page 12; P2-TC-004, page 17                                                 |
+|    26 | P2-FR-029, P2-FR-030; page 12                                                          |
+|    27 | P2-FR-031, P2-FR-032; page 12                                                          |
+|    28 | P2-FR-033, P2-FR-034, P2-FR-035; page 12                                               |
+|    29 | P2-FR-036; page 12                                                                     |
+|    30 | P2-FR-037, P2-FR-038, P2-FR-039; page 12; P2-TC-005, page 17                           |
+|    31 | P2-FR-040, P2-FR-041, P2-FR-042; page 12                                               |
+|    32 | P2-FR-043, P2-FR-044, P2-FR-046; page 12                                               |
+|    33 | P2-FR-045; page 12                                                                     |
+|    34 | P2-FR-047, P2-FR-049; pages 12-13                                                      |
+|    35 | P2-FR-048; page 12                                                                     |
+|    36 | P2-FR-050; page 13                                                                     |
+|    37 | P2-FR-051, P2-FR-052; page 13                                                          |
+|    38 | P2-FR-053, P2-FR-054; page 13                                                          |
+|    39 | P2-FR-055; page 13; P2-TC-006, page 17                                                 |
+|    40 | P2-FR-056 and ticket data object; pages 5, 13                                          |
+|    41 | P2-FR-057, P2-FR-058; page 13; privacy guardrails, page 19                             |
+|    42 | P2-FR-059; page 13                                                                     |
+|    43 | P2-FR-060; page 13                                                                     |
+|    44 | P2-FR-061, P2-FR-062; page 13                                                          |
+|    45 | P3-FR-001, P3-FR-005; page 14                                                          |
+|    46 | P3-FR-002, P3-FR-003, P3-FR-004; page 14; P3-TC-001, page 17                           |
+|    47 | P3-FR-006, P3-FR-007; page 14                                                          |
+|    48 | P3-FR-008 through P3-FR-013; page 14                                                   |
+|    49 | P3-FR-014 through P3-FR-019; page 14                                                   |
+|    50 | P3-FR-020 through P3-FR-026; pages 14-15                                               |
+|    51 | P3-FR-027, P3-FR-028; page 15; P3-TC-002, page 17                                      |
+|    52 | P3-FR-029, P3-FR-030, P3-FR-050; pages 15-16                                           |
+|    53 | P3-FR-031, P3-FR-032; page 15                                                          |
+|    54 | P3-FR-033, P3-FR-034; page 15                                                          |
+|    55 | P3-FR-035, P3-FR-037, P3-FR-038; page 15                                               |
+|    56 | P3-FR-036; page 15                                                                     |
+|    57 | P3-FR-039, P3-FR-040; page 15                                                          |
+|    58 | P3-FR-041, P3-FR-042; page 15; P3-TC-003, page 17                                      |
+|    59 | P3-FR-043, P3-FR-044; pages 15-16                                                      |
+|    60 | P3-FR-045; page 16                                                                     |
+|    61 | P3-FR-046, P3-FR-051; page 16                                                          |
+|    62 | P3-FR-047; page 16; P3-TC-004, page 17                                                 |
+|    63 | P3-FR-048; page 16; privacy guardrails, page 19                                        |
+|    64 | P3-FR-049; page 16                                                                     |
+|    65 | P3-FR-052, P3-FR-054; page 16                                                          |
+|    66 | P3-FR-053; page 16                                                                     |
+|    67 | P3-FR-055, P3-FR-056; page 16                                                          |
+|    68 | P3-FR-057, P3-FR-058; page 16                                                          |
+|    69 | P3-FR-059, P3-FR-060; page 16                                                          |
+|    70 | P3-FR-061; page 16                                                                     |

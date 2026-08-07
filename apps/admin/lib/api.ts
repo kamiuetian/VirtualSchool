@@ -3,6 +3,7 @@ import type {
   AcademicCalendarExceptionSummary,
   AppDeploymentReport,
   BillingUsageSummary,
+  BlockedDomainAggregate,
   ClassSectionSummary,
   DeviceAlertSummary,
   DeviceDiagnosticSummary,
@@ -46,6 +47,7 @@ export type AdminData = {
   enrollmentBatches: EnrollmentBatchSummary[];
   policies: PolicySummary[];
   policyAssignments: PolicyAssignmentSummary[];
+  blockedDomainAggregates: BlockedDomainAggregate[];
   policyDeploymentReport: PolicyDeploymentReport | null;
   apps: AppCatalogItemSummary[];
   appDeploymentReport: AppDeploymentReport | null;
@@ -78,6 +80,7 @@ export async function getAdminData(
       alerts: [],
       apps: [],
       billingUsage: null,
+      blockedDomainAggregates: [],
       classes: [],
       connectionIssue: tenantsResult.failed,
       deviceInventory: null,
@@ -118,6 +121,7 @@ export async function getAdminData(
     calendarExceptions,
     retentionSettings,
     billingUsage,
+    blockedDomainAggregates,
   ] = await Promise.all([
     apiGet<OnboardingChecklist>(`${tenantPath}/onboarding-checklist`),
     can("device:read")
@@ -172,12 +176,18 @@ export async function getAdminData(
     can("billing:read")
       ? apiGet<BillingUsageSummary>(`${tenantPath}/billing/usage`)
       : skipped<BillingUsageSummary>(),
+    can("policy:manage")
+      ? apiGet<BlockedDomainAggregate[]>(
+          `${tenantPath}/policies/events/blocked-domains/aggregates`,
+        )
+      : skipped([]),
   ]);
 
   return {
     alerts: alerts.data ?? [],
     apps: apps.data ?? [],
     billingUsage: billingUsage.data ?? null,
+    blockedDomainAggregates: blockedDomainAggregates.data ?? [],
     classes: classes.data ?? [],
     connectionIssue: [
       tenantsResult,
@@ -198,6 +208,7 @@ export async function getAdminData(
       calendarExceptions,
       retentionSettings,
       billingUsage,
+      blockedDomainAggregates,
     ].some((result) => result.failed),
     deviceInventory: deviceInventory.data ?? null,
     devices: devices.data ?? [],

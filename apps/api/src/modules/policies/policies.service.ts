@@ -16,6 +16,8 @@ import type {
   PolicyStatus,
   PolicySummary,
   PolicyVersionSummary,
+  UrlPolicySimulation,
+  BlockedDomainAggregate,
 } from "@virtual-school/shared";
 import {
   type AppCatalogItem,
@@ -33,7 +35,9 @@ import type { IssueSupportUnlockDto } from "./dto/issue-support-unlock.dto";
 import type { PublishPolicyDto } from "./dto/publish-policy.dto";
 import type { RollbackPolicyDto } from "./dto/rollback-policy.dto";
 import type { UpdateAndroidControlsDto } from "./dto/update-android-controls.dto";
+import type { IngestBlockedDomainEventDto } from "./dto/ingest-blocked-domain-event.dto";
 import { starterPolicyTemplates } from "./starter-policy-templates";
+import { evaluateUrlPolicy } from "./url-policy-evaluator";
 
 type PolicyAssignmentWithPolicy = PolicyAssignment & {
   policy: Policy;
@@ -68,6 +72,140 @@ export class PoliciesService {
     });
 
     return policies.map((policy) => this.toPolicySummary(policy));
+  }
+
+  async simulateUrlPolicy(
+    tenantId: string,
+    policyId: string,
+    url: string,
+  ): Promise<UrlPolicySimulation> {
+    const policy = await this.prisma.policy.findFirst({
+      where: { id: policyId, tenantId },
+    });
+    if (!policy)
+      throw new NotFoundException(
+        `Policy ${policyId} was not found for tenant ${tenantId}`,
+      );
+    try {
+      return {
+        ...evaluateUrlPolicy(url, policy.rules as PolicyRuleSet),
+        policyId: policy.id,
+        policyVersion: policy.version,
+        url,
+      };
+    } catch (error) {
+      throw new BadRequestException(
+        error instanceof Error ? error.message : "Invalid URL",
+      );
+    }
+  }
+
+  async ingestBlockedDomainEvent(
+    tenantId: string,
+    input: IngestBlockedDomainEventDto,
+  ): Promise<{ id: string }> {
+    const domain = input.domain.trim().toLowerCase();
+    if (
+      !/^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(
+        domain,
+      )
+    ) {
+      throw new BadRequestException(
+        "domain must be a hostname only, without a URL path or query",
+      );
+    }
+    const policy = await this.prisma.policy.findFirst({
+      select: { id: true, rules: true, version: true },
+      where: { id: input.policyId, tenantId },
+    });
+    if (!policy)
+      throw new NotFoundException(
+        `Policy ${input.policyId} was not found for tenant ${tenantId}`,
+      );
+    let rules = policy.rules as PolicyRuleSet;
+    if (input.policyVersion !== policy.version) {
+      const version = await this.prisma.policyVersion.findFirst({
+        select: { snapshot: true },
+        where: { policyId: input.policyId, version: input.policyVersion },
+      });
+      if (!version) {
+        throw new BadRequestException(
+          `Policy version ${input.policyVersion} was not found`,
+        );
+      }
+      rules = version.snapshot as PolicyRuleSet;
+    }
+    if (input.matchedRule && !rules.urlBlocklist.includes(input.matchedRule)) {
+      throw new BadRequestException(
+        "matchedRule is not in the policy blocklist",
+      );
+    }
+    if (input.deviceId) {
+      const device = await this.prisma.device.findFirst({
+        select: { id: true },
+        where: { id: input.deviceId, tenantId },
+      });
+      if (!device)
+        throw new NotFoundException(
+          `Device ${input.deviceId} was not found for tenant ${tenantId}`,
+        );
+    }
+    const created = await this.prisma.blockedDomainEvent.create({
+      data: {
+        deviceId: input.deviceId,
+        domain,
+        matchedRule: input.matchedRule,
+        occurredAt: new Date(input.occurredAt),
+        policyId: input.policyId,
+        policyVersion: input.policyVersion,
+        reason: input.reason,
+        tenantId,
+      },
+      select: { id: true },
+    });
+    return created;
+  }
+
+  async listBlockedDomainAggregates(
+    tenantId: string,
+  ): Promise<BlockedDomainAggregate[]> {
+    await this.ensureTenantExists(tenantId);
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const events = await this.prisma.blockedDomainEvent.findMany({
+      select: { domain: true, occurredAt: true, reason: true },
+      where: { occurredAt: { gte: since }, tenantId },
+    });
+    const aggregates = new Map<
+      string,
+      { count: number; lastOccurredAt: Date; reasons: Set<string> }
+    >();
+    for (const event of events) {
+      const current = aggregates.get(event.domain);
+      if (!current)
+        aggregates.set(event.domain, {
+          count: 1,
+          lastOccurredAt: event.occurredAt,
+          reasons: new Set([event.reason]),
+        });
+      else {
+        current.count += 1;
+        if (event.occurredAt > current.lastOccurredAt)
+          current.lastOccurredAt = event.occurredAt;
+        current.reasons.add(event.reason);
+      }
+    }
+    return [...aggregates.entries()]
+      .map(([domain, value]) => ({
+        count: value.count,
+        domain,
+        lastOccurredAt: value.lastOccurredAt.toISOString(),
+        reasons: [...value.reasons].sort(),
+      }))
+      .sort(
+        (left, right) =>
+          right.count - left.count || left.domain.localeCompare(right.domain),
+      )
+      .slice(0, 20);
   }
 
   async createPolicy(
