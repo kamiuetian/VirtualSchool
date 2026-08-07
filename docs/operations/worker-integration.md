@@ -35,6 +35,11 @@ Scheduled jobs:
 - `EMAIL_DELIVERY_WEBHOOK_TOKEN`: optional bearer token for the email provider adapter.
 - `EMAIL_FROM`: sender address included in the provider request, default `alerts@virtualschool.local`.
 - `EMAIL_DELIVERY_TIMEOUT_MS`: provider request timeout, default `10000`.
+- `WEBHOOK_SIGNING_SECRETS_JSON`: runtime JSON map from endpoint secret references to signing secrets. Supply it from the deployment secret manager; do not commit values.
+- `WORKER_WEBHOOK_INTERVAL_MS`: signed webhook capture and dispatch interval, default `30000`.
+- `WORKER_WEBHOOK_BATCH_SIZE`: maximum due deliveries processed per tenant and run, default `100`.
+- `WORKER_WEBHOOK_CAPTURE_BATCH_SIZE`: maximum eligible audit events captured per tenant and run, default `250`.
+- `WEBHOOK_DELIVERY_TIMEOUT_MS`: outbound webhook request timeout, default `10000`.
 - `WORKER_RETENTION_DRY_RUN_INTERVAL_MS`: retention dry-run interval, default `86400000`.
 - `WORKER_RETENTION_APPLY_ENABLED`: set to `true` to schedule deletion jobs.
 - `WORKER_RETENTION_APPLY_INTERVAL_MS`: retention apply interval, default `86400000`.
@@ -52,6 +57,19 @@ Successful connector operations are recorded on the command and in its dispatch 
 Admins configure normalized recipients, alert categories, offline and repeated-enrollment thresholds, and the deduplication window on the Alerts page. The worker evaluates open offline, policy-deployment, app-deployment, lost-device, and repeated-enrollment alerts. A unique alert/recipient/channel delivery record prevents duplicate email, caps failed attempts at three, and preserves the provider response or failure reason. Every attempt also creates a tenant-scoped audit event.
 
 The provider webhook receives JSON containing `to`, `from`, `subject`, `text`, `tenantId`, and `alertId`. It should return any 2xx response; an optional JSON `id` is retained as the provider message id. Store the bearer token in a secret manager and never commit it.
+
+## Signed Education Webhooks
+
+Tenant administrators configure HTTPS endpoints, subscribed event types, a bounded attempt count, and an opaque signing-secret reference on the Integrations page. Supported Phase 2 event types are `device.offline`, `mode.changed`, `policy.failed`, `exam.started`, `support_ticket.created`, and `lost_device.reported`. Disabling an endpoint stops capture and delivery without deleting its log. Rotating a secret changes the reference and increments the signature version while preserving prior delivery evidence.
+
+The worker converts the corresponding durable audit events into a privacy-limited outbox event. Each endpoint receives a JSON envelope containing `id`, `occurredAt`, `tenantId`, `type`, `object`, and `data`. It signs the exact UTF-8 request body with HMAC-SHA256 over `<timestamp>.<body>` and sends these headers:
+
+- `X-VirtualSchool-Event-Id`: stable event UUID for idempotency.
+- `X-VirtualSchool-Timestamp`: Unix time in seconds.
+- `X-VirtualSchool-Signature`: `v1=<lowercase hex HMAC>`.
+- `X-VirtualSchool-Signature-Version`: endpoint secret version.
+
+Receivers should reject timestamps outside a five-minute tolerance, deduplicate event IDs, and compare the expected signature in constant time. Return any 2xx status to acknowledge delivery. HTTP 408, 429, 5xx, and network failures retry with exponential delay up to the configured maximum; other 4xx responses and missing runtime secrets fail permanently. Delivery status, response code, failure reason, attempt count, and audit evidence remain tenant-scoped.
 
 ## Retention Safety
 

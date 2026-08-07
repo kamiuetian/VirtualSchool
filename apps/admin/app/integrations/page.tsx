@@ -21,6 +21,9 @@ import {
   mapEducationResourceAction,
   reconcileSisAction,
   retrySisAction,
+  configureWebhookAction,
+  rotateWebhookSecretAction,
+  setWebhookEnabledAction,
 } from "../../lib/actions";
 import {
   getAdminData,
@@ -28,6 +31,7 @@ import {
   getLmsIntegrations,
   getEducationResources,
   getSisOperations,
+  getWebhookEndpoints,
 } from "../../lib/api";
 
 export const dynamic = "force-dynamic";
@@ -47,6 +51,9 @@ export default async function IntegrationsPage() {
   const sisResult = tenant
     ? await getSisOperations(tenant.id)
     : { operations: null, connectionIssue: false };
+  const webhookResult = tenant
+    ? await getWebhookEndpoints(tenant.id)
+    : { endpoints: [], connectionIssue: false };
   return (
     <AppShell
       connectionIssue={
@@ -54,11 +61,147 @@ export default async function IntegrationsPage() {
         classroomResult.connectionIssue ||
         lmsResult.connectionIssue ||
         educationResult.connectionIssue ||
-        sisResult.connectionIssue
+        sisResult.connectionIssue ||
+        webhookResult.connectionIssue
       }
       tenant={tenant}
     >
       <div className="content-stack">
+        <PageSection kicker="Event delivery" title="Signed education webhooks">
+          {tenant ? (
+            <div className="form-grid two">
+              <ActionPanel title="Configure endpoint">
+                <form action={configureWebhookAction} className="stacked-form">
+                  <input name="tenantId" type="hidden" value={tenant.id} />
+                  <Field label="Endpoint name">
+                    <input name="name" required />
+                  </Field>
+                  <Field label="HTTPS URL">
+                    <input name="url" type="url" required />
+                  </Field>
+                  <Field label="Signing secret reference">
+                    <input
+                      name="secretReference"
+                      placeholder="school/webhook-v1"
+                      required
+                    />
+                  </Field>
+                  <Field label="Maximum attempts">
+                    <input
+                      name="maxAttempts"
+                      type="number"
+                      min="1"
+                      max="5"
+                      defaultValue="3"
+                      required
+                    />
+                  </Field>
+                  {[
+                    "device.offline",
+                    "mode.changed",
+                    "policy.failed",
+                    "exam.started",
+                    "support_ticket.created",
+                    "lost_device.reported",
+                  ].map((eventType) => (
+                    <label key={eventType}>
+                      <input
+                        name="eventTypes"
+                        type="checkbox"
+                        value={eventType}
+                      />{" "}
+                      {eventType}
+                    </label>
+                  ))}
+                  <SubmitButton>Save and enable</SubmitButton>
+                  <small>
+                    Secrets stay in the worker secret store. Receivers verify
+                    the event ID, timestamp, and HMAC signature.
+                  </small>
+                </form>
+              </ActionPanel>
+              <ActionPanel title="Endpoints and delivery logs">
+                {webhookResult.endpoints.length ? (
+                  <div className="data-list">
+                    {webhookResult.endpoints.map((endpoint) => (
+                      <div className="data-row" key={endpoint.id}>
+                        <div>
+                          <strong>{endpoint.name}</strong>{" "}
+                          <StatusPill
+                            tone={endpoint.enabled ? "good" : "warning"}
+                          >
+                            {endpoint.enabled ? "ENABLED" : "DISABLED"}
+                          </StatusPill>
+                          <small>
+                            {endpoint.url} · secret v{endpoint.secretVersion} ·{" "}
+                            {endpoint.deliveries.length} recent deliveries
+                          </small>
+                        </div>
+                        <form action={setWebhookEnabledAction}>
+                          <input
+                            name="tenantId"
+                            type="hidden"
+                            value={tenant.id}
+                          />
+                          <input
+                            name="endpointId"
+                            type="hidden"
+                            value={endpoint.id}
+                          />
+                          <input
+                            name="enabled"
+                            type="hidden"
+                            value={String(!endpoint.enabled)}
+                          />
+                          <button className="small-button">
+                            {endpoint.enabled ? "Disable" : "Enable"}
+                          </button>
+                        </form>
+                        <form
+                          action={rotateWebhookSecretAction}
+                          className="form-row"
+                        >
+                          <input
+                            name="tenantId"
+                            type="hidden"
+                            value={tenant.id}
+                          />
+                          <input
+                            name="endpointId"
+                            type="hidden"
+                            value={endpoint.id}
+                          />
+                          <input
+                            name="secretReference"
+                            placeholder="new secret reference"
+                            required
+                          />
+                          <button className="small-button primary">
+                            Rotate
+                          </button>
+                        </form>
+                        {endpoint.deliveries.slice(0, 5).map((delivery) => (
+                          <small key={delivery.id}>
+                            {delivery.eventType} · {delivery.status} ·{" "}
+                            {delivery.attemptCount} attempt(s)
+                            {delivery.failureReason
+                              ? ` · ${delivery.failureReason}`
+                              : ""}
+                          </small>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState
+                    title="No webhook endpoints"
+                    body="Configure an HTTPS receiver and select the education operations it should receive."
+                  />
+                )}
+              </ActionPanel>
+            </div>
+          ) : null}
+        </PageSection>
         <PageSection
           kicker="Student information system"
           title="Reconciliation operations"

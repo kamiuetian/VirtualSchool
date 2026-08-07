@@ -36,6 +36,7 @@ import type {
   LmsConnectionSummary,
   EducationConnectionSummary,
   SisOperationsSummary,
+  WebhookEndpointSummary,
 } from "@virtual-school/shared";
 import {
   requirePortalRouteAccess,
@@ -315,9 +316,7 @@ export async function getEducationResources(tenantId: string): Promise<{
   return { integrations: result.data ?? [], connectionIssue: result.failed };
 }
 
-export async function getSisOperations(
-  tenantId: string,
-): Promise<{
+export async function getSisOperations(tenantId: string): Promise<{
   operations: SisOperationsSummary | null;
   connectionIssue: boolean;
 }> {
@@ -325,6 +324,15 @@ export async function getSisOperations(
     `/tenants/${tenantId}/integrations/sis/operations`,
   );
   return { operations: result.data, connectionIssue: result.failed };
+}
+
+export async function getWebhookEndpoints(
+  tenantId: string,
+): Promise<{ endpoints: WebhookEndpointSummary[]; connectionIssue: boolean }> {
+  const result = await apiGet<WebhookEndpointSummary[]>(
+    `/tenants/${tenantId}/integrations/webhooks`,
+  );
+  return { endpoints: result.data ?? [], connectionIssue: result.failed };
 }
 
 export async function getTeacherDashboard(tenantId: string): Promise<{

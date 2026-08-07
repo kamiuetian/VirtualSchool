@@ -1177,6 +1177,47 @@ export async function retrySisAction(formData: FormData) {
   revalidateAll();
 }
 
+export async function configureWebhookAction(formData: FormData) {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation("POST", `/tenants/${tenantId}/integrations/webhooks`, {
+    name: required(formData, "name"),
+    url: required(formData, "url"),
+    secretReference: required(formData, "secretReference"),
+    maxAttempts: numberValue(formData, "maxAttempts"),
+    eventTypes: formData
+      .getAll("eventTypes")
+      .filter((value): value is string => typeof value === "string"),
+  });
+  revalidateAll();
+}
+
+export async function rotateWebhookSecretAction(formData: FormData) {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/integrations/webhooks/${required(formData, "endpointId")}/rotate-secret`,
+    {
+      secretReference: required(formData, "secretReference"),
+    },
+  );
+  revalidateAll();
+}
+
+export async function setWebhookEnabledAction(formData: FormData) {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "PATCH",
+    `/tenants/${tenantId}/integrations/webhooks/${required(formData, "endpointId")}/enabled`,
+    {
+      enabled: required(formData, "enabled") === "true",
+    },
+  );
+  revalidateAll();
+}
+
 export async function mapClassroomCourseAction(formData: FormData) {
   await requireActionPermission("tenant:update");
   const tenantId = required(formData, "tenantId");

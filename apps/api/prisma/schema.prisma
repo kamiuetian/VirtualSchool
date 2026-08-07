@@ -75,77 +75,139 @@ enum BillingSubscriptionStatus {
 }
 
 model Tenant {
-  id                     String                      @id @default(uuid())
-  name                   String
-  domain                 String?                     @unique
-  country                String
-  timezone               String
-  language               String                      @default("en")
-  planKey                String
-  status                 TenantStatus                @default(PILOT)
-  logoUrl                String?
-  primaryColor           String?
-  accentColor            String?
-  websiteUrl             String?
-  supportEmail           String?
-  supportPhone           String?
-  createdAt              DateTime                    @default(now())
-  updatedAt              DateTime                    @updatedAt
-  branches               Branch[]
-  users                  User[]
-  students               Student[]
-  guardians              Guardian[]
-  classes                ClassSection[]
-  rosterImports          RosterImport[]
-  devices                Device[]
-  enrollmentBatches      EnrollmentBatch[]
-  appCatalogItems        AppCatalogItem[]
-  policies               Policy[]
-  policyAssignments      PolicyAssignment[]
-  timetableBlocks        TimetableBlock[]
-  calendarExceptions     AcademicCalendarException[]
-  supportNotes           SupportNote[]
-  retentionSettings      RetentionSettings?
-  retentionRuns          DataRetentionRun[]
-  billingSubscription    BillingSubscription?
-  auditEvents            AuditEvent[]
-  blockedDomainEvents    BlockedDomainEvent[]
-  assignmentHistory      DeviceAssignment[]
-  lifecycleEvents        DeviceLifecycleEvent[]
-  notificationPreference NotificationPreference?
-  notificationDeliveries NotificationDelivery[]
-  privacyNotices         PrivacyNotice[]
-  privacyAcceptances     PrivacyAcceptance[]
-  onboardingProgress     OnboardingProgress?
-  teacherClassAssignments TeacherClassAssignment[]
-  teacherSessions        TeacherSession[]
-  teacherSessionEvents   TeacherSessionEvent[]
-  teacherSessionTemplates TeacherSessionTemplate[]
-  guardianAfterSchoolControls GuardianAfterSchoolControl[]
+  id                              String                           @id @default(uuid())
+  name                            String
+  domain                          String?                          @unique
+  country                         String
+  timezone                        String
+  language                        String                           @default("en")
+  planKey                         String
+  status                          TenantStatus                     @default(PILOT)
+  logoUrl                         String?
+  primaryColor                    String?
+  accentColor                     String?
+  websiteUrl                      String?
+  supportEmail                    String?
+  supportPhone                    String?
+  createdAt                       DateTime                         @default(now())
+  updatedAt                       DateTime                         @updatedAt
+  branches                        Branch[]
+  users                           User[]
+  students                        Student[]
+  guardians                       Guardian[]
+  classes                         ClassSection[]
+  rosterImports                   RosterImport[]
+  devices                         Device[]
+  enrollmentBatches               EnrollmentBatch[]
+  appCatalogItems                 AppCatalogItem[]
+  policies                        Policy[]
+  policyAssignments               PolicyAssignment[]
+  timetableBlocks                 TimetableBlock[]
+  calendarExceptions              AcademicCalendarException[]
+  supportNotes                    SupportNote[]
+  retentionSettings               RetentionSettings?
+  retentionRuns                   DataRetentionRun[]
+  billingSubscription             BillingSubscription?
+  auditEvents                     AuditEvent[]
+  blockedDomainEvents             BlockedDomainEvent[]
+  assignmentHistory               DeviceAssignment[]
+  lifecycleEvents                 DeviceLifecycleEvent[]
+  notificationPreference          NotificationPreference?
+  notificationDeliveries          NotificationDelivery[]
+  privacyNotices                  PrivacyNotice[]
+  privacyAcceptances              PrivacyAcceptance[]
+  onboardingProgress              OnboardingProgress?
+  teacherClassAssignments         TeacherClassAssignment[]
+  teacherSessions                 TeacherSession[]
+  teacherSessionEvents            TeacherSessionEvent[]
+  teacherSessionTemplates         TeacherSessionTemplate[]
+  guardianAfterSchoolControls     GuardianAfterSchoolControl[]
   guardianNotificationPreferences GuardianNotificationPreference[]
-  guardianSupportRequests GuardianSupportRequest[]
-  classroomConnection     ClassroomConnection?
-  classroomCourseMappings ClassroomCourseMapping[]
-  classroomIdentityMappings ClassroomIdentityMapping[]
-  classroomSyncRuns       ClassroomSyncRun[]
-  lmsConnections          LmsConnection[]
-  lmsCourseMappings       LmsCourseMapping[]
-  educationConnections    EducationConnection[]
-  educationResources      EducationResource[]
-  sisMappings             SisMapping[]
-  sisSyncRuns             SisSyncRun[]
+  guardianSupportRequests         GuardianSupportRequest[]
+  classroomConnection             ClassroomConnection?
+  classroomCourseMappings         ClassroomCourseMapping[]
+  classroomIdentityMappings       ClassroomIdentityMapping[]
+  classroomSyncRuns               ClassroomSyncRun[]
+  lmsConnections                  LmsConnection[]
+  lmsCourseMappings               LmsCourseMapping[]
+  educationConnections            EducationConnection[]
+  educationResources              EducationResource[]
+  sisMappings                     SisMapping[]
+  sisSyncRuns                     SisSyncRun[]
+  webhookEndpoints                WebhookEndpoint[]
+  webhookEvents                   WebhookEvent[]
+}
+
+model WebhookEndpoint {
+  id              String            @id @default(uuid())
+  tenantId        String
+  name            String
+  url             String
+  enabled         Boolean           @default(true)
+  eventTypes      String[]
+  secretReference String
+  secretVersion   Int               @default(1)
+  maxAttempts     Int               @default(3)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deliveries      WebhookDelivery[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId, enabled])
+}
+
+model WebhookEvent {
+  id            String            @id @default(uuid())
+  tenantId      String
+  sourceAuditId String?           @unique
+  type          String
+  objectType    String
+  objectId      String?
+  payload       Json
+  occurredAt    DateTime
+  createdAt     DateTime          @default(now())
+  tenant        Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sourceAudit   AuditEvent?       @relation(fields: [sourceAuditId], references: [id], onDelete: SetNull)
+  deliveries    WebhookDelivery[]
+
+  @@index([tenantId, occurredAt])
+  @@index([tenantId, type, occurredAt])
+}
+
+model WebhookDelivery {
+  id                 String          @id @default(uuid())
+  tenantId           String
+  endpointId         String
+  eventId            String
+  status             String          @default("PENDING")
+  attemptCount       Int             @default(0)
+  nextAttemptAt      DateTime        @default(now())
+  lastAttemptAt      DateTime?
+  deliveredAt        DateTime?
+  responseStatus     Int?
+  failureReason      String?
+  signatureTimestamp String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  endpoint           WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  event              WebhookEvent    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([endpointId, eventId])
+  @@index([tenantId, status, nextAttemptAt])
+  @@index([endpointId, createdAt])
 }
 
 model SisMapping {
-  id          String   @id @default(uuid())
-  tenantId    String
-  objectType  String
-  localId     String
-  externalId  String
-  source      String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id         String   @id @default(uuid())
+  tenantId   String
+  objectType String
+  localId    String
+  externalId String
+  source     String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, objectType, localId, source])
   @@unique([tenantId, objectType, externalId, source])
@@ -153,37 +215,37 @@ model SisMapping {
 }
 
 model SisSyncRun {
-  id              String   @id @default(uuid())
+  id              String    @id @default(uuid())
   tenantId        String
   source          String
   status          String
-  attempt         Int      @default(1)
+  attempt         Int       @default(1)
   retryOfId       String?
   requestedBy     String?
   totalRecords    Int
-  affectedRecords Int      @default(0)
-  failedRecords   Int      @default(0)
+  affectedRecords Int       @default(0)
+  failedRecords   Int       @default(0)
   records         Json
-  startedAt       DateTime @default(now())
+  startedAt       DateTime  @default(now())
   completedAt     DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, createdAt])
   @@index([tenantId, source, status])
 }
 
 model EducationConnection {
-  id                  String   @id @default(uuid())
+  id                  String              @id @default(uuid())
   tenantId            String
   provider            String
   credentialReference String
-  status              String   @default("ENABLED")
+  status              String              @default("ENABLED")
   configuredBy        String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  tenant              Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  tenant              Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   resources           EducationResource[]
 
   @@unique([tenantId, provider])
@@ -191,7 +253,7 @@ model EducationConnection {
 }
 
 model EducationResource {
-  id           String   @id @default(uuid())
+  id           String              @id @default(uuid())
   tenantId     String
   connectionId String
   classId      String
@@ -199,10 +261,10 @@ model EducationResource {
   externalId   String
   displayName  String
   launchUrl    String
-  enabled      Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  enabled      Boolean             @default(true)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  tenant       Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   connection   EducationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
 
   @@unique([connectionId, externalId])
@@ -210,18 +272,18 @@ model EducationResource {
 }
 
 model LmsConnection {
-  id                  String   @id @default(uuid())
+  id                  String             @id @default(uuid())
   tenantId            String
   provider            String
   baseUrl             String
   credentialReference String
-  status              String   @default("ENABLED")
+  status              String             @default("ENABLED")
   lastTestedAt        DateTime?
   lastTestOutcome     String?
   configuredBy        String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  tenant              Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  tenant              Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   courseMappings      LmsCourseMapping[]
 
   @@unique([tenantId, provider])
@@ -229,17 +291,17 @@ model LmsConnection {
 }
 
 model LmsCourseMapping {
-  id               String   @id @default(uuid())
+  id               String        @id @default(uuid())
   tenantId         String
   connectionId     String
   classId          String
   externalCourseId String
   displayName      String
   launchUrl        String
-  enabled          Boolean  @default(true)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  enabled          Boolean       @default(true)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  tenant           Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   connection       LmsConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
 
   @@unique([connectionId, classId])
@@ -248,34 +310,34 @@ model LmsCourseMapping {
 }
 
 model ClassroomConnection {
-  id                    String   @id @default(uuid())
-  tenantId              String   @unique
-  credentialReference   String
-  delegatedAdminEmail   String
-  status                String   @default("AUTHORIZED")
-  lastValidatedAt       DateTime?
-  authorizedBy          String?
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-  tenant                Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  courseMappings        ClassroomCourseMapping[]
-  identityMappings      ClassroomIdentityMapping[]
-  syncRuns              ClassroomSyncRun[]
+  id                  String                     @id @default(uuid())
+  tenantId            String                     @unique
+  credentialReference String
+  delegatedAdminEmail String
+  status              String                     @default("AUTHORIZED")
+  lastValidatedAt     DateTime?
+  authorizedBy        String?
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+  tenant              Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  courseMappings      ClassroomCourseMapping[]
+  identityMappings    ClassroomIdentityMapping[]
+  syncRuns            ClassroomSyncRun[]
 }
 
 model ClassroomCourseMapping {
-  id                 String   @id @default(uuid())
+  id                 String              @id @default(uuid())
   tenantId           String
   connectionId       String
   classId            String
   externalCourseId   String
   externalCourseName String?
-  syncRoster         Boolean  @default(true)
-  syncMaterials      Boolean  @default(false)
-  enabled            Boolean  @default(true)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  syncRoster         Boolean             @default(true)
+  syncMaterials      Boolean             @default(false)
+  enabled            Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  tenant             Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   connection         ClassroomConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, classId])
@@ -284,17 +346,17 @@ model ClassroomCourseMapping {
 }
 
 model ClassroomIdentityMapping {
-  id                 String   @id @default(uuid())
-  tenantId           String
-  connectionId       String
-  localType          String
-  localId            String
-  externalUserId     String
-  externalEmail      String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  connection         ClassroomConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  id             String              @id @default(uuid())
+  tenantId       String
+  connectionId   String
+  localType      String
+  localId        String
+  externalUserId String
+  externalEmail  String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  tenant         Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  connection     ClassroomConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, localType, localId])
   @@unique([tenantId, externalUserId])
@@ -302,14 +364,14 @@ model ClassroomIdentityMapping {
 }
 
 model ClassroomSyncRun {
-  id                 String   @id @default(uuid())
+  id                 String              @id @default(uuid())
   tenantId           String
   connectionId       String
-  requestedCourseIds String[] @default([])
+  requestedCourseIds String[]            @default([])
   syncRoster         Boolean
   syncMaterials      Boolean
-  status             String   @default("QUEUED")
-  attempt            Int      @default(1)
+  status             String              @default("QUEUED")
+  attempt            Int                 @default(1)
   retryOfId          String?
   outcome            Json?
   errorCode          String?
@@ -317,9 +379,9 @@ model ClassroomSyncRun {
   requestedBy        String?
   startedAt          DateTime?
   completedAt        DateTime?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  tenant             Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   connection         ClassroomConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, createdAt])
@@ -327,13 +389,13 @@ model ClassroomSyncRun {
 }
 
 model OnboardingProgress {
-  id          String   @id @default(uuid())
-  tenantId    String   @unique
+  id          String    @id @default(uuid())
+  tenantId    String    @unique
   completedAt DateTime?
   completedBy String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 
 model PrivacyNotice {
@@ -415,27 +477,27 @@ model Branch {
 }
 
 model User {
-  id                String     @id @default(uuid())
-  tenantId          String
-  branchId          String?
-  auth0Subject      String?    @unique
-  email             String
-  name              String
-  role              String
-  status            UserStatus @default(INVITED)
-  mfaEnabled        Boolean    @default(false)
-  invitedBy         String?
-  invitedAt         DateTime?
-  suspendedAt       DateTime?
-  deactivatedAt     DateTime?
-  forcedLogoutAt    DateTime?
-  lastRoleChangedAt DateTime?
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
-  tenant            Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branch            Branch?    @relation(fields: [branchId], references: [id])
-  classAssignments  TeacherClassAssignment[]
-  teacherSessions   TeacherSession[]
+  id                      String                   @id @default(uuid())
+  tenantId                String
+  branchId                String?
+  auth0Subject            String?                  @unique
+  email                   String
+  name                    String
+  role                    String
+  status                  UserStatus               @default(INVITED)
+  mfaEnabled              Boolean                  @default(false)
+  invitedBy               String?
+  invitedAt               DateTime?
+  suspendedAt             DateTime?
+  deactivatedAt           DateTime?
+  forcedLogoutAt          DateTime?
+  lastRoleChangedAt       DateTime?
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  tenant                  Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch                  Branch?                  @relation(fields: [branchId], references: [id])
+  classAssignments        TeacherClassAssignment[]
+  teacherSessions         TeacherSession[]
   teacherSessionTemplates TeacherSessionTemplate[]
 
   @@unique([tenantId, email])
@@ -443,42 +505,42 @@ model User {
 }
 
 model Student {
-  id          String            @id @default(uuid())
-  tenantId    String
-  branchId    String?
-  studentCode String
-  name        String
-  grade       String
-  section     String?
-  status      StudentStatus     @default(PENDING)
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-  tenant      Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branch      Branch?           @relation(fields: [branchId], references: [id])
-  guardians   StudentGuardian[]
-  devices     Device[]
-  classes     ClassMembership[]
+  id                          String                       @id @default(uuid())
+  tenantId                    String
+  branchId                    String?
+  studentCode                 String
+  name                        String
+  grade                       String
+  section                     String?
+  status                      StudentStatus                @default(PENDING)
+  createdAt                   DateTime                     @default(now())
+  updatedAt                   DateTime                     @updatedAt
+  tenant                      Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch                      Branch?                      @relation(fields: [branchId], references: [id])
+  guardians                   StudentGuardian[]
+  devices                     Device[]
+  classes                     ClassMembership[]
   guardianAfterSchoolControls GuardianAfterSchoolControl[]
-  guardianSupportRequests GuardianSupportRequest[]
+  guardianSupportRequests     GuardianSupportRequest[]
 
   @@unique([tenantId, studentCode])
   @@index([tenantId, grade, section])
 }
 
 model Guardian {
-  id        String            @id @default(uuid())
-  tenantId  String
-  name      String
-  email     String?
-  phone     String?
-  language  String?
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
-  tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  students  StudentGuardian[]
-  afterSchoolControls GuardianAfterSchoolControl[]
+  id                     String                          @id @default(uuid())
+  tenantId               String
+  name                   String
+  email                  String?
+  phone                  String?
+  language               String?
+  createdAt              DateTime                        @default(now())
+  updatedAt              DateTime                        @updatedAt
+  tenant                 Tenant                          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  students               StudentGuardian[]
+  afterSchoolControls    GuardianAfterSchoolControl[]
   notificationPreference GuardianNotificationPreference?
-  supportRequests GuardianSupportRequest[]
+  supportRequests        GuardianSupportRequest[]
 
   @@index([tenantId, email])
 }
@@ -527,51 +589,51 @@ model GuardianNotificationPreference {
 }
 
 model GuardianSupportRequest {
-  id           String   @id @default(uuid())
-  tenantId     String
-  guardianId   String
-  studentId    String
-  deviceId     String
-  category     String
-  priority     String   @default("NORMAL")
-  status       String   @default("OPEN")
-  subject      String
-  description  String
-  routedTo     String?
-  createdBy    String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  guardian     Guardian @relation(fields: [guardianId], references: [id], onDelete: Cascade)
-  student      Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  device       Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  id          String   @id @default(uuid())
+  tenantId    String
+  guardianId  String
+  studentId   String
+  deviceId    String
+  category    String
+  priority    String   @default("NORMAL")
+  status      String   @default("OPEN")
+  subject     String
+  description String
+  routedTo    String?
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  guardian    Guardian @relation(fields: [guardianId], references: [id], onDelete: Cascade)
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  device      Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, status, createdAt])
   @@index([tenantId, guardianId, studentId])
 }
 
 model ClassSection {
-  id              String            @id @default(uuid())
-  tenantId        String
-  branchId        String?
-  name            String
-  grade           String
-  subject         String?
-  academicYear    String?
-  status          String            @default("ACTIVE")
-  archivedAt      DateTime?
-  sourceClassId   String?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branch          Branch?           @relation(fields: [branchId], references: [id])
-  members         ClassMembership[]
-  devices         Device[]
-  timetableBlocks TimetableBlock[]
-  sourceClass     ClassSection?     @relation("ClassRollover", fields: [sourceClassId], references: [id])
-  rolloverCopies  ClassSection[]    @relation("ClassRollover")
-  teacherAssignments TeacherClassAssignment[]
-  teacherSessions TeacherSession[]
+  id                      String                   @id @default(uuid())
+  tenantId                String
+  branchId                String?
+  name                    String
+  grade                   String
+  subject                 String?
+  academicYear            String?
+  status                  String                   @default("ACTIVE")
+  archivedAt              DateTime?
+  sourceClassId           String?
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  tenant                  Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch                  Branch?                  @relation(fields: [branchId], references: [id])
+  members                 ClassMembership[]
+  devices                 Device[]
+  timetableBlocks         TimetableBlock[]
+  sourceClass             ClassSection?            @relation("ClassRollover", fields: [sourceClassId], references: [id])
+  rolloverCopies          ClassSection[]           @relation("ClassRollover")
+  teacherAssignments      TeacherClassAssignment[]
+  teacherSessions         TeacherSession[]
   teacherSessionTemplates TeacherSessionTemplate[]
 
   @@index([tenantId, grade])
@@ -610,42 +672,42 @@ model RosterImport {
 }
 
 model Device {
-  id                  String                 @id @default(uuid())
-  tenantId            String
-  branchId            String?
-  studentId           String?
-  classId             String?
-  serialNumber        String
-  manufacturer        String?
-  model               String?
-  androidVersion      String?
-  enrollmentId        String?
-  mdmConnector        String                 @default("ANDROID_MANAGEMENT_API")
-  connectorDeviceName String?
-  status              DeviceStatus           @default(PENDING)
-  lastCheckInAt       DateTime?
-  policyVersion       Int?
-  enrollmentBatchId   String?
-  ownershipType       String                 @default("SCHOOL_OWNED")
-  health              String                 @default("UNKNOWN")
-  compliance          String                 @default("UNKNOWN")
-  tags                String[]               @default([])
-  createdAt           DateTime               @default(now())
-  updatedAt           DateTime               @updatedAt
-  tenant              Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branch              Branch?                @relation(fields: [branchId], references: [id])
-  student             Student?               @relation(fields: [studentId], references: [id])
-  class               ClassSection?          @relation(fields: [classId], references: [id])
-  enrollmentBatch     EnrollmentBatch?       @relation(fields: [enrollmentBatchId], references: [id])
-  commands            RemoteCommand[]
-  diagnostics         DeviceDiagnostic[]
-  alerts              DeviceAlert[]
-  blockedDomainEvents BlockedDomainEvent[]
-  supportNotes        SupportNote[]
+  id                      String                   @id @default(uuid())
+  tenantId                String
+  branchId                String?
+  studentId               String?
+  classId                 String?
+  serialNumber            String
+  manufacturer            String?
+  model                   String?
+  androidVersion          String?
+  enrollmentId            String?
+  mdmConnector            String                   @default("ANDROID_MANAGEMENT_API")
+  connectorDeviceName     String?
+  status                  DeviceStatus             @default(PENDING)
+  lastCheckInAt           DateTime?
+  policyVersion           Int?
+  enrollmentBatchId       String?
+  ownershipType           String                   @default("SCHOOL_OWNED")
+  health                  String                   @default("UNKNOWN")
+  compliance              String                   @default("UNKNOWN")
+  tags                    String[]                 @default([])
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  tenant                  Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch                  Branch?                  @relation(fields: [branchId], references: [id])
+  student                 Student?                 @relation(fields: [studentId], references: [id])
+  class                   ClassSection?            @relation(fields: [classId], references: [id])
+  enrollmentBatch         EnrollmentBatch?         @relation(fields: [enrollmentBatchId], references: [id])
+  commands                RemoteCommand[]
+  diagnostics             DeviceDiagnostic[]
+  alerts                  DeviceAlert[]
+  blockedDomainEvents     BlockedDomainEvent[]
+  supportNotes            SupportNote[]
   guardianSupportRequests GuardianSupportRequest[]
-  assignmentHistory   DeviceAssignment[]
-  lifecycleEvents     DeviceLifecycleEvent[]
-  teacherSessionEvents TeacherSessionEvent[]
+  assignmentHistory       DeviceAssignment[]
+  lifecycleEvents         DeviceLifecycleEvent[]
+  teacherSessionEvents    TeacherSessionEvent[]
 
   @@unique([tenantId, serialNumber])
   @@index([tenantId, status])
@@ -654,54 +716,54 @@ model Device {
 }
 
 model TeacherClassAssignment {
-  teacherId String
-  classId   String
-  tenantId  String
-  assignedAt DateTime @default(now())
+  teacherId  String
+  classId    String
+  tenantId   String
+  assignedAt DateTime     @default(now())
   assignedBy String?
-  teacher User @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  class ClassSection @relation(fields: [classId], references: [id], onDelete: Cascade)
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  teacher    User         @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  class      ClassSection @relation(fields: [classId], references: [id], onDelete: Cascade)
+  tenant     Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@id([teacherId, classId])
   @@index([tenantId, teacherId])
 }
 
 model TeacherSession {
-  id String @id @default(uuid())
-  tenantId String
-  classId String
+  id        String                @id @default(uuid())
+  tenantId  String
+  classId   String
   teacherId String
-  status String @default("ACTIVE")
-  startedAt DateTime @default(now())
-  endedAt DateTime?
-  reason String?
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  class ClassSection @relation(fields: [classId], references: [id], onDelete: Restrict)
-  teacher User @relation(fields: [teacherId], references: [id], onDelete: Restrict)
-  events TeacherSessionEvent[]
+  status    String                @default("ACTIVE")
+  startedAt DateTime              @default(now())
+  endedAt   DateTime?
+  reason    String?
+  tenant    Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  class     ClassSection          @relation(fields: [classId], references: [id], onDelete: Restrict)
+  teacher   User                  @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  events    TeacherSessionEvent[]
 
   @@index([tenantId, teacherId, startedAt])
   @@index([tenantId, classId, status])
 }
 
 model TeacherSessionEvent {
-  id String @id @default(uuid())
-  tenantId String
+  id        String         @id @default(uuid())
+  tenantId  String
   sessionId String
-  deviceId String?
-  type String
-  details Json?
-  createdAt DateTime @default(now())
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  session TeacherSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  device Device? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  deviceId  String?
+  type      String
+  details   Json?
+  createdAt DateTime       @default(now())
+  tenant    Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  session   TeacherSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  device    Device?        @relation(fields: [deviceId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, sessionId, createdAt])
 }
 
 model TeacherSessionTemplate {
-  id                   String   @id @default(uuid())
+  id                   String       @id @default(uuid())
   tenantId             String
   classId              String
   teacherId            String
@@ -711,8 +773,8 @@ model TeacherSessionTemplate {
   focusDurationMinutes Int?
   temporaryUrl         String?
   temporaryUrlMinutes  Int?
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
   tenant               Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   class                ClassSection @relation(fields: [classId], references: [id], onDelete: Cascade)
   teacher              User         @relation(fields: [teacherId], references: [id], onDelete: Cascade)
@@ -1122,19 +1184,20 @@ model RemoteCommand {
 }
 
 model AuditEvent {
-  id        String   @id @default(uuid())
-  tenantId  String?
-  actorId   String?
-  action    String
-  object    String
-  objectId  String?
-  oldValue  Json?
-  newValue  Json?
-  ipAddress String?
-  reason    String?
-  outcome   String
-  createdAt DateTime @default(now())
-  tenant    Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  id           String        @id @default(uuid())
+  tenantId     String?
+  actorId      String?
+  action       String
+  object       String
+  objectId     String?
+  oldValue     Json?
+  newValue     Json?
+  ipAddress    String?
+  reason       String?
+  outcome      String
+  createdAt    DateTime      @default(now())
+  tenant       Tenant?       @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  webhookEvent WebhookEvent?
 
   @@index([tenantId, createdAt])
   @@index([action, createdAt])

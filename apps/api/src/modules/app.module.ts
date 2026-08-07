@@ -24,6 +24,7 @@ import { ClassroomModule } from "./classroom/classroom.module";
 import { SisModule } from "./sis/sis.module";
 import { LmsModule } from "./lms/lms.module";
 import { EducationResourcesModule } from "./education-resources/education-resources.module";
+import { WebhooksModule } from "./webhooks/webhooks.module";
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { EducationResourcesModule } from "./education-resources/education-resour
     SisModule,
     LmsModule,
     EducationResourcesModule,
+    WebhooksModule,
   ],
 })
 export class AppModule {}

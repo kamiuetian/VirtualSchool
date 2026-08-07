@@ -18,3 +18,4 @@ export * from "./observability";
 export * from "./privacy";
 export * from "./guardian";
 export * from "./sis";
+export * from "./webhook";

@@ -17,6 +17,7 @@ import {
 } from "./worker-mdm.connector";
 import { NotificationEmailService } from "./notification-email.service";
 import { ClassroomSyncService } from "./classroom-sync.service";
+import { WebhookDeliveryService } from "./webhook-delivery.service";
 
 const mdmConnectorCommandTypes: RemoteCommandType[] = ["LOCK", "WIPE"];
 const deploymentCommandAlertTypes: Partial<
@@ -52,6 +53,10 @@ export class WorkerJobsService {
     private readonly classroomSyncService: ClassroomSyncService = new ClassroomSyncService(
       prisma,
     ),
+    @Inject(WebhookDeliveryService)
+    private readonly webhookDeliveryService: WebhookDeliveryService = new WebhookDeliveryService(
+      prisma,
+    ),
   ) {}
 
   async processJob(
@@ -70,6 +75,8 @@ export class WorkerJobsService {
         details.push(await this.dispatchNotificationsForTenant(tenantId));
       } else if (name === "classroom.sync") {
         details.push(await this.classroomSyncService.processTenant(tenantId));
+      } else if (name === "webhooks.dispatch") {
+        details.push(await this.webhookDeliveryService.processTenant(tenantId));
       } else if (name === "retention.dry-run") {
         details.push(await this.runRetentionForTenant(tenantId, "DRY_RUN"));
       } else if (name === "retention.apply") {
