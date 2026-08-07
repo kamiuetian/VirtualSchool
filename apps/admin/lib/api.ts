@@ -35,6 +35,7 @@ import type {
   ClassroomConnectionSummary,
   LmsConnectionSummary,
   EducationConnectionSummary,
+  SisOperationsSummary,
 } from "@virtual-school/shared";
 import {
   requirePortalRouteAccess,
@@ -304,9 +305,7 @@ export async function getLmsIntegrations(
   return { integrations: result.data ?? [], connectionIssue: result.failed };
 }
 
-export async function getEducationResources(
-  tenantId: string,
-): Promise<{
+export async function getEducationResources(tenantId: string): Promise<{
   integrations: EducationConnectionSummary[];
   connectionIssue: boolean;
 }> {
@@ -314,6 +313,18 @@ export async function getEducationResources(
     `/tenants/${tenantId}/integrations/education-resources`,
   );
   return { integrations: result.data ?? [], connectionIssue: result.failed };
+}
+
+export async function getSisOperations(
+  tenantId: string,
+): Promise<{
+  operations: SisOperationsSummary | null;
+  connectionIssue: boolean;
+}> {
+  const result = await apiGet<SisOperationsSummary>(
+    `/tenants/${tenantId}/integrations/sis/operations`,
+  );
+  return { operations: result.data, connectionIssue: result.failed };
 }
 
 export async function getTeacherDashboard(tenantId: string): Promise<{

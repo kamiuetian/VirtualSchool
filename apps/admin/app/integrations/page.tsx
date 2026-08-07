@@ -19,12 +19,15 @@ import {
   disableLmsAction,
   configureEducationConnectionAction,
   mapEducationResourceAction,
+  reconcileSisAction,
+  retrySisAction,
 } from "../../lib/actions";
 import {
   getAdminData,
   getClassroomIntegration,
   getLmsIntegrations,
   getEducationResources,
+  getSisOperations,
 } from "../../lib/api";
 
 export const dynamic = "force-dynamic";
@@ -41,17 +44,106 @@ export default async function IntegrationsPage() {
   const educationResult = tenant
     ? await getEducationResources(tenant.id)
     : { integrations: [], connectionIssue: false };
+  const sisResult = tenant
+    ? await getSisOperations(tenant.id)
+    : { operations: null, connectionIssue: false };
   return (
     <AppShell
       connectionIssue={
         data.connectionIssue ||
         classroomResult.connectionIssue ||
         lmsResult.connectionIssue ||
-        educationResult.connectionIssue
+        educationResult.connectionIssue ||
+        sisResult.connectionIssue
       }
       tenant={tenant}
     >
       <div className="content-stack">
+        <PageSection
+          kicker="Student information system"
+          title="Reconciliation operations"
+        >
+          {tenant ? (
+            <div className="form-grid two">
+              <ActionPanel title="Reconcile an external ID">
+                <form action={reconcileSisAction} className="stacked-form">
+                  <input name="tenantId" type="hidden" value={tenant.id} />
+                  <Field label="SIS source">
+                    <input name="source" placeholder="POWERSCHOOL" required />
+                  </Field>
+                  <Field label="Object type">
+                    <select name="objectType" required>
+                      {[
+                        "STUDENT",
+                        "CLASS",
+                        "TEACHER",
+                        "GUARDIAN",
+                        "ENROLLMENT",
+                      ].map((value) => (
+                        <option key={value}>{value}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Local ID">
+                    <input
+                      name="localId"
+                      placeholder="UUID; enrollment uses classId:studentId"
+                      required
+                    />
+                  </Field>
+                  <Field label="External SIS ID">
+                    <input name="externalId" required />
+                  </Field>
+                  <SubmitButton>Reconcile ID</SubmitButton>
+                </form>
+              </ActionPanel>
+              <ActionPanel title="Operation history">
+                <p>
+                  Last successful sync:{" "}
+                  {sisResult.operations?.lastSuccessAt
+                    ? new Date(
+                        sisResult.operations.lastSuccessAt,
+                      ).toLocaleString()
+                    : "None"}
+                </p>
+                {sisResult.operations?.runs.length ? (
+                  <div className="data-list">
+                    {sisResult.operations.runs.map((run) => (
+                      <div className="data-row" key={run.id}>
+                        <div>
+                          <strong>{run.source}</strong>{" "}
+                          <StatusPill>{run.status}</StatusPill>
+                          <small>
+                            {run.affectedRecords} affected · {run.failedRecords}{" "}
+                            failed · attempt {run.attempt}
+                          </small>
+                        </div>
+                        {run.failedRecords ? (
+                          <form action={retrySisAction}>
+                            <input
+                              name="tenantId"
+                              type="hidden"
+                              value={tenant.id}
+                            />
+                            <input name="runId" type="hidden" value={run.id} />
+                            <button className="small-button">
+                              Retry failures
+                            </button>
+                          </form>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState
+                    title="No SIS operations"
+                    body="Submit a documented reconciliation request to create sync history."
+                  />
+                )}
+              </ActionPanel>
+            </div>
+          ) : null}
+        </PageSection>
         <PageSection kicker="Education ecosystem" title="Google Classroom">
           {tenant ? (
             <div className="form-grid two">

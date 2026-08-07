@@ -21,6 +21,7 @@ import { UsersModule } from "./users/users.module";
 import { TeacherSessionsModule } from "./teacher-sessions/teacher-sessions.module";
 import { GuardianModule } from "./guardian/guardian.module";
 import { ClassroomModule } from "./classroom/classroom.module";
+import { SisModule } from "./sis/sis.module";
 import { LmsModule } from "./lms/lms.module";
 import { EducationResourcesModule } from "./education-resources/education-resources.module";
 
@@ -48,6 +49,7 @@ import { EducationResourcesModule } from "./education-resources/education-resour
     TeacherSessionsModule,
     GuardianModule,
     ClassroomModule,
+    SisModule,
     LmsModule,
     EducationResourcesModule,
   ],

@@ -132,6 +132,46 @@ model Tenant {
   lmsCourseMappings       LmsCourseMapping[]
   educationConnections    EducationConnection[]
   educationResources      EducationResource[]
+  sisMappings             SisMapping[]
+  sisSyncRuns             SisSyncRun[]
+}
+
+model SisMapping {
+  id          String   @id @default(uuid())
+  tenantId    String
+  objectType  String
+  localId     String
+  externalId  String
+  source      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, objectType, localId, source])
+  @@unique([tenantId, objectType, externalId, source])
+  @@index([tenantId, objectType, source])
+}
+
+model SisSyncRun {
+  id              String   @id @default(uuid())
+  tenantId        String
+  source          String
+  status          String
+  attempt         Int      @default(1)
+  retryOfId       String?
+  requestedBy     String?
+  totalRecords    Int
+  affectedRecords Int      @default(0)
+  failedRecords   Int      @default(0)
+  records         Json
+  startedAt       DateTime @default(now())
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, source, status])
 }
 
 model EducationConnection {

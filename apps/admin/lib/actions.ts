@@ -1146,6 +1146,37 @@ export async function authorizeClassroomAction(formData: FormData) {
   revalidateAll();
 }
 
+export async function reconcileSisAction(formData: FormData) {
+  await requireActionPermission("roster:manage");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/integrations/sis/reconciliations`,
+    {
+      source: required(formData, "source"),
+      records: [
+        {
+          objectType: required(formData, "objectType"),
+          localId: required(formData, "localId"),
+          externalId: required(formData, "externalId"),
+        },
+      ],
+    },
+  );
+  revalidateAll();
+}
+
+export async function retrySisAction(formData: FormData) {
+  await requireActionPermission("roster:manage");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/integrations/sis/reconciliations/${required(formData, "runId")}/retry`,
+    {},
+  );
+  revalidateAll();
+}
+
 export async function mapClassroomCourseAction(formData: FormData) {
   await requireActionPermission("tenant:update");
   const tenantId = required(formData, "tenantId");
