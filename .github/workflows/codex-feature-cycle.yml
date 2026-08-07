@@ -88,8 +88,8 @@ jobs:
           if (-not (git status --porcelain)) {
             throw 'Codex produced no repository change.'
           }
-          $diff = git diff -- CODEX_FEATURE_BACKLOG.md
-          if ($diff -notmatch '\|\s*complete\s*\|') {
+          $diff = git diff -- CODEX_FEATURE_BACKLOG.md | Out-String
+          if ($diff -notmatch '(?m)^\+\|\s*\d+\s*\|\s*complete\s*\|') {
             throw 'Codex did not mark the implemented backlog feature complete.'
           }
           git diff --check
