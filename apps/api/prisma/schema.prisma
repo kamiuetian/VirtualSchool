@@ -124,6 +124,89 @@ model Tenant {
   guardianAfterSchoolControls GuardianAfterSchoolControl[]
   guardianNotificationPreferences GuardianNotificationPreference[]
   guardianSupportRequests GuardianSupportRequest[]
+  classroomConnection     ClassroomConnection?
+  classroomCourseMappings ClassroomCourseMapping[]
+  classroomIdentityMappings ClassroomIdentityMapping[]
+  classroomSyncRuns       ClassroomSyncRun[]
+}
+
+model ClassroomConnection {
+  id                    String   @id @default(uuid())
+  tenantId              String   @unique
+  credentialReference   String
+  delegatedAdminEmail   String
+  status                String   @default("AUTHORIZED")
+  lastValidatedAt       DateTime?
+  authorizedBy          String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  tenant                Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  courseMappings        ClassroomCourseMapping[]
+  identityMappings      ClassroomIdentityMapping[]
+  syncRuns              ClassroomSyncRun[]
+}
+
+model ClassroomCourseMapping {
+  id                 String   @id @default(uuid())
+  tenantId           String
+  connectionId       String
+  classId            String
+  externalCourseId   String
+  externalCourseName String?
+  syncRoster         Boolean  @default(true)
+  syncMaterials      Boolean  @default(false)
+  enabled            Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  connection         ClassroomConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, classId])
+  @@unique([tenantId, externalCourseId])
+  @@index([connectionId, enabled])
+}
+
+model ClassroomIdentityMapping {
+  id                 String   @id @default(uuid())
+  tenantId           String
+  connectionId       String
+  localType          String
+  localId            String
+  externalUserId     String
+  externalEmail      String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  connection         ClassroomConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, localType, localId])
+  @@unique([tenantId, externalUserId])
+  @@index([connectionId, localType])
+}
+
+model ClassroomSyncRun {
+  id                 String   @id @default(uuid())
+  tenantId           String
+  connectionId       String
+  requestedCourseIds String[] @default([])
+  syncRoster         Boolean
+  syncMaterials      Boolean
+  status             String   @default("QUEUED")
+  attempt            Int      @default(1)
+  retryOfId          String?
+  outcome            Json?
+  errorCode          String?
+  errorMessage       String?
+  requestedBy        String?
+  startedAt          DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  connection         ClassroomConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@index([connectionId, status])
 }
 
 model OnboardingProgress {

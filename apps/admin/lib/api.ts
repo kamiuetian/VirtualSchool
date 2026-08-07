@@ -32,6 +32,7 @@ import type {
   ExamReadinessSummary,
   ExamReport,
   UserSummary,
+  ClassroomConnectionSummary,
 } from "@virtual-school/shared";
 import {
   requirePortalRouteAccess,
@@ -280,6 +281,18 @@ export async function adminApiMutation(
   body: Record<string, unknown>,
 ): Promise<void> {
   await adminApiJsonMutation<unknown>(method, path, body);
+}
+
+export async function getClassroomIntegration(
+  tenantId: string,
+): Promise<{
+  integration: ClassroomConnectionSummary | null;
+  connectionIssue: boolean;
+}> {
+  const result = await apiGet<ClassroomConnectionSummary>(
+    `/tenants/${tenantId}/integrations/google-classroom`,
+  );
+  return { integration: result.data, connectionIssue: result.failed };
 }
 
 export async function getTeacherDashboard(tenantId: string): Promise<{

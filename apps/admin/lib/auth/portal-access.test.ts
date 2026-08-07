@@ -19,6 +19,7 @@ describe("portal access", () => {
       "/privacy",
       "/timetable",
       "/apps",
+      "/integrations",
       "/alerts",
       "/support",
       "/reports",
@@ -37,6 +38,7 @@ describe("portal access", () => {
     expect(visibleRoutes).toContain("/policies");
     expect(visibleRoutes).toContain("/reports");
     expect(visibleRoutes).toContain("/billing");
+    expect(visibleRoutes).toContain("/integrations");
     expect(visibleRoutes).not.toContain("/enrollment");
   });
 

@@ -17,7 +17,8 @@ export type PortalHref =
   | "/alerts"
   | "/support"
   | "/reports"
-  | "/billing";
+  | "/billing"
+  | "/integrations";
 
 export type PortalNavigationItem = {
   href: PortalHref;
@@ -68,6 +69,11 @@ export const portalRoutes: PortalRoute[] = [
   { href: "/privacy", label: "Privacy", anyPermissions: ["tenant:update"] },
   { href: "/timetable", label: "Timetable", anyPermissions: ["policy:manage"] },
   { href: "/apps", label: "Apps & Web", anyPermissions: ["policy:manage"] },
+  {
+    href: "/integrations",
+    label: "Integrations",
+    anyPermissions: ["tenant:update"],
+  },
   { href: "/alerts", label: "Alerts", anyPermissions: ["device:read"] },
   { href: "/support", label: "Support", anyPermissions: ["device:read"] },
   { href: "/reports", label: "Reports", anyPermissions: ["report:export"] },

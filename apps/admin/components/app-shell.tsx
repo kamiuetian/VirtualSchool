@@ -7,6 +7,7 @@ import {
   CalendarClock,
   GraduationCap,
   HeartHandshake,
+  PlugZap,
   Laptop,
   LayoutDashboard,
   QrCode,
@@ -43,6 +44,7 @@ const navigationIcons = {
   "/guardian": HeartHandshake,
   "/tenants": GraduationCap,
   "/timetable": CalendarClock,
+  "/integrations": PlugZap,
 } satisfies Record<PortalHref, typeof LayoutDashboard>;
 
 const roleLabels: Record<string, string> = {

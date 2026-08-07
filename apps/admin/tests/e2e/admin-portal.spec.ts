@@ -15,6 +15,7 @@ const pages = [
   { heading: "Privacy notices and consent", path: "/privacy" },
   { heading: "Timetable Blocks", path: "/timetable" },
   { heading: "Apps And Web Catalog", path: "/apps" },
+  { heading: "Google Classroom", path: "/integrations" },
   { heading: "Alerts And Diagnostics", path: "/alerts" },
   { heading: "Device Support", path: "/support" },
   { heading: "Operational Reports", path: "/reports" },

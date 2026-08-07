@@ -118,6 +118,11 @@ export class WorkerQueueService implements OnModuleInit, OnModuleDestroy {
       { data: {}, name: "notifications.dispatch", opts: this.jobOptions() },
     );
     await this.queue.upsertJobScheduler(
+      "classroom-sync",
+      { every: this.envInt("WORKER_CLASSROOM_SYNC_INTERVAL_MS", 60_000) },
+      { data: {}, name: "classroom.sync", opts: this.jobOptions() },
+    );
+    await this.queue.upsertJobScheduler(
       "retention-dry-run",
       {
         every: this.envInt("WORKER_RETENTION_DRY_RUN_INTERVAL_MS", 86_400_000),

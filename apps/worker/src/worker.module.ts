@@ -5,6 +5,7 @@ import { WorkerJobsService } from "./workers/worker-jobs.service";
 import { WorkerMdmConnector } from "./workers/worker-mdm.connector";
 import { WorkerQueueService } from "./workers/worker-queue.service";
 import { NotificationEmailService } from "./workers/notification-email.service";
+import { ClassroomSyncService } from "./workers/classroom-sync.service";
 
 @Module({
   providers: [
@@ -14,6 +15,7 @@ import { NotificationEmailService } from "./workers/notification-email.service";
     WorkerPrismaService,
     WorkerQueueService,
     NotificationEmailService,
+    ClassroomSyncService,
   ],
 })
 export class WorkerModule {}

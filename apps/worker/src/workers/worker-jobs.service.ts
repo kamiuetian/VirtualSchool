@@ -16,6 +16,7 @@ import {
   type WorkerMdmDispatchResult,
 } from "./worker-mdm.connector";
 import { NotificationEmailService } from "./notification-email.service";
+import { ClassroomSyncService } from "./classroom-sync.service";
 
 const mdmConnectorCommandTypes: RemoteCommandType[] = ["LOCK", "WIPE"];
 const deploymentCommandAlertTypes: Partial<
@@ -47,6 +48,10 @@ export class WorkerJobsService {
     private readonly mdmConnector: WorkerMdmConnector,
     @Inject(NotificationEmailService)
     private readonly emailService: NotificationEmailService = new NotificationEmailService(),
+    @Inject(ClassroomSyncService)
+    private readonly classroomSyncService: ClassroomSyncService = new ClassroomSyncService(
+      prisma,
+    ),
   ) {}
 
   async processJob(
@@ -63,6 +68,8 @@ export class WorkerJobsService {
         details.push(await this.scanOfflineAlertsForTenant(tenantId));
       } else if (name === "notifications.dispatch") {
         details.push(await this.dispatchNotificationsForTenant(tenantId));
+      } else if (name === "classroom.sync") {
+        details.push(await this.classroomSyncService.processTenant(tenantId));
       } else if (name === "retention.dry-run") {
         details.push(await this.runRetentionForTenant(tenantId, "DRY_RUN"));
       } else if (name === "retention.apply") {

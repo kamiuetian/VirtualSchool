@@ -4,6 +4,7 @@ export const workerJobNames = [
   "commands.dispatch",
   "alerts.offline-scan",
   "notifications.dispatch",
+  "classroom.sync",
   "retention.dry-run",
   "retention.apply",
 ] as const;

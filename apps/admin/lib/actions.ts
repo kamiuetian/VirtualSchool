@@ -1110,6 +1110,82 @@ async function staffLifecycleAction(
   revalidateAll();
 }
 
+export async function authorizeClassroomAction(formData: FormData) {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/integrations/google-classroom/authorize`,
+    {
+      credentialReference: required(formData, "credentialReference"),
+      delegatedAdminEmail: required(formData, "delegatedAdminEmail"),
+    },
+  );
+  revalidateAll();
+}
+
+export async function mapClassroomCourseAction(formData: FormData) {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/integrations/google-classroom/course-mappings`,
+    {
+      classId: required(formData, "classId"),
+      externalCourseId: required(formData, "externalCourseId"),
+      externalCourseName: text(formData, "externalCourseName"),
+      syncRoster: booleanValue(formData, "syncRoster"),
+      syncMaterials: booleanValue(formData, "syncMaterials"),
+    },
+  );
+  revalidateAll();
+}
+
+export async function mapClassroomIdentityAction(formData: FormData) {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/integrations/google-classroom/identity-mappings`,
+    {
+      localType: required(formData, "localType"),
+      localId: required(formData, "localId"),
+      externalUserId: required(formData, "externalUserId"),
+      externalEmail: text(formData, "externalEmail"),
+    },
+  );
+  revalidateAll();
+}
+
+export async function startClassroomSyncAction(formData: FormData) {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/integrations/google-classroom/sync-runs`,
+    {
+      courseMappingIds: formData
+        .getAll("courseMappingIds")
+        .filter((item): item is string => typeof item === "string"),
+      syncRoster: booleanValue(formData, "syncRoster"),
+      syncMaterials: booleanValue(formData, "syncMaterials"),
+    },
+  );
+  revalidateAll();
+}
+
+export async function retryClassroomSyncAction(formData: FormData) {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  const runId = required(formData, "runId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/integrations/google-classroom/sync-runs/${runId}/retry`,
+    {},
+  );
+  revalidateAll();
+}
+
 async function requireActionPermission(permission: Permission): Promise<void> {
   const session = await requireAdminSession();
 
