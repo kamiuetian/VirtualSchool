@@ -136,6 +136,8 @@ model Tenant {
   sisSyncRuns                     SisSyncRun[]
   webhookEndpoints                WebhookEndpoint[]
   webhookEvents                   WebhookEvent[]
+  byodStudySessions               ByodStudySession[]
+  byodParticipants                ByodSessionParticipant[]
 }
 
 model WebhookEndpoint {
@@ -513,6 +515,7 @@ model Student {
   grade                       String
   section                     String?
   status                      StudentStatus                @default(PENDING)
+  auth0Subject                String?                      @unique
   createdAt                   DateTime                     @default(now())
   updatedAt                   DateTime                     @updatedAt
   tenant                      Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -522,6 +525,7 @@ model Student {
   classes                     ClassMembership[]
   guardianAfterSchoolControls GuardianAfterSchoolControl[]
   guardianSupportRequests     GuardianSupportRequest[]
+  byodParticipants            ByodSessionParticipant[]
 
   @@unique([tenantId, studentCode])
   @@index([tenantId, grade, section])
@@ -635,10 +639,50 @@ model ClassSection {
   teacherAssignments      TeacherClassAssignment[]
   teacherSessions         TeacherSession[]
   teacherSessionTemplates TeacherSessionTemplate[]
+  byodStudySessions       ByodStudySession[]
 
   @@index([tenantId, grade])
   @@index([tenantId, academicYear, status])
   @@index([sourceClassId])
+}
+
+model ByodStudySession {
+  id           String                   @id @default(uuid())
+  tenantId     String
+  classId      String
+  title        String
+  status       String                   @default("ACTIVE")
+  startsAt     DateTime
+  endsAt       DateTime
+  allowedUrls  String[]
+  createdBy    String
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+  tenant       Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  class        ClassSection             @relation(fields: [classId], references: [id], onDelete: Restrict)
+  participants ByodSessionParticipant[]
+
+  @@index([tenantId, classId, status, startsAt, endsAt])
+}
+
+model ByodSessionParticipant {
+  id                String           @id @default(uuid())
+  tenantId          String
+  sessionId         String
+  studentId         String
+  authSubject       String
+  consentNoticeId   String
+  consentVersion    Int
+  consentAcceptedAt DateTime
+  joinedAt          DateTime         @default(now())
+  exitedAt          DateTime?
+  exitStatus        String?
+  tenant            Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  session           ByodStudySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student           Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, studentId])
+  @@index([tenantId, studentId, joinedAt])
 }
 
 model ClassMembership {

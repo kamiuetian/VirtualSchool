@@ -97,4 +97,43 @@ describe("PrivacyService", () => {
       service.revoke("tenant-1", "acceptance-1", "Changed decision", "admin-2"),
     ).rejects.toThrow("not found for this subject");
   });
+
+  it("records authenticated student consent for BYOD notices", async () => {
+    const service = new PrivacyService({
+      privacyNotice: {
+        findFirst: async () => ({
+          id: "byod-notice-1",
+          tenantId: "tenant-1",
+          channel: "WEB",
+          version: 1,
+        }),
+      },
+      $transaction: async (callback: (tx: any) => Promise<unknown>) =>
+        callback({
+          auditEvent: { create: vi.fn() },
+          privacyAcceptance: {
+            upsert: async ({ create }: any) => ({
+              ...create,
+              id: "student-acceptance-1",
+              acceptedAt: new Date(),
+              revokedAt: null,
+              revokeReason: null,
+            }),
+          },
+        }),
+    } as never);
+
+    await expect(
+      service.accept(
+        "tenant-1",
+        "byod-notice-1",
+        { channel: "WEB" },
+        "auth0|student-1",
+        "STUDENT",
+      ),
+    ).resolves.toMatchObject({
+      subjectType: "STUDENT",
+      subjectId: "auth0|student-1",
+    });
+  });
 });

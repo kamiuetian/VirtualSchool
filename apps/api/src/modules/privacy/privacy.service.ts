@@ -183,10 +183,7 @@ export class PrivacyService {
     if (!subjectId)
       throw new ForbiddenException("An authenticated subject is required");
     if (role === "GUARDIAN") return "GUARDIAN";
-    if (role === "STUDENT")
-      throw new ForbiddenException(
-        "Students cannot accept guardian or admin notices",
-      );
+    if (role === "STUDENT") return "STUDENT";
     return "ADMIN";
   }
   private noticeSummary(value: any): PrivacyNoticeSummary {

@@ -1,4 +1,4 @@
-export type PrivacySubjectType = "ADMIN" | "GUARDIAN";
+export type PrivacySubjectType = "ADMIN" | "GUARDIAN" | "STUDENT";
 export type PrivacyChannel = "WEB" | "MOBILE" | "EMAIL";
 
 export type PrivacyNoticeSummary = {
