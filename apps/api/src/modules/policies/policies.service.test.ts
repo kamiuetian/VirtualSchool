@@ -792,4 +792,68 @@ describe("PoliciesService", () => {
       service.getDevicePolicyPayload("tenant-1", "device-retired"),
     ).rejects.toThrow("No policy is delivered to retired device");
   });
+
+  it("schedules an audited Exam Mode assignment for an eligible scope", async () => {
+    const create = vi.fn(async ({ data }: any) => ({
+      ...data,
+      active: true,
+      createdAt: now,
+      id: "exam-assignment-1",
+      policy: { id: "exam-policy", name: "Exam", status: "PUBLISHED", version: 3 },
+    }));
+    const auditCreate = vi.fn();
+    const service = new PoliciesService(
+      {
+        policy: { findFirst: async () => ({ id: "exam-policy", name: "Exam", status: "PUBLISHED", version: 3, rules: { ...baseRules, mode: "EXAM" } }) },
+        classSection: { findFirst: async () => ({ id: "class-1" }) },
+        $transaction: async (callback: (tx: any) => Promise<unknown>) => callback({ policyAssignment: { create }, auditEvent: { create: auditCreate } }),
+      } as never,
+      connectorRegistry() as never,
+    );
+
+    await expect(service.scheduleExam("tenant-1", {
+      policyId: "exam-policy",
+      scope: "CLASS",
+      scopeId: "class-1",
+      startsAt: "2026-08-08T08:00:00.000Z",
+      endsAt: "2026-08-08T10:00:00.000Z",
+      reason: "Final assessment",
+    }, "staff-1")).resolves.toMatchObject({ id: "exam-assignment-1", scope: "CLASS" });
+    expect(auditCreate).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ action: "exam.schedule", actorId: "staff-1" }) }));
+  });
+
+  it("selects Exam Mode over ordinary schedules while enforcing the active time window", async () => {
+    const findMany = vi.fn(async () => [
+      { active: true, actorId: null, createdAt: now, endsAt: null, id: "ordinary", policyId: "ordinary-policy", reason: null, scope: "CLASS", scopeId: "class-1", startsAt: null, tenantId: "tenant-1", updatedAt: now, policy: { createdAt: now, updatedAt: now, id: "ordinary-policy", tenantId: "tenant-1", name: "Class", status: "PUBLISHED", version: 9, rules: { ...baseRules, mode: "TIMETABLE_CLASS" } } },
+      { active: true, actorId: null, createdAt: now, endsAt: new Date("2026-08-08T10:00:00Z"), id: "exam", policyId: "exam-policy", reason: null, scope: "CLASS", scopeId: "class-1", startsAt: new Date("2026-08-08T08:00:00Z"), tenantId: "tenant-1", updatedAt: now, policy: { createdAt: now, updatedAt: now, id: "exam-policy", tenantId: "tenant-1", name: "Exam", status: "PUBLISHED", version: 1, rules: { ...baseRules, mode: "EXAM" } } },
+    ]);
+    const service = new PoliciesService({
+      device: { findFirst: async () => ({ id: "device-1", status: "ONLINE", classId: "class-1", studentId: null, student: null }) },
+      policyAssignment: { findMany },
+    } as never, connectorRegistry() as never);
+
+    await expect(service.resolveActivePolicyForDevice("tenant-1", "device-1")).resolves.toMatchObject({ assignment: { id: "exam" } });
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ active: true, AND: expect.any(Array) }) }));
+  });
+
+  it("rejects non-exam policies and invalid exam windows", async () => {
+    const service = new PoliciesService({ policy: { findFirst: async () => ({ id: "policy-1", status: "PUBLISHED", rules: baseRules }) } } as never, connectorRegistry() as never);
+    await expect(service.scheduleExam("tenant-1", { policyId: "policy-1", scope: "GRADE", scopeId: "5", startsAt: "2026-08-08T10:00:00.000Z", endsAt: "2026-08-08T09:00:00.000Z" }, "staff-1")).rejects.toThrow("after its start");
+    await expect(service.scheduleExam("tenant-1", { policyId: "policy-1", scope: "GRADE", scopeId: "5", startsAt: "2026-08-08T08:00:00.000Z", endsAt: "2026-08-08T09:00:00.000Z" }, "staff-1")).rejects.toThrow("published Exam Mode policy");
+  });
+
+  it("completes an exam assignment immediately and audits the release", async () => {
+    const auditCreate = vi.fn();
+    const assignment = { active: true, actorId: "staff-1", createdAt: now, endsAt: new Date("2026-08-08T10:00:00Z"), id: "exam-1", policyId: "exam-policy", reason: null, scope: "STUDENT", scopeId: "student-1", startsAt: now, tenantId: "tenant-1", policy: { id: "exam-policy", name: "Exam", status: "PUBLISHED", version: 1, rules: { ...baseRules, mode: "EXAM" } } };
+    const service = new PoliciesService({
+      policyAssignment: { findFirst: async () => assignment },
+      $transaction: async (callback: (tx: any) => Promise<unknown>) => callback({
+        policyAssignment: { update: async ({ data }: any) => ({ ...assignment, ...data }) },
+        auditEvent: { create: auditCreate },
+      }),
+    } as never, connectorRegistry() as never);
+
+    await expect(service.completeExam("tenant-1", "exam-1", "All submissions received", "staff-2")).resolves.toMatchObject({ active: false });
+    expect(auditCreate).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ action: "exam.complete", actorId: "staff-2", reason: "All submissions received" }) }));
+  });
 });

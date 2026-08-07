@@ -29,6 +29,7 @@ import {
 import { MdmConnectorRegistry } from "../mdm-connectors/mdm-connector.registry";
 import type { MdmPolicyPublishResult } from "../mdm-connectors/mdm-connector.types";
 import { PrismaService } from "../prisma/prisma.service";
+import type { ScheduleExamDto } from "./dto/schedule-exam.dto";
 import type { AssignPolicyDto } from "./dto/assign-policy.dto";
 import type { CreatePolicyDto } from "./dto/create-policy.dto";
 import type { IssueSupportUnlockDto } from "./dto/issue-support-unlock.dto";
@@ -650,6 +651,99 @@ export class PoliciesService {
     });
 
     return this.toPolicyAssignmentSummary(assignment);
+  }
+
+  async scheduleExam(
+    tenantId: string,
+    input: ScheduleExamDto,
+    actorId: string,
+  ): Promise<PolicyAssignmentSummary> {
+    const startsAt = new Date(input.startsAt);
+    const endsAt = new Date(input.endsAt);
+    if (endsAt <= startsAt) {
+      throw new BadRequestException("Exam end must be after its start");
+    }
+
+    const policy = await this.prisma.policy.findFirst({
+      where: { id: input.policyId, tenantId },
+    });
+    if (!policy) {
+      throw new NotFoundException(`Policy ${input.policyId} was not found for tenant ${tenantId}`);
+    }
+    if (policy.status !== "PUBLISHED" || (policy.rules as PolicyRuleSet).mode !== "EXAM") {
+      throw new BadRequestException("Exam schedules require a published Exam Mode policy");
+    }
+    await this.ensureAssignmentTargetExists(tenantId, input.scope, input.scopeId);
+
+    const assignment = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.policyAssignment.create({
+        data: {
+          actorId,
+          endsAt,
+          policyId: policy.id,
+          reason: input.reason,
+          scope: input.scope,
+          scopeId: input.scopeId,
+          startsAt,
+          tenantId,
+        },
+        include: { policy: true },
+      });
+      await tx.auditEvent.create({
+        data: {
+          action: "exam.schedule",
+          actorId,
+          newValue: { endsAt, policyId: policy.id, policyVersion: policy.version, scope: input.scope, scopeId: input.scopeId, startsAt },
+          object: "PolicyAssignment",
+          objectId: created.id,
+          outcome: "SUCCESS",
+          reason: input.reason,
+          tenantId,
+        },
+      });
+      return created;
+    });
+    return this.toPolicyAssignmentSummary(assignment);
+  }
+
+  async completeExam(
+    tenantId: string,
+    assignmentId: string,
+    reason: string,
+    actorId: string,
+  ): Promise<PolicyAssignmentSummary> {
+    if (!reason.trim()) throw new BadRequestException("Exam completion reason is required");
+    const assignment = await this.prisma.policyAssignment.findFirst({
+      include: { policy: true },
+      where: { id: assignmentId, tenantId },
+    });
+    if (!assignment || (assignment.policy.rules as PolicyRuleSet).mode !== "EXAM") {
+      throw new NotFoundException(`Exam schedule ${assignmentId} was not found for tenant ${tenantId}`);
+    }
+    if (!assignment.active) throw new BadRequestException("Exam schedule has already completed");
+
+    const completed = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.policyAssignment.update({
+        data: { active: false, endsAt: new Date() },
+        include: { policy: true },
+        where: { id: assignment.id },
+      });
+      await tx.auditEvent.create({
+        data: {
+          action: "exam.complete",
+          actorId,
+          newValue: { active: false, endsAt: updated.endsAt },
+          object: "PolicyAssignment",
+          objectId: assignment.id,
+          oldValue: { active: assignment.active, endsAt: assignment.endsAt },
+          outcome: "SUCCESS",
+          reason,
+          tenantId,
+        },
+      });
+      return updated;
+    });
+    return this.toPolicyAssignmentSummary(completed);
   }
 
   async listPolicyAssignments(

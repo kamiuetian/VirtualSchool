@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Req,
 } from "@nestjs/common";
 import { ApiCreatedResponse, ApiOkResponse, ApiTags } from "@nestjs/swagger";
 import type {
@@ -28,6 +29,8 @@ import { UpdateAndroidControlsDto } from "./dto/update-android-controls.dto";
 import { SimulateUrlPolicyDto } from "./dto/simulate-url-policy.dto";
 import { IngestBlockedDomainEventDto } from "./dto/ingest-blocked-domain-event.dto";
 import { PoliciesService } from "./policies.service";
+import type { AuthenticatedRequest } from "../auth/types/authenticated-request";
+import { CompleteExamDto, ScheduleExamDto } from "./dto/schedule-exam.dto";
 
 @ApiTags("policies")
 @Controller("tenants/:tenantId/policies")
@@ -183,6 +186,29 @@ export class PoliciesController {
     @Body() body: IssueSupportUnlockDto,
   ): Promise<PolicyAssignmentSummary> {
     return this.policiesService.issueSupportUnlock(tenantId, body);
+  }
+
+  @Post("exam-schedules")
+  @RequirePermissions("policy:manage")
+  @ApiCreatedResponse({ description: "Schedule Exam Mode for a class, grade, or student" })
+  scheduleExam(
+    @Param("tenantId") tenantId: string,
+    @Body() body: ScheduleExamDto,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<PolicyAssignmentSummary> {
+    return this.policiesService.scheduleExam(tenantId, body, request.user!.subject);
+  }
+
+  @Post("exam-schedules/:assignmentId/complete")
+  @RequirePermissions("policy:manage")
+  @ApiOkResponse({ description: "Complete an exam and release Exam Mode immediately" })
+  completeExam(
+    @Param("tenantId") tenantId: string,
+    @Param("assignmentId") assignmentId: string,
+    @Body() body: CompleteExamDto,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<PolicyAssignmentSummary> {
+    return this.policiesService.completeExam(tenantId, assignmentId, body.reason, request.user!.subject);
   }
 
   @Post(":policyId/assignments")
