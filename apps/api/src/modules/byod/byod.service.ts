@@ -6,12 +6,18 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import type {
+  ByodEligibility,
   ByodJoinSummary,
+  ByodParticipationReport,
+  ByodReadinessSummary,
   ByodStudySessionSummary,
   Role,
 } from "@virtual-school/shared";
 import { PrismaService } from "../prisma/prisma.service";
-import type { CreateByodStudySessionDto } from "./dto/byod.dto";
+import type {
+  CheckByodReadinessDto,
+  CreateByodStudySessionDto,
+} from "./dto/byod.dto";
 
 const BYOD_NOTICE = "BYOD_STUDY_SESSION";
 const LIMITATION_NOTICE =
@@ -60,6 +66,38 @@ export class ByodService {
       assignment.class.status !== "ACTIVE"
     )
       throw new ForbiddenException("The class is not assigned to this teacher");
+    const eligibilityScope = input.eligibilityScope ?? "CLASS";
+    if (eligibilityScope === "EXAM" && !input.examAssignmentId)
+      throw new BadRequestException(
+        "Exam eligibility requires an exam assignment",
+      );
+    const eligibility: ByodEligibility = {
+      scope: eligibilityScope,
+      ...(input.examAssignmentId
+        ? { examAssignmentId: input.examAssignmentId }
+        : {}),
+      allowedPlatforms: [
+        ...new Set(
+          (
+            input.allowedPlatforms ?? [
+              "ANDROID",
+              "CHROMEOS",
+              "IOS",
+              "MACOS",
+              "WINDOWS",
+            ]
+          ).map((value) => value.toUpperCase()),
+        ),
+      ],
+      allowedBrowsers: [
+        ...new Set(
+          (input.allowedBrowsers ?? ["CHROME", "EDGE", "SAFARI"]).map((value) =>
+            value.toUpperCase(),
+          ),
+        ),
+      ],
+      minimumBrowserMajorVersion: input.minimumBrowserMajorVersion ?? 100,
+    };
     const session = await this.prisma.$transaction(async (tx) => {
       const created = await tx.byodStudySession.create({
         data: {
@@ -69,6 +107,7 @@ export class ByodService {
           startsAt,
           endsAt,
           allowedUrls: [...new Set(input.allowedUrls)],
+          eligibility,
           createdBy: teacher.id,
         },
       });
@@ -86,6 +125,7 @@ export class ByodService {
             endsAt,
             controlScope: "SESSION_ONLY",
             wholeDeviceControl: false,
+            eligibilityScope: eligibility.scope,
           },
         },
       });
@@ -99,6 +139,7 @@ export class ByodService {
     sessionId: string,
     subject: string,
     role: Role,
+    checks: CheckByodReadinessDto,
   ): Promise<ByodJoinSummary> {
     if (role !== "STUDENT")
       throw new ForbiddenException(
@@ -129,6 +170,17 @@ export class ByodService {
     if (!session.class.members.length)
       throw new ForbiddenException(
         "Student is not enrolled in this session class",
+      );
+    const readiness = await this.evaluateReadiness(
+      tenantId,
+      session,
+      student.id,
+      checks,
+      now,
+    );
+    if (!readiness.eligible || !readiness.ready)
+      throw new ForbiddenException(
+        `BYOD readiness failed: ${readiness.issues.join(", ")}`,
       );
     const notice = await this.prisma.privacyNotice.findFirst({
       where: { tenantId, noticeType: BYOD_NOTICE, channel: "WEB" },
@@ -213,6 +265,76 @@ export class ByodService {
     };
   }
 
+  async readiness(
+    tenantId: string,
+    sessionId: string,
+    subject: string,
+    role: Role,
+    checks: CheckByodReadinessDto,
+  ): Promise<ByodReadinessSummary> {
+    if (role !== "STUDENT")
+      throw new ForbiddenException(
+        "Only an authenticated student can run BYOD readiness",
+      );
+    const student = await this.prisma.student.findFirst({
+      where: { tenantId, auth0Subject: subject, status: "ACTIVE" },
+    });
+    if (!student)
+      throw new ForbiddenException(
+        "The login is not linked to an active student",
+      );
+    const session = await this.prisma.byodStudySession.findFirst({
+      where: { id: sessionId, tenantId },
+      include: {
+        class: { include: { members: { where: { studentId: student.id } } } },
+      },
+    });
+    if (!session)
+      throw new NotFoundException("BYOD session was not found for this tenant");
+    return this.evaluateReadiness(
+      tenantId,
+      session,
+      student.id,
+      checks,
+      new Date(),
+    );
+  }
+
+  async participationReport(
+    tenantId: string,
+    sessionId: string,
+  ): Promise<ByodParticipationReport> {
+    const session = await this.prisma.byodStudySession.findFirst({
+      where: { id: sessionId, tenantId },
+      include: { participants: { orderBy: { joinedAt: "asc" } } },
+    });
+    if (!session)
+      throw new NotFoundException("BYOD session was not found for this tenant");
+    const generatedAt = new Date();
+    return {
+      sessionId,
+      generatedAt: generatedAt.toISOString(),
+      participants: session.participants.map((participant: any) => {
+        const effectiveExit =
+          participant.exitedAt ??
+          (generatedAt < session.endsAt ? generatedAt : session.endsAt);
+        return {
+          joinedAt: participant.joinedAt.toISOString(),
+          durationSeconds: Math.max(
+            0,
+            Math.floor(
+              (effectiveExit.getTime() - participant.joinedAt.getTime()) / 1000,
+            ),
+          ),
+          approvedAccess: session.allowedUrls,
+          exitStatus:
+            participant.exitStatus ??
+            (generatedAt >= session.endsAt ? "SESSION_ENDED" : "ACTIVE"),
+        };
+      }),
+    };
+  }
+
   async exit(
     tenantId: string,
     sessionId: string,
@@ -263,6 +385,67 @@ export class ByodService {
       startsAt: value.startsAt.toISOString(),
       endsAt: value.endsAt.toISOString(),
       allowedUrls: value.allowedUrls,
+      eligibility: value.eligibility as ByodEligibility,
+    };
+  }
+
+  private async evaluateReadiness(
+    tenantId: string,
+    session: any,
+    studentId: string,
+    checks: CheckByodReadinessDto,
+    checkedAt: Date,
+  ): Promise<ByodReadinessSummary> {
+    const eligibility = session.eligibility as ByodEligibility;
+    const issues: string[] = [];
+    let eligible = session.class.members.length > 0;
+    if (!eligible) issues.push("NOT_ENROLLED");
+    if (
+      session.status !== "ACTIVE" ||
+      checkedAt < session.startsAt ||
+      checkedAt >= session.endsAt
+    ) {
+      eligible = false;
+      issues.push("SESSION_CLOSED");
+    }
+    if (eligibility.scope === "EXAM") {
+      const exam = eligibility.examAssignmentId
+        ? await this.prisma.policyAssignment.findFirst({
+            where: {
+              id: eligibility.examAssignmentId,
+              tenantId,
+              active: true,
+              startsAt: { lte: checkedAt },
+              endsAt: { gt: checkedAt },
+            },
+            include: { policy: true },
+          })
+        : null;
+      const targeted =
+        exam &&
+        ((exam.scope === "CLASS" && exam.scopeId === session.classId) ||
+          (exam.scope === "GRADE" && exam.scopeId === session.class.grade) ||
+          (exam.scope === "STUDENT" && exam.scopeId === studentId));
+      const rules = exam?.policy?.rules as { mode?: string } | undefined;
+      if (!targeted || rules?.mode !== "EXAM") {
+        eligible = false;
+        issues.push("EXAM_POLICY_INELIGIBLE");
+      }
+    }
+    if (!eligibility.allowedPlatforms.includes(checks.platform.toUpperCase()))
+      issues.push("PLATFORM_NOT_ALLOWED");
+    if (!eligibility.allowedBrowsers.includes(checks.browser.toUpperCase()))
+      issues.push("BROWSER_NOT_ALLOWED");
+    if (checks.browserMajorVersion < eligibility.minimumBrowserMajorVersion)
+      issues.push("BROWSER_OUTDATED");
+    if (!checks.secureContext) issues.push("INSECURE_CONTEXT");
+    if (!checks.cookiesEnabled) issues.push("COOKIES_DISABLED");
+    if (!checks.javascriptEnabled) issues.push("JAVASCRIPT_DISABLED");
+    return {
+      checkedAt: checkedAt.toISOString(),
+      eligible,
+      ready: eligible && issues.length === 0,
+      issues,
     };
   }
 }

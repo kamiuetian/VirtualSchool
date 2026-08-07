@@ -1,10 +1,19 @@
-import { Body, Controller, Inject, Param, Post, Req } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Inject,
+  Param,
+  Post,
+  Req,
+} from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { RequirePermissions } from "../auth/decorators/require-permissions.decorator";
 import type { AuthenticatedRequest } from "../auth/types/authenticated-request";
 import { ByodService } from "./byod.service";
 import {
   CreateByodStudySessionDto,
+  CheckByodReadinessDto,
   ExitByodStudySessionDto,
 } from "./dto/byod.dto";
 
@@ -32,6 +41,7 @@ export class ByodController {
   join(
     @Param("tenantId") tenantId: string,
     @Param("sessionId") sessionId: string,
+    @Body() body: CheckByodReadinessDto,
     @Req() req: AuthenticatedRequest,
   ) {
     return this.service.join(
@@ -39,7 +49,33 @@ export class ByodController {
       sessionId,
       req.user!.subject,
       req.user!.role,
+      body,
     );
+  }
+
+  @Post(":sessionId/readiness")
+  readiness(
+    @Param("tenantId") tenantId: string,
+    @Param("sessionId") sessionId: string,
+    @Body() body: CheckByodReadinessDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.service.readiness(
+      tenantId,
+      sessionId,
+      req.user!.subject,
+      req.user!.role,
+      body,
+    );
+  }
+
+  @Get(":sessionId/participation-report")
+  @RequirePermissions("report:export")
+  report(
+    @Param("tenantId") tenantId: string,
+    @Param("sessionId") sessionId: string,
+  ) {
+    return this.service.participationReport(tenantId, sessionId);
   }
 
   @Post(":sessionId/exit")
