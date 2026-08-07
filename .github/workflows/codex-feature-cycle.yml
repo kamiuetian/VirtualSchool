@@ -40,6 +40,7 @@ jobs:
         run: |
           $hasReady = Select-String -Path CODEX_FEATURE_BACKLOG.md -Pattern '^\|\s*\d+\s*\|\s*ready\s*\|' -Quiet
           "has_ready=$($hasReady.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "baseline_sha=$(git rev-parse HEAD)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           if (-not $hasReady) {
             Write-Host 'The feature queue is complete or has no ready entries.'
           }
@@ -82,18 +83,28 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Ensure exactly one feature completed
+        id: delivery
         if: steps.backlog.outputs.has_ready == 'true'
         shell: powershell
+        env:
+          BASELINE_SHA: ${{ steps.backlog.outputs.baseline_sha }}
         run: |
-          if (-not (git status --porcelain)) {
-            throw 'Codex produced no repository change.'
+          $status = git status --porcelain
+          $head = git rev-parse HEAD
+          if (-not $status -and $head -eq $env:BASELINE_SHA) {
+            throw 'Codex produced neither a working-tree change nor a new commit.'
           }
-          $diff = git diff -- CODEX_FEATURE_BACKLOG.md | Out-String
+          if ($head -ne $env:BASELINE_SHA) {
+            $diff = git diff "$env:BASELINE_SHA..$head" -- CODEX_FEATURE_BACKLOG.md | Out-String
+          } else {
+            $diff = git diff -- CODEX_FEATURE_BACKLOG.md | Out-String
+          }
           if ($diff -notmatch '(?m)^\+\|\s*\d+\s*\|\s*complete\s*\|') {
             throw 'Codex did not mark the implemented backlog feature complete.'
           }
           git diff --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "has_working_tree_changes=$([bool]$status)".ToLowerInvariant() | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - name: Commit and push verified feature
         if: steps.backlog.outputs.has_ready == 'true'
@@ -107,7 +118,11 @@ jobs:
           $title = $completed.Matches[0].Groups[2].Value.Trim()
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add --all
-          git commit -m "Feature ${order}: ${title}"
+          if (git status --porcelain) {
+            git add --all
+            git commit -m "Feature ${order}: ${title}"
+          } else {
+            Write-Host 'Codex already created the verified feature commit; skipping duplicate commit creation.'
+          }
           gh auth setup-git
           git push origin HEAD:main
