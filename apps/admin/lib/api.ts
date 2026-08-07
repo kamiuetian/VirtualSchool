@@ -33,6 +33,7 @@ import type {
   ExamReport,
   UserSummary,
   ClassroomConnectionSummary,
+  LmsConnectionSummary,
 } from "@virtual-school/shared";
 import {
   requirePortalRouteAccess,
@@ -283,9 +284,7 @@ export async function adminApiMutation(
   await adminApiJsonMutation<unknown>(method, path, body);
 }
 
-export async function getClassroomIntegration(
-  tenantId: string,
-): Promise<{
+export async function getClassroomIntegration(tenantId: string): Promise<{
   integration: ClassroomConnectionSummary | null;
   connectionIssue: boolean;
 }> {
@@ -293,6 +292,15 @@ export async function getClassroomIntegration(
     `/tenants/${tenantId}/integrations/google-classroom`,
   );
   return { integration: result.data, connectionIssue: result.failed };
+}
+
+export async function getLmsIntegrations(
+  tenantId: string,
+): Promise<{ integrations: LmsConnectionSummary[]; connectionIssue: boolean }> {
+  const result = await apiGet<LmsConnectionSummary[]>(
+    `/tenants/${tenantId}/integrations/lms`,
+  );
+  return { integrations: result.data ?? [], connectionIssue: result.failed };
 }
 
 export async function getTeacherDashboard(tenantId: string): Promise<{
@@ -321,15 +329,23 @@ export async function getGuardianDashboard(): Promise<{
 export async function getExamReadiness(
   tenantId: string,
   assignmentId: string,
-): Promise<{ readiness: ExamReadinessSummary | null; connectionIssue: boolean }> {
+): Promise<{
+  readiness: ExamReadinessSummary | null;
+  connectionIssue: boolean;
+}> {
   const result = await apiGet<ExamReadinessSummary>(
     `/tenants/${tenantId}/policies/exam-schedules/${assignmentId}/readiness`,
   );
   return { connectionIssue: result.failed, readiness: result.data };
 }
 
-export async function getExamReport(tenantId: string, assignmentId: string): Promise<{ report: ExamReport | null; connectionIssue: boolean }> {
-  const result = await apiGet<ExamReport>(`/tenants/${tenantId}/policies/exam-schedules/${assignmentId}/report`);
+export async function getExamReport(
+  tenantId: string,
+  assignmentId: string,
+): Promise<{ report: ExamReport | null; connectionIssue: boolean }> {
+  const result = await apiGet<ExamReport>(
+    `/tenants/${tenantId}/policies/exam-schedules/${assignmentId}/report`,
+  );
   return { connectionIssue: result.failed, report: result.data };
 }
 

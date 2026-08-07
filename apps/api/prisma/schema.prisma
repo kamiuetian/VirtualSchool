@@ -128,6 +128,46 @@ model Tenant {
   classroomCourseMappings ClassroomCourseMapping[]
   classroomIdentityMappings ClassroomIdentityMapping[]
   classroomSyncRuns       ClassroomSyncRun[]
+  lmsConnections          LmsConnection[]
+  lmsCourseMappings       LmsCourseMapping[]
+}
+
+model LmsConnection {
+  id                  String   @id @default(uuid())
+  tenantId            String
+  provider            String
+  baseUrl             String
+  credentialReference String
+  status              String   @default("ENABLED")
+  lastTestedAt        DateTime?
+  lastTestOutcome     String?
+  configuredBy        String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  tenant              Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  courseMappings      LmsCourseMapping[]
+
+  @@unique([tenantId, provider])
+  @@index([tenantId, status])
+}
+
+model LmsCourseMapping {
+  id               String   @id @default(uuid())
+  tenantId         String
+  connectionId     String
+  classId          String
+  externalCourseId String
+  displayName      String
+  launchUrl        String
+  enabled          Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  connection       LmsConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, classId])
+  @@unique([connectionId, externalCourseId])
+  @@index([tenantId, classId, enabled])
 }
 
 model ClassroomConnection {

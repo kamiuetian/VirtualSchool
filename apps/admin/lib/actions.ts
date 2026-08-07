@@ -663,33 +663,55 @@ export async function issueSupportUnlockAction(
   revalidateAll();
 }
 
-export async function checkExamReadinessAction(formData: FormData): Promise<void> {
+export async function checkExamReadinessAction(
+  formData: FormData,
+): Promise<void> {
   await requireActionPermission("policy:manage");
-  redirect(`/policies?examAssignmentId=${encodeURIComponent(required(formData, "assignmentId"))}`);
+  redirect(
+    `/policies?examAssignmentId=${encodeURIComponent(required(formData, "assignmentId"))}`,
+  );
 }
 
-export async function launchAssessmentAction(formData: FormData): Promise<void> {
+export async function launchAssessmentAction(
+  formData: FormData,
+): Promise<void> {
   await requireActionPermission("policy:manage");
   const tenantId = required(formData, "tenantId");
   const assignmentId = required(formData, "assignmentId");
-  await adminApiMutation("POST", `/tenants/${tenantId}/policies/exam-schedules/${assignmentId}/launch`, {
-    reason: text(formData, "reason"),
-    resource: required(formData, "resource"),
-    resourceType: required(formData, "resourceType"),
-  });
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/policies/exam-schedules/${assignmentId}/launch`,
+    {
+      reason: text(formData, "reason"),
+      resource: required(formData, "resource"),
+      resourceType: required(formData, "resourceType"),
+    },
+  );
   revalidateAll();
-  redirect(`/policies?examAssignmentId=${encodeURIComponent(assignmentId)}&launch=queued`);
+  redirect(
+    `/policies?examAssignmentId=${encodeURIComponent(assignmentId)}&launch=queued`,
+  );
 }
 
-export async function unlockExamDeviceAction(formData: FormData): Promise<void> {
+export async function unlockExamDeviceAction(
+  formData: FormData,
+): Promise<void> {
   await requireActionPermission("policy:manage");
   const tenantId = required(formData, "tenantId");
   const assignmentId = required(formData, "assignmentId");
-  await adminApiMutation("POST", `/tenants/${tenantId}/policies/exam-schedules/${assignmentId}/emergency-unlocks`, {
-    deviceId: required(formData, "deviceId"), durationMinutes: numberValue(formData, "durationMinutes"), reason: required(formData, "reason"),
-  });
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/policies/exam-schedules/${assignmentId}/emergency-unlocks`,
+    {
+      deviceId: required(formData, "deviceId"),
+      durationMinutes: numberValue(formData, "durationMinutes"),
+      reason: required(formData, "reason"),
+    },
+  );
   revalidateAll();
-  redirect(`/policies?examAssignmentId=${encodeURIComponent(assignmentId)}&unlock=queued`);
+  redirect(
+    `/policies?examAssignmentId=${encodeURIComponent(assignmentId)}&unlock=queued`,
+  );
 }
 
 export async function assignPolicyAction(formData: FormData): Promise<void> {
@@ -1181,6 +1203,53 @@ export async function retryClassroomSyncAction(formData: FormData) {
   await adminApiMutation(
     "POST",
     `/tenants/${tenantId}/integrations/google-classroom/sync-runs/${runId}/retry`,
+    {},
+  );
+  revalidateAll();
+}
+
+export async function configureLmsAction(formData: FormData) {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation("POST", `/tenants/${tenantId}/integrations/lms`, {
+    provider: required(formData, "provider"),
+    baseUrl: required(formData, "baseUrl"),
+    credentialReference: required(formData, "credentialReference"),
+  });
+  revalidateAll();
+}
+export async function mapLmsCourseAction(formData: FormData) {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  const provider = required(formData, "provider");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/integrations/lms/${provider}/course-mappings`,
+    {
+      classId: required(formData, "classId"),
+      externalCourseId: required(formData, "externalCourseId"),
+      displayName: required(formData, "displayName"),
+      launchUrl: required(formData, "launchUrl"),
+    },
+  );
+  revalidateAll();
+}
+export async function testLmsAction(formData: FormData) {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/integrations/lms/${required(formData, "provider")}/test`,
+    {},
+  );
+  revalidateAll();
+}
+export async function disableLmsAction(formData: FormData) {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/integrations/lms/${required(formData, "provider")}/disable`,
     {},
   );
   revalidateAll();

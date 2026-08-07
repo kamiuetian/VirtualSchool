@@ -1,0 +1,10 @@
+CREATE TABLE "LmsConnection" ("id" TEXT NOT NULL, "tenantId" TEXT NOT NULL, "provider" TEXT NOT NULL, "baseUrl" TEXT NOT NULL, "credentialReference" TEXT NOT NULL, "status" TEXT NOT NULL DEFAULT 'ENABLED', "lastTestedAt" TIMESTAMP(3), "lastTestOutcome" TEXT, "configuredBy" TEXT, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL, CONSTRAINT "LmsConnection_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "LmsCourseMapping" ("id" TEXT NOT NULL, "tenantId" TEXT NOT NULL, "connectionId" TEXT NOT NULL, "classId" TEXT NOT NULL, "externalCourseId" TEXT NOT NULL, "displayName" TEXT NOT NULL, "launchUrl" TEXT NOT NULL, "enabled" BOOLEAN NOT NULL DEFAULT true, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL, CONSTRAINT "LmsCourseMapping_pkey" PRIMARY KEY ("id"));
+CREATE UNIQUE INDEX "LmsConnection_tenantId_provider_key" ON "LmsConnection"("tenantId", "provider");
+CREATE INDEX "LmsConnection_tenantId_status_idx" ON "LmsConnection"("tenantId", "status");
+CREATE UNIQUE INDEX "LmsCourseMapping_connectionId_classId_key" ON "LmsCourseMapping"("connectionId", "classId");
+CREATE UNIQUE INDEX "LmsCourseMapping_connectionId_externalCourseId_key" ON "LmsCourseMapping"("connectionId", "externalCourseId");
+CREATE INDEX "LmsCourseMapping_tenantId_classId_enabled_idx" ON "LmsCourseMapping"("tenantId", "classId", "enabled");
+ALTER TABLE "LmsConnection" ADD CONSTRAINT "LmsConnection_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "LmsCourseMapping" ADD CONSTRAINT "LmsCourseMapping_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "LmsCourseMapping" ADD CONSTRAINT "LmsCourseMapping_connectionId_fkey" FOREIGN KEY ("connectionId") REFERENCES "LmsConnection"("id") ON DELETE CASCADE ON UPDATE CASCADE;

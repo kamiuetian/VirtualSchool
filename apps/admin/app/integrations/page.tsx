@@ -13,8 +13,16 @@ import {
   mapClassroomIdentityAction,
   retryClassroomSyncAction,
   startClassroomSyncAction,
+  configureLmsAction,
+  mapLmsCourseAction,
+  testLmsAction,
+  disableLmsAction,
 } from "../../lib/actions";
-import { getAdminData, getClassroomIntegration } from "../../lib/api";
+import {
+  getAdminData,
+  getClassroomIntegration,
+  getLmsIntegrations,
+} from "../../lib/api";
 
 export const dynamic = "force-dynamic";
 export default async function IntegrationsPage() {
@@ -24,9 +32,16 @@ export default async function IntegrationsPage() {
     ? await getClassroomIntegration(tenant.id)
     : { integration: null, connectionIssue: false };
   const integration = classroomResult.integration;
+  const lmsResult = tenant
+    ? await getLmsIntegrations(tenant.id)
+    : { integrations: [], connectionIssue: false };
   return (
     <AppShell
-      connectionIssue={data.connectionIssue || classroomResult.connectionIssue}
+      connectionIssue={
+        data.connectionIssue ||
+        classroomResult.connectionIssue ||
+        lmsResult.connectionIssue
+      }
       tenant={tenant}
     >
       <div className="content-stack">
@@ -240,6 +255,120 @@ export default async function IntegrationsPage() {
               body="Queued, completed, and retryable sync outcomes appear here."
             />
           )}
+        </PageSection>
+        <PageSection kicker="Course links" title="Moodle and Canvas">
+          {tenant ? (
+            <div className="form-grid two">
+              {["MOODLE", "CANVAS"].map((provider) => {
+                const current = lmsResult.integrations.find(
+                  (item) => item.provider === provider,
+                );
+                return (
+                  <ActionPanel
+                    key={provider}
+                    title={provider === "MOODLE" ? "Moodle" : "Canvas"}
+                  >
+                    <form action={configureLmsAction} className="stacked-form">
+                      <input name="tenantId" type="hidden" value={tenant.id} />
+                      <input name="provider" type="hidden" value={provider} />
+                      <Field label="HTTPS base URL">
+                        <input
+                          name="baseUrl"
+                          type="url"
+                          defaultValue={current?.baseUrl}
+                          required
+                        />
+                      </Field>
+                      <Field label="Credential reference">
+                        <input
+                          name="credentialReference"
+                          defaultValue={current?.credentialReference}
+                          required
+                        />
+                      </Field>
+                      <SubmitButton>
+                        {current ? "Update and enable" : "Configure"}
+                      </SubmitButton>
+                    </form>
+                    {current ? (
+                      <>
+                        <form
+                          action={mapLmsCourseAction}
+                          className="stacked-form"
+                        >
+                          <input
+                            name="tenantId"
+                            type="hidden"
+                            value={tenant.id}
+                          />
+                          <input
+                            name="provider"
+                            type="hidden"
+                            value={provider}
+                          />
+                          <Field label="Virtual School class">
+                            <select name="classId" required>
+                              <option value="">Select class</option>
+                              {data.classes.map((item) => (
+                                <option key={item.id} value={item.id}>
+                                  {item.name} · {item.grade}
+                                </option>
+                              ))}
+                            </select>
+                          </Field>
+                          <Field label="External course ID">
+                            <input name="externalCourseId" required />
+                          </Field>
+                          <Field label="Launcher label">
+                            <input name="displayName" required />
+                          </Field>
+                          <Field label="Course launch URL">
+                            <input name="launchUrl" type="url" required />
+                          </Field>
+                          <SubmitButton>Save launcher link</SubmitButton>
+                        </form>
+                        <div className="form-row">
+                          <form action={testLmsAction}>
+                            <input
+                              name="tenantId"
+                              type="hidden"
+                              value={tenant.id}
+                            />
+                            <input
+                              name="provider"
+                              type="hidden"
+                              value={provider}
+                            />
+                            <button className="small-button primary">
+                              Test connection
+                            </button>
+                          </form>
+                          <form action={disableLmsAction}>
+                            <input
+                              name="tenantId"
+                              type="hidden"
+                              value={tenant.id}
+                            />
+                            <input
+                              name="provider"
+                              type="hidden"
+                              value={provider}
+                            />
+                            <button className="small-button">Disable</button>
+                          </form>
+                        </div>
+                        <small>
+                          {current.status} · Last test:{" "}
+                          {current.lastTestOutcome ?? "not tested"} ·{" "}
+                          {current.courseMappings.length} mapped courses
+                        </small>
+                      </>
+                    ) : null}
+                  </ActionPanel>
+                );
+              })}
+            </div>
+          ) : null}
         </PageSection>
       </div>
     </AppShell>
