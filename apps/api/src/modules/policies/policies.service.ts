@@ -20,6 +20,8 @@ import type {
   BlockedDomainAggregate,
   ExamReadinessSummary,
   AssessmentLaunchSummary,
+  ExamIntegrityEventType,
+  ExamReport,
 } from "@virtual-school/shared";
 import {
   type AppCatalogItem,
@@ -40,6 +42,7 @@ import type { RollbackPolicyDto } from "./dto/rollback-policy.dto";
 import type { UpdateAndroidControlsDto } from "./dto/update-android-controls.dto";
 import type { IngestBlockedDomainEventDto } from "./dto/ingest-blocked-domain-event.dto";
 import type { LaunchAssessmentDto } from "./dto/launch-assessment.dto";
+import type { IngestExamIntegrityEventDto, UnlockExamDeviceDto } from "./dto/exam-operations.dto";
 import { starterPolicyTemplates } from "./starter-policy-templates";
 import { evaluateUrlPolicy } from "./url-policy-evaluator";
 
@@ -843,6 +846,64 @@ export class PoliciesService {
       return ids;
     });
     return { assignmentId, commandIds, queued: commandIds.length, resource, resourceType: input.resourceType, skipped: readiness.blocked };
+  }
+
+  async ingestExamIntegrityEvent(tenantId: string, assignmentId: string, input: IngestExamIntegrityEventDto) {
+    const assignment = await this.getExamAssignment(tenantId, assignmentId);
+    const device = await this.prisma.device.findFirst({ where: { id: input.deviceId, tenantId, ...this.examDeviceScope(assignment.scope, assignment.scopeId) } });
+    if (!device) throw new NotFoundException("Device is not targeted by this exam");
+    const occurredAt = input.occurredAt ? new Date(input.occurredAt) : new Date();
+    if ((assignment.startsAt && occurredAt < assignment.startsAt) || (assignment.endsAt && occurredAt > assignment.endsAt)) {
+      throw new BadRequestException("Integrity event falls outside the exam window");
+    }
+    return this.prisma.auditEvent.create({ data: {
+      action: "exam.integrity.event", actorId: device.id,
+      newValue: { assignmentId, deviceId: device.id, occurredAt, type: input.type },
+      object: "Device", objectId: device.id, outcome: "RECORDED", tenantId,
+    } });
+  }
+
+  async unlockExamDevice(tenantId: string, assignmentId: string, input: UnlockExamDeviceDto, actorId: string) {
+    const assignment = await this.getExamAssignment(tenantId, assignmentId);
+    const now = new Date();
+    if (!assignment.active || (assignment.startsAt && assignment.startsAt > now) || (assignment.endsAt && assignment.endsAt <= now)) {
+      throw new BadRequestException("Emergency unlock requires an active exam window");
+    }
+    const device = await this.prisma.device.findFirst({ where: { id: input.deviceId, tenantId, status: { not: "RETIRED" }, ...this.examDeviceScope(assignment.scope, assignment.scopeId) } });
+    if (!device) throw new NotFoundException("Device is not targeted by this exam");
+    const expiresAt = new Date(Math.min(now.getTime() + input.durationMinutes * 60_000, assignment.endsAt?.getTime() ?? Number.MAX_SAFE_INTEGER));
+    return this.prisma.$transaction(async (tx) => {
+      const command = await tx.remoteCommand.create({ data: { deviceId: device.id, expiresAt, maxAttempts: 3, payload: { action: "EXAM_EMERGENCY_UNLOCK", assignmentId, durationMinutes: input.durationMinutes }, reason: input.reason, requestedBy: actorId, status: "QUEUED", tenantId, type: "SEND_MESSAGE" } });
+      await tx.auditEvent.create({ data: { action: "exam.emergency_unlock", actorId, newValue: { assignmentId, commandId: command.id, deviceId: device.id, durationMinutes: input.durationMinutes, expiresAt }, object: "Device", objectId: device.id, outcome: "SUCCESS", reason: input.reason, tenantId } });
+      return command;
+    });
+  }
+
+  async getExamReport(tenantId: string, assignmentId: string): Promise<ExamReport> {
+    const assignment = await this.getExamAssignment(tenantId, assignmentId);
+    const [devices, audits, commands] = await Promise.all([
+      this.prisma.device.findMany({ select: { id: true }, where: { tenantId, status: { not: "RETIRED" }, ...this.examDeviceScope(assignment.scope, assignment.scopeId) } }),
+      this.prisma.auditEvent.findMany({ orderBy: { createdAt: "asc" }, where: { tenantId, OR: [{ objectId: assignmentId }, { action: { in: ["exam.integrity.event", "exam.emergency_unlock"] }, newValue: { path: ["assignmentId"], equals: assignmentId } }] } }),
+      this.prisma.remoteCommand.findMany({ where: { tenantId, payload: { path: ["assignmentId"], equals: assignmentId } } }),
+    ]);
+    const json = (value: Prisma.JsonValue | null) => value && typeof value === "object" && !Array.isArray(value) ? value as Prisma.JsonObject : {};
+    const launches = audits.filter((event) => event.action === "exam.assessment.launch");
+    const lastLaunch = launches.at(-1); const launchValue = json(lastLaunch?.newValue ?? null);
+    const participants = new Set(commands.filter((command) => json(command.payload).action === "ASSESSMENT_LAUNCH").map((command) => command.deviceId));
+    const scheduled = audits.find((event) => event.action === "exam.schedule");
+    const scheduleValue = json(scheduled?.newValue ?? null);
+    const completed = [...audits].reverse().find((event) => event.action === "exam.complete");
+    return {
+      assignmentId, policyId: assignment.policy.id, policyVersion: assignment.policy.version, scope: assignment.scope as ExamReport["scope"], scopeId: assignment.scopeId,
+      scheduledStart: typeof scheduleValue.startsAt === "string" ? scheduleValue.startsAt : assignment.startsAt?.toISOString() ?? null,
+      scheduledEnd: typeof scheduleValue.endsAt === "string" ? scheduleValue.endsAt : assignment.endsAt?.toISOString() ?? null,
+      actualEnd: completed?.createdAt.toISOString() ?? null, generatedAt: new Date().toISOString(),
+      attendance: { targeted: devices.length, participated: participants.size, absent: Math.max(0, devices.length - participants.size) },
+      readiness: { ready: typeof launchValue.queued === "number" ? launchValue.queued : 0, blocked: typeof launchValue.skipped === "number" ? launchValue.skipped : 0, checkedAt: lastLaunch?.createdAt.toISOString() ?? null },
+      integrityEvents: audits.filter((e) => e.action === "exam.integrity.event").map((e) => { const v = json(e.newValue); return { deviceId: String(v.deviceId), type: String(v.type) as ExamIntegrityEventType, occurredAt: typeof v.occurredAt === "string" ? v.occurredAt : e.createdAt.toISOString() }; }),
+      failures: commands.filter((c) => c.status === "FAILED").map((c) => ({ deviceId: c.deviceId, reason: c.failureReason ?? "Command failed", occurredAt: (c.completedAt ?? c.updatedAt).toISOString() })),
+      unlocks: audits.filter((e) => e.action === "exam.emergency_unlock").map((e) => { const v = json(e.newValue); return { deviceId: String(v.deviceId), actorId: e.actorId, reason: e.reason ?? "", durationMinutes: Number(v.durationMinutes), occurredAt: e.createdAt.toISOString() }; }),
+    };
   }
 
   async listPolicyAssignments(

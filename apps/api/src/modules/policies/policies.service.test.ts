@@ -894,4 +894,27 @@ describe("PoliciesService", () => {
     const service = new PoliciesService({ policyAssignment: { findFirst: async () => assignment } } as never, connectorRegistry() as never);
     await expect(service.launchAssessment("tenant-1", "exam-1", { resource: "https://unapproved.example", resourceType: "URL" }, "staff-1")).rejects.toThrow("not approved");
   });
+
+  it("records only in-scope privacy-limited integrity events", async () => {
+    const create = vi.fn().mockResolvedValue({ id: "audit-1" });
+    const assignment = { id: "exam-1", startsAt: new Date("2026-05-17T09:00:00Z"), endsAt: new Date("2026-05-17T11:00:00Z"), scope: "CLASS", scopeId: "class-1", policy: { rules: { ...baseRules, mode: "EXAM" } } };
+    const service = new PoliciesService({ policyAssignment: { findFirst: async () => assignment }, device: { findFirst: async () => ({ id: "device-1" }) }, auditEvent: { create } } as never, connectorRegistry() as never);
+    await service.ingestExamIntegrityEvent("tenant-1", "exam-1", { deviceId: "device-1", occurredAt: now.toISOString(), type: "APP_EXIT_ATTEMPT" });
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ action: "exam.integrity.event", newValue: expect.objectContaining({ assignmentId: "exam-1", type: "APP_EXIT_ATTEMPT" }) }) }));
+  });
+
+  it("queues and audits a bounded privileged exam unlock", async () => {
+    const assignment = { active: true, id: "exam-1", startsAt: new Date(Date.now() - 60_000), endsAt: new Date(Date.now() + 3_600_000), scope: "CLASS", scopeId: "class-1", policy: { rules: { ...baseRules, mode: "EXAM" } } };
+    const commandCreate = vi.fn().mockResolvedValue({ id: "command-1" }); const auditCreate = vi.fn();
+    const service = new PoliciesService({ policyAssignment: { findFirst: async () => assignment }, device: { findFirst: async () => ({ id: "device-1" }) }, $transaction: async (callback: (tx: any) => Promise<unknown>) => callback({ remoteCommand: { create: commandCreate }, auditEvent: { create: auditCreate } }) } as never, connectorRegistry() as never);
+    await service.unlockExamDevice("tenant-1", "exam-1", { deviceId: "device-1", durationMinutes: 5, reason: "Candidate support" }, "admin-1");
+    expect(commandCreate).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ payload: expect.objectContaining({ action: "EXAM_EMERGENCY_UNLOCK", durationMinutes: 5 }) }) }));
+    expect(auditCreate).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ action: "exam.emergency_unlock", actorId: "admin-1", reason: "Candidate support" }) }));
+  });
+
+  it("builds a tenant-scoped post-exam report from durable evidence", async () => {
+    const assignment = { id: "exam-1", startsAt: now, endsAt: new Date(now.getTime() + 3_600_000), scope: "CLASS", scopeId: "class-1", policy: { id: "exam-policy", version: 3, rules: { ...baseRules, mode: "EXAM" } } };
+    const service = new PoliciesService({ policyAssignment: { findFirst: async () => assignment }, device: { findMany: async () => [{ id: "device-1" }, { id: "device-2" }] }, auditEvent: { findMany: async () => [{ action: "exam.assessment.launch", actorId: "admin-1", createdAt: now, newValue: { assignmentId: "exam-1", queued: 1, skipped: 1 }, reason: "Begin" }, { action: "exam.emergency_unlock", actorId: "admin-1", createdAt: now, newValue: { assignmentId: "exam-1", deviceId: "device-1", durationMinutes: 5 }, reason: "Support" }] }, remoteCommand: { findMany: async () => [{ deviceId: "device-1", status: "COMPLETED", payload: { action: "ASSESSMENT_LAUNCH", assignmentId: "exam-1" }, failureReason: null, completedAt: now, updatedAt: now }] } } as never, connectorRegistry() as never);
+    await expect(service.getExamReport("tenant-1", "exam-1")).resolves.toMatchObject({ attendance: { targeted: 2, participated: 1, absent: 1 }, readiness: { ready: 1, blocked: 1 }, unlocks: [{ deviceId: "device-1", durationMinutes: 5 }] });
+  });
 });

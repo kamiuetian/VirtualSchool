@@ -18,8 +18,9 @@ import {
   updateAndroidPolicyControlsAction,
   checkExamReadinessAction,
   launchAssessmentAction,
+  unlockExamDeviceAction,
 } from "../../lib/actions";
-import { getAdminData, getExamReadiness } from "../../lib/api";
+import { getAdminData, getExamReadiness, getExamReport } from "../../lib/api";
 import { formatCount, formatDateTime, humanize } from "../../lib/format";
 
 export const dynamic = "force-dynamic";
@@ -38,11 +39,15 @@ export default async function PoliciesPage({
     (policy) => policy.rules.mode === "EMERGENCY_SUPPORT_OVERRIDE",
   );
   const examPolicyIds = new Set(published.filter((policy) => policy.rules.mode === "EXAM").map((policy) => policy.id));
-  const examAssignments = data.policyAssignments.filter((assignment) => assignment.active && examPolicyIds.has(assignment.policyId));
+  const examAssignments = data.policyAssignments.filter((assignment) => examPolicyIds.has(assignment.policyId));
   const readinessResult = simulation?.examAssignmentId && data.selectedTenant
     ? await getExamReadiness(data.selectedTenant.id, simulation.examAssignmentId)
     : null;
   const readiness = readinessResult?.readiness ?? null;
+  const reportResult = simulation?.examAssignmentId && data.selectedTenant
+    ? await getExamReport(data.selectedTenant.id, simulation.examAssignmentId)
+    : null;
+  const report = reportResult?.report ?? null;
 
   return (
     <AppShell
@@ -427,8 +432,24 @@ export default async function PoliciesPage({
                   {simulation?.launch === "queued" ? <p className="form-help" aria-live="polite">Secure launch queued for ready devices.</p> : null}
                 </form>
               </ActionPanel>
+              <ActionPanel title="Emergency device unlock">
+                <form action={unlockExamDeviceAction} className="stacked-form">
+                  <input name="tenantId" type="hidden" value={data.selectedTenant.id} />
+                  <Field label="Exam schedule"><select name="assignmentId" defaultValue={simulation?.examAssignmentId} required>{examAssignments.filter((assignment) => assignment.active).map((assignment) => <option key={assignment.id} value={assignment.id}>{assignment.policyName} — {assignment.scope} {assignment.scopeId}</option>)}</select></Field>
+                  <Field label="Device ID"><input name="deviceId" required /></Field>
+                  <Field label="Minutes"><input name="durationMinutes" type="number" min="1" max="15" defaultValue="5" required /></Field>
+                  <Field label="Reason"><input name="reason" minLength={3} required placeholder="Candidate support case" /></Field>
+                  <SubmitButton>Queue audited unlock</SubmitButton>
+                  {simulation?.unlock === "queued" ? <p className="form-help" aria-live="polite">Bounded emergency unlock queued and audited.</p> : null}
+                </form>
+              </ActionPanel>
             </div>
             {readiness && readiness.devices.length > 0 ? <div className="table-wrap"><table><thead><tr><th>Device</th><th>Status</th><th>Battery</th><th>Policy</th><th>Issues</th></tr></thead><tbody>{readiness.devices.map((device) => <tr key={device.deviceId}><td>{device.serialNumber}</td><td><StatusPill tone={device.ready ? "good" : "critical"}>{device.ready ? "Ready" : "Blocked"}</StatusPill></td><td>{device.batteryLevel === null ? "Unknown" : `${device.batteryLevel}%`}</td><td>{device.policyVersion === null ? "Unknown" : `v${device.policyVersion}`}</td><td>{device.issues.length ? device.issues.map(humanize).join(", ") : "—"}</td></tr>)}</tbody></table></div> : null}
+            {report ? <div className="card-grid" aria-label="Post-exam report">
+              <article className="record-card"><strong>Attendance</strong><p>{report.attendance.participated} participated; {report.attendance.absent} absent of {report.attendance.targeted} targeted.</p></article>
+              <article className="record-card"><strong>Readiness</strong><p>{report.readiness.ready} ready; {report.readiness.blocked} blocked.</p></article>
+              <article className="record-card"><strong>Integrity and support</strong><p>{report.integrityEvents.length} integrity events; {report.failures.length} failures; {report.unlocks.length} unlocks.</p></article>
+            </div> : null}
           </PageSection>
         ) : null}
 

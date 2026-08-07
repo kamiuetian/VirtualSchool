@@ -681,6 +681,17 @@ export async function launchAssessmentAction(formData: FormData): Promise<void> 
   redirect(`/policies?examAssignmentId=${encodeURIComponent(assignmentId)}&launch=queued`);
 }
 
+export async function unlockExamDeviceAction(formData: FormData): Promise<void> {
+  await requireActionPermission("policy:manage");
+  const tenantId = required(formData, "tenantId");
+  const assignmentId = required(formData, "assignmentId");
+  await adminApiMutation("POST", `/tenants/${tenantId}/policies/exam-schedules/${assignmentId}/emergency-unlocks`, {
+    deviceId: required(formData, "deviceId"), durationMinutes: numberValue(formData, "durationMinutes"), reason: required(formData, "reason"),
+  });
+  revalidateAll();
+  redirect(`/policies?examAssignmentId=${encodeURIComponent(assignmentId)}&unlock=queued`);
+}
+
 export async function assignPolicyAction(formData: FormData): Promise<void> {
   await requireActionPermission("policy:manage");
   const tenantId = required(formData, "tenantId");

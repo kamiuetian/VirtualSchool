@@ -30,6 +30,7 @@ import type {
   TeacherDashboard,
   GuardianDashboard,
   ExamReadinessSummary,
+  ExamReport,
   UserSummary,
 } from "@virtual-school/shared";
 import {
@@ -312,6 +313,11 @@ export async function getExamReadiness(
     `/tenants/${tenantId}/policies/exam-schedules/${assignmentId}/readiness`,
   );
   return { connectionIssue: result.failed, readiness: result.data };
+}
+
+export async function getExamReport(tenantId: string, assignmentId: string): Promise<{ report: ExamReport | null; connectionIssue: boolean }> {
+  const result = await apiGet<ExamReport>(`/tenants/${tenantId}/policies/exam-schedules/${assignmentId}/report`);
+  return { connectionIssue: result.failed, report: result.data };
 }
 
 export async function adminApiJsonMutation<T>(

@@ -196,6 +196,30 @@ export type AssessmentLaunchSummary = {
   commandIds: string[];
 };
 
+export type ExamIntegrityEventType =
+  | "APP_EXIT_ATTEMPT"
+  | "NETWORK_LOSS"
+  | "POLICY_TAMPER"
+  | "SCREEN_PINNING_EXIT"
+  | "UNEXPECTED_RESTART";
+
+export type ExamReport = {
+  assignmentId: string;
+  policyId: string;
+  policyVersion: number;
+  scope: PolicyAssignmentScope;
+  scopeId: string | null;
+  scheduledStart: string | null;
+  scheduledEnd: string | null;
+  actualEnd: string | null;
+  generatedAt: string;
+  attendance: { targeted: number; participated: number; absent: number };
+  readiness: { ready: number; blocked: number; checkedAt: string | null };
+  integrityEvents: Array<{ deviceId: string; type: ExamIntegrityEventType; occurredAt: string }>;
+  failures: Array<{ deviceId: string; reason: string; occurredAt: string }>;
+  unlocks: Array<{ deviceId: string; actorId: string | null; reason: string; durationMinutes: number; occurredAt: string }>;
+};
+
 export type ActivePolicyResolution = {
   deviceId: string;
   tenantId: string;
