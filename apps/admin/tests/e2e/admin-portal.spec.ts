@@ -64,6 +64,16 @@ test.describe("admin portal regression", () => {
       page.getByRole("heading", { name: "Command History" }),
     ).toBeVisible();
     await expect(
+      page.getByRole("heading", { name: "Device lifecycle" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Apply lifecycle change" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Assignment and Lifecycle History" }),
+    ).toBeVisible();
+    await expect(page.getByText("Pilot allocation")).toBeVisible();
+    await expect(
       page.getByRole("heading", { name: "Recent Diagnostics" }),
     ).toBeVisible();
 

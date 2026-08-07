@@ -257,9 +257,29 @@ export async function assignDeviceAction(formData: FormData): Promise<void> {
     {
       branchId: text(formData, "branchId"),
       classId: text(formData, "classId"),
-      reason: text(formData, "reason"),
+      reason: required(formData, "reason"),
       studentId: text(formData, "studentId"),
       tags: splitList(text(formData, "tags")),
+    },
+  );
+  revalidateAll();
+}
+
+export async function changeDeviceLifecycleAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("device:enroll");
+  const tenantId = required(formData, "tenantId");
+  const deviceId = required(formData, "deviceId");
+  const operation = required(formData, "operation");
+  if (operation !== "retire" && operation !== "unenroll") {
+    throw new Error("Unsupported device lifecycle operation");
+  }
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/devices/${deviceId}/${operation}`,
+    {
+      reason: required(formData, "reason"),
     },
   );
   revalidateAll();

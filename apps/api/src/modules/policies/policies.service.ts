@@ -771,6 +771,12 @@ export class PoliciesService {
       );
     }
 
+    if (device.status === "RETIRED") {
+      throw new NotFoundException(
+        `No policy is delivered to retired device ${deviceId}`,
+      );
+    }
+
     const scopeMatches: Array<{ scope: string; scopeId?: string | null }> = [
       {
         scope: "TENANT",

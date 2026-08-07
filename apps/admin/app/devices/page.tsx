@@ -11,6 +11,7 @@ import {
 import {
   assignDeviceAction,
   bulkAssignDevicesAction,
+  changeDeviceLifecycleAction,
   queueDeviceCommandAction,
   queueWipeDeviceAction,
 } from "../../lib/actions";
@@ -38,7 +39,12 @@ export default async function DevicesPage({
   const operations =
     selectedTenant && selectedDevice
       ? await getDeviceOperationsData(selectedTenant.id, selectedDevice.id)
-      : { commands: [], connectionIssue: false, diagnostics: [] };
+      : {
+          commands: [],
+          connectionIssue: false,
+          diagnostics: [],
+          history: { assignments: [], lifecycle: [] },
+        };
   const nonCompliant = data.devices.filter(
     (device) =>
       device.compliance !== "COMPLIANT" && device.compliance !== "UNKNOWN",
@@ -115,6 +121,7 @@ export default async function DevicesPage({
                     <input
                       name="reason"
                       placeholder="Assigned during rollout"
+                      required
                     />
                   </Field>
                   <SubmitButton>Save assignment</SubmitButton>
@@ -295,6 +302,41 @@ export default async function DevicesPage({
                   </div>
                 </div>
               </ActionPanel>
+              {canAssignDevices ? (
+                <ActionPanel title="Device lifecycle">
+                  <form
+                    action={changeDeviceLifecycleAction}
+                    className="stacked-form"
+                  >
+                    <input
+                      name="tenantId"
+                      type="hidden"
+                      value={selectedTenant.id}
+                    />
+                    <input
+                      name="deviceId"
+                      type="hidden"
+                      value={selectedDevice.id}
+                    />
+                    <Field label="Operation">
+                      <select name="operation" defaultValue="unenroll">
+                        <option value="unenroll">
+                          Unenroll for reprovisioning
+                        </option>
+                        <option value="retire">Permanently retire</option>
+                      </select>
+                    </Field>
+                    <Field label="Reason">
+                      <input
+                        name="reason"
+                        required
+                        placeholder="Approved lifecycle reason"
+                      />
+                    </Field>
+                    <SubmitButton>Apply lifecycle change</SubmitButton>
+                  </form>
+                </ActionPanel>
+              ) : null}
             </div>
           </PageSection>
         ) : null}
@@ -399,6 +441,56 @@ export default async function DevicesPage({
             <EmptyState
               title="No command history"
               body="Remote lock, unlock, policy refresh, message, check-in, and wipe commands will appear here."
+            />
+          )}
+        </PageSection>
+
+        <PageSection title="Assignment and Lifecycle History">
+          {operations.history.assignments.length +
+            operations.history.lifecycle.length >
+          0 ? (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Type</th>
+                    <th>Assignment / event</th>
+                    <th>Reason</th>
+                    <th>Started</th>
+                    <th>Ended</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {operations.history.lifecycle.map((event) => (
+                    <tr key={event.id}>
+                      <td>Lifecycle</td>
+                      <td>{humanize(event.type)}</td>
+                      <td>{event.reason}</td>
+                      <td>{formatDateTime(event.createdAt)}</td>
+                      <td>—</td>
+                    </tr>
+                  ))}
+                  {operations.history.assignments.map((assignment) => (
+                    <tr key={assignment.id}>
+                      <td>Assignment</td>
+                      <td>
+                        {assignment.studentId ??
+                          assignment.classId ??
+                          assignment.branchId ??
+                          "Unassigned"}
+                      </td>
+                      <td>{assignment.reason}</td>
+                      <td>{formatDateTime(assignment.startedAt)}</td>
+                      <td>{formatDateTime(assignment.endedAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <EmptyState
+              title="No lifecycle history"
+              body="Assignments, reassignments, retirement, and unenrollment events will appear here."
             />
           )}
         </PageSection>

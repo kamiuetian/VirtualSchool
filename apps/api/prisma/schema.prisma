@@ -110,6 +110,8 @@ model Tenant {
   billingSubscription BillingSubscription?
   auditEvents         AuditEvent[]
   blockedDomainEvents BlockedDomainEvent[]
+  assignmentHistory   DeviceAssignment[]
+  lifecycleEvents     DeviceLifecycleEvent[]
 }
 
 model BillingSubscription {
@@ -312,11 +314,48 @@ model Device {
   alerts              DeviceAlert[]
   blockedDomainEvents BlockedDomainEvent[]
   supportNotes        SupportNote[]
+  assignmentHistory   DeviceAssignment[]
+  lifecycleEvents     DeviceLifecycleEvent[]
 
   @@unique([tenantId, serialNumber])
   @@index([tenantId, status])
   @@index([tenantId, enrollmentBatchId])
   @@index([tenantId, mdmConnector])
+}
+
+model DeviceAssignment {
+  id        String    @id @default(uuid())
+  tenantId  String
+  deviceId  String
+  studentId String?
+  classId   String?
+  branchId  String?
+  reason    String
+  actorId   String?
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  device    Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, deviceId, startedAt])
+  @@index([tenantId, studentId, startedAt])
+  @@index([deviceId, endedAt])
+}
+
+model DeviceLifecycleEvent {
+  id        String   @id @default(uuid())
+  tenantId  String
+  deviceId  String
+  type      String
+  reason    String
+  actorId   String?
+  oldValue  Json?
+  newValue  Json?
+  createdAt DateTime @default(now())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  device    Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, deviceId, createdAt])
 }
 
 model SupportNote {

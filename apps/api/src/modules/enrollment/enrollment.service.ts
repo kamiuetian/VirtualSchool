@@ -7,6 +7,7 @@ import {
 } from "@nestjs/common";
 import type {
   DeviceCheckInResult,
+  DeviceHistory,
   DeviceSummary,
   EnrollmentBatchSummary,
 } from "@virtual-school/shared";
@@ -248,6 +249,10 @@ export class EnrollmentService {
       );
     }
 
+    if (device.status === "RETIRED") {
+      throw new BadRequestException("Retired devices cannot be reassigned");
+    }
+
     await Promise.all([
       this.ensureBranchBelongsToTenant(tenantId, input.branchId),
       this.ensureStudentBelongsToTenantAndCanBeAssigned(
@@ -258,6 +263,18 @@ export class EnrollmentService {
     ]);
 
     const updated = await this.prisma.$transaction(async (tx) => {
+      const assignmentChanged =
+        (input.branchId !== undefined && input.branchId !== device.branchId) ||
+        (input.classId !== undefined && input.classId !== device.classId) ||
+        (input.studentId !== undefined && input.studentId !== device.studentId);
+
+      if (assignmentChanged) {
+        await tx.deviceAssignment.updateMany({
+          data: { endedAt: new Date() },
+          where: { deviceId: device.id, endedAt: null, tenantId },
+        });
+      }
+
       const saved = await tx.device.update({
         data: {
           branchId: input.branchId ?? device.branchId,
@@ -270,6 +287,19 @@ export class EnrollmentService {
           id: device.id,
         },
       });
+
+      if (assignmentChanged) {
+        await tx.deviceAssignment.create({
+          data: {
+            branchId: saved.branchId,
+            classId: saved.classId,
+            deviceId: saved.id,
+            reason: input.reason,
+            studentId: saved.studentId,
+            tenantId,
+          },
+        });
+      }
 
       await tx.auditEvent.create({
         data: {
@@ -298,6 +328,125 @@ export class EnrollmentService {
     });
 
     return this.toDeviceSummary(updated);
+  }
+
+  async getDeviceHistory(
+    tenantId: string,
+    deviceId: string,
+  ): Promise<DeviceHistory> {
+    await this.findDevice(tenantId, deviceId);
+    const [assignments, lifecycle] = await Promise.all([
+      this.prisma.deviceAssignment.findMany({
+        orderBy: { startedAt: "desc" },
+        where: { deviceId, tenantId },
+      }),
+      this.prisma.deviceLifecycleEvent.findMany({
+        orderBy: { createdAt: "desc" },
+        where: { deviceId, tenantId },
+      }),
+    ]);
+    return {
+      assignments: assignments.map((item) => ({
+        actorId: item.actorId,
+        branchId: item.branchId,
+        classId: item.classId,
+        endedAt: item.endedAt?.toISOString() ?? null,
+        id: item.id,
+        reason: item.reason,
+        startedAt: item.startedAt.toISOString(),
+        studentId: item.studentId,
+      })),
+      lifecycle: lifecycle.map((item) => ({
+        actorId: item.actorId,
+        createdAt: item.createdAt.toISOString(),
+        id: item.id,
+        reason: item.reason,
+        type: item.type as "RETIRED" | "UNENROLLED",
+      })),
+    };
+  }
+
+  async retireDevice(
+    tenantId: string,
+    deviceId: string,
+    reason: string,
+  ): Promise<DeviceSummary> {
+    return this.changeLifecycle(tenantId, deviceId, "RETIRED", reason);
+  }
+
+  async unenrollDevice(
+    tenantId: string,
+    deviceId: string,
+    reason: string,
+  ): Promise<DeviceSummary> {
+    return this.changeLifecycle(tenantId, deviceId, "UNENROLLED", reason);
+  }
+
+  private async changeLifecycle(
+    tenantId: string,
+    deviceId: string,
+    type: "RETIRED" | "UNENROLLED",
+    reason: string,
+  ): Promise<DeviceSummary> {
+    const device = await this.findDevice(tenantId, deviceId);
+    const saved = await this.prisma.$transaction(async (tx) => {
+      await tx.deviceAssignment.updateMany({
+        data: { endedAt: new Date() },
+        where: { deviceId, endedAt: null, tenantId },
+      });
+      const updated = await tx.device.update({
+        data: {
+          branchId: null,
+          classId: null,
+          connectorDeviceName:
+            type === "UNENROLLED" ? null : device.connectorDeviceName,
+          enrollmentId: type === "UNENROLLED" ? null : device.enrollmentId,
+          policyVersion: null,
+          status: type === "RETIRED" ? "RETIRED" : "PENDING",
+          studentId: null,
+        },
+        where: { id: deviceId },
+      });
+      await tx.deviceLifecycleEvent.create({
+        data: {
+          deviceId,
+          newValue: { status: updated.status },
+          oldValue: { status: device.status, studentId: device.studentId },
+          reason,
+          tenantId,
+          type,
+        },
+      });
+      await tx.auditEvent.create({
+        data: {
+          action: `device.${type.toLowerCase()}`,
+          newValue: { status: updated.status },
+          object: "Device",
+          objectId: deviceId,
+          oldValue: { status: device.status, studentId: device.studentId },
+          outcome: "SUCCESS",
+          reason,
+          tenantId,
+        },
+      });
+      return updated;
+    });
+    return this.toDeviceSummary(saved);
+  }
+
+  private async findDevice(
+    tenantId: string,
+    deviceId: string,
+  ): Promise<Device> {
+    const device = await this.prisma.device.findFirst({
+      where: { id: deviceId, tenantId },
+    });
+    if (!device) {
+      throw new NotFoundException(
+        `Device ${deviceId} was not found for tenant ${tenantId}`,
+      );
+    }
+    return device;
   }
 
   private async ensureTenantExists(tenantId: string): Promise<void> {

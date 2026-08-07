@@ -2,6 +2,7 @@ import { Body, Controller, Get, Inject, Param, Post } from "@nestjs/common";
 import { ApiCreatedResponse, ApiOkResponse, ApiTags } from "@nestjs/swagger";
 import type {
   DeviceCheckInResult,
+  DeviceHistory,
   DeviceSummary,
   EnrollmentBatchSummary,
 } from "@virtual-school/shared";
@@ -9,6 +10,7 @@ import { RequirePermissions } from "../auth/decorators/require-permissions.decor
 import { AssignDeviceDto } from "./dto/assign-device.dto";
 import { CreateEnrollmentBatchDto } from "./dto/create-enrollment-batch.dto";
 import { DeviceCheckInDto } from "./dto/device-check-in.dto";
+import { DeviceLifecycleDto } from "./dto/device-lifecycle.dto";
 import { EnrollmentService } from "./enrollment.service";
 
 @ApiTags("enrollment")
@@ -70,5 +72,38 @@ export class EnrollmentController {
     @Body() body: AssignDeviceDto,
   ): Promise<DeviceSummary> {
     return this.enrollmentService.assignDevice(tenantId, deviceId, body);
+  }
+
+  @Get("devices/:deviceId/history")
+  @RequirePermissions("device:read")
+  getDeviceHistory(
+    @Param("tenantId") tenantId: string,
+    @Param("deviceId") deviceId: string,
+  ): Promise<DeviceHistory> {
+    return this.enrollmentService.getDeviceHistory(tenantId, deviceId);
+  }
+
+  @Post("devices/:deviceId/retire")
+  @RequirePermissions("device:enroll")
+  retireDevice(
+    @Param("tenantId") tenantId: string,
+    @Param("deviceId") deviceId: string,
+    @Body() body: DeviceLifecycleDto,
+  ): Promise<DeviceSummary> {
+    return this.enrollmentService.retireDevice(tenantId, deviceId, body.reason);
+  }
+
+  @Post("devices/:deviceId/unenroll")
+  @RequirePermissions("device:enroll")
+  unenrollDevice(
+    @Param("tenantId") tenantId: string,
+    @Param("deviceId") deviceId: string,
+    @Body() body: DeviceLifecycleDto,
+  ): Promise<DeviceSummary> {
+    return this.enrollmentService.unenrollDevice(
+      tenantId,
+      deviceId,
+      body.reason,
+    );
   }
 }

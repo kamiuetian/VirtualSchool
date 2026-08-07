@@ -771,4 +771,25 @@ describe("PoliciesService", () => {
       },
     });
   });
+
+  it("does not resolve or deliver policy to a retired device", async () => {
+    const service = new PoliciesService(
+      {
+        device: {
+          findFirst: async () => ({
+            id: "device-retired",
+            status: "RETIRED",
+            student: null,
+            studentId: null,
+            classId: null,
+          }),
+        },
+      } as never,
+      connectorRegistry() as never,
+    );
+
+    await expect(
+      service.getDevicePolicyPayload("tenant-1", "device-retired"),
+    ).rejects.toThrow("No policy is delivered to retired device");
+  });
 });

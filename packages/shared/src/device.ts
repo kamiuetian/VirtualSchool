@@ -74,6 +74,30 @@ export type DeviceCheckInResult = {
   wasExistingDevice: boolean;
 };
 
+export type DeviceAssignmentHistory = {
+  id: string;
+  studentId?: string | null;
+  classId?: string | null;
+  branchId?: string | null;
+  reason: string;
+  actorId?: string | null;
+  startedAt: string;
+  endedAt?: string | null;
+};
+
+export type DeviceLifecycleHistory = {
+  id: string;
+  type: "RETIRED" | "UNENROLLED";
+  reason: string;
+  actorId?: string | null;
+  createdAt: string;
+};
+
+export type DeviceHistory = {
+  assignments: DeviceAssignmentHistory[];
+  lifecycle: DeviceLifecycleHistory[];
+};
+
 export type RemoteCommandSummary = {
   id: string;
   tenantId: string;

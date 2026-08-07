@@ -7,6 +7,7 @@ import type {
   ClassSectionSummary,
   DeviceAlertSummary,
   DeviceDiagnosticSummary,
+  DeviceHistory,
   DeviceInventoryReport,
   DeviceSummary,
   EnrollmentBatchSummary,
@@ -307,21 +308,24 @@ export async function getDeviceOperationsData(
 ): Promise<{
   commands: RemoteCommandSummary[];
   diagnostics: DeviceDiagnosticSummary[];
+  history: DeviceHistory;
   connectionIssue: boolean;
 }> {
-  const [commands, diagnostics] = await Promise.all([
+  const [commands, diagnostics, history] = await Promise.all([
     apiGet<RemoteCommandSummary[]>(
       `/tenants/${tenantId}/devices/${deviceId}/commands`,
     ),
     apiGet<DeviceDiagnosticSummary[]>(
       `/tenants/${tenantId}/devices/${deviceId}/diagnostics?limit=8`,
     ),
+    apiGet<DeviceHistory>(`/tenants/${tenantId}/devices/${deviceId}/history`),
   ]);
 
   return {
     commands: commands.data ?? [],
-    connectionIssue: commands.failed || diagnostics.failed,
+    connectionIssue: commands.failed || diagnostics.failed || history.failed,
     diagnostics: diagnostics.data ?? [],
+    history: history.data ?? { assignments: [], lifecycle: [] },
   };
 }
 

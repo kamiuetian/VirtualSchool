@@ -198,8 +198,158 @@ describe("EnrollmentService", () => {
 
     await expect(
       service.assignDevice("tenant-1", "device-1", {
+        reason: "Reassign for new term",
         studentId: "student-1",
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it("closes the prior assignment and preserves reassignment history", async () => {
+    const closeAssignments = vi.fn();
+    const createAssignment = vi.fn();
+    const service = new EnrollmentService({
+      $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
+        callback({
+          auditEvent: { create: vi.fn() },
+          device: {
+            update: async () => ({
+              androidVersion: null,
+              branchId: null,
+              classId: null,
+              compliance: "UNKNOWN",
+              connectorDeviceName: null,
+              enrollmentBatchId: null,
+              enrollmentId: null,
+              health: "UNKNOWN",
+              id: "device-1",
+              lastCheckInAt: null,
+              manufacturer: null,
+              mdmConnector: "ANDROID_MANAGEMENT_API",
+              model: null,
+              policyVersion: null,
+              serialNumber: "SERIAL-1",
+              status: "ONLINE",
+              studentId: "student-2",
+              tags: [],
+              tenantId: "tenant-1",
+            }),
+          },
+          deviceAssignment: {
+            create: createAssignment,
+            updateMany: closeAssignments,
+          },
+        }),
+      branch: { findFirst: async () => null },
+      classSection: { findFirst: async () => null },
+      device: {
+        findFirst: async () => ({
+          id: "device-1",
+          branchId: null,
+          classId: null,
+          status: "ONLINE",
+          studentId: "student-1",
+          tags: [],
+          tenantId: "tenant-1",
+        }),
+      },
+      student: {
+        findFirst: async () => ({ id: "student-2", status: "ACTIVE" }),
+      },
+    } as never);
+
+    await service.assignDevice("tenant-1", "device-1", {
+      studentId: "student-2",
+      reason: "Student transfer",
+    });
+
+    expect(closeAssignments).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ endedAt: null }),
+      }),
+    );
+    expect(createAssignment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          studentId: "student-2",
+          reason: "Student transfer",
+        }),
+      }),
+    );
+  });
+
+  it("retires a device, closes ownership, and writes lifecycle and audit records", async () => {
+    const lifecycle = vi.fn();
+    const audit = vi.fn();
+    const closeAssignments = vi.fn();
+    const service = new EnrollmentService({
+      device: {
+        findFirst: async () => ({
+          androidVersion: null,
+          branchId: null,
+          classId: null,
+          compliance: "UNKNOWN",
+          connectorDeviceName: "enterprises/e/devices/d",
+          enrollmentBatchId: null,
+          enrollmentId: "enrollment-1",
+          health: "UNKNOWN",
+          id: "device-1",
+          lastCheckInAt: null,
+          manufacturer: null,
+          mdmConnector: "ANDROID_MANAGEMENT_API",
+          model: null,
+          policyVersion: 4,
+          serialNumber: "SERIAL-1",
+          status: "ONLINE",
+          studentId: "student-1",
+          tags: [],
+          tenantId: "tenant-1",
+        }),
+      },
+      $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
+        callback({
+          auditEvent: { create: audit },
+          deviceAssignment: { updateMany: closeAssignments },
+          deviceLifecycleEvent: { create: lifecycle },
+          device: {
+            update: async ({ data }: { data: Record<string, unknown> }) => ({
+              androidVersion: null,
+              compliance: "UNKNOWN",
+              enrollmentBatchId: null,
+              health: "UNKNOWN",
+              id: "device-1",
+              lastCheckInAt: null,
+              manufacturer: null,
+              mdmConnector: "ANDROID_MANAGEMENT_API",
+              model: null,
+              serialNumber: "SERIAL-1",
+              tags: [],
+              tenantId: "tenant-1",
+              ...data,
+            }),
+          },
+        }),
+    } as never);
+
+    await expect(
+      service.retireDevice("tenant-1", "device-1", "Asset disposal"),
+    ).resolves.toMatchObject({
+      status: "RETIRED",
+      studentId: null,
+      policyVersion: null,
+    });
+    expect(closeAssignments).toHaveBeenCalledOnce();
+    expect(lifecycle).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: "RETIRED",
+          reason: "Asset disposal",
+        }),
+      }),
+    );
+    expect(audit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: "device.retired" }),
+      }),
+    );
   });
 });

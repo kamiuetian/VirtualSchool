@@ -271,6 +271,25 @@ const routes = [
   ["GET", `/tenants/${tenantId}/alerts`, () => json(alerts)],
   [
     "GET",
+    `/tenants/${tenantId}/devices/${deviceId}/history`,
+    () =>
+      json({
+        assignments: [
+          {
+            id: "device-assignment-1",
+            studentId: "student-001",
+            classId: "class-4-blue",
+            branchId: "branch-main",
+            reason: "Pilot allocation",
+            startedAt: now,
+            endedAt: null,
+          },
+        ],
+        lifecycle: [],
+      }),
+  ],
+  [
+    "GET",
     `/tenants/${tenantId}/enrollment-batches`,
     () =>
       json([

@@ -1,5 +1,11 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
-import { ArrayMaxSize, IsArray, IsOptional, IsString } from "class-validator";
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from "class-validator";
 
 export class AssignDeviceDto {
   @ApiPropertyOptional()
@@ -27,7 +33,7 @@ export class AssignDeviceDto {
   @ApiPropertyOptional({
     description: "Required by policy for privileged assignment changes.",
   })
-  @IsOptional()
   @IsString()
-  reason?: string;
+  @IsNotEmpty()
+  reason!: string;
 }
