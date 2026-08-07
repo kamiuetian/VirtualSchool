@@ -24,6 +24,45 @@ export async function createTenantAction(formData: FormData): Promise<void> {
   revalidateAll();
 }
 
+export async function createContentLibraryItemAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("policy:manage");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation("POST", `/tenants/${tenantId}/content-library`, {
+    title: required(formData, "title"),
+    description: text(formData, "description"),
+    type: required(formData, "type"),
+    category: required(formData, "category"),
+    locator: required(formData, "locator"),
+    grades: csvValues(formData, "grades"),
+    subjects: csvValues(formData, "subjects"),
+    classIds: formData
+      .getAll("classIds")
+      .filter(
+        (value): value is string =>
+          typeof value === "string" && value.length > 0,
+      ),
+    expiresAt: text(formData, "expiresAt") || undefined,
+  });
+  revalidatePath("/apps");
+}
+
+export async function updateContentLibraryItemAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("policy:manage");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "PATCH",
+    `/tenants/${tenantId}/content-library/${required(formData, "itemId")}`,
+    {
+      status: required(formData, "status"),
+    },
+  );
+  revalidatePath("/apps");
+}
+
 export async function reportGuardianLostDeviceAction(
   formData: FormData,
 ): Promise<void> {
@@ -1547,6 +1586,13 @@ function parseCsvRecords(csv: string): string[][] {
 
 function normalizeCsvHeader(header: string): string {
   return header.trim().toLowerCase().replaceAll("_", "").replaceAll(" ", "");
+}
+
+function csvValues(formData: FormData, key: string): string[] {
+  return text(formData, key)
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
 }
 
 function commandPayload(

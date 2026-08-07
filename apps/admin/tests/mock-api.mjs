@@ -99,6 +99,24 @@ const app = {
   updatedAt: now,
 };
 
+const contentLibraryItem = {
+  id: "content-fractions",
+  tenantId,
+  title: "Fractions practice",
+  description: "Grade 4 worksheet",
+  type: "WORKSHEET",
+  category: "Mathematics",
+  locator: "https://learn.example/fractions.pdf",
+  grades: ["4"],
+  subjects: ["Mathematics"],
+  classIds: ["class-4-blue"],
+  status: "ACTIVE",
+  expiresAt: "2026-12-31T23:59:00.000Z",
+  expired: false,
+  createdAt: now,
+  updatedAt: now,
+};
+
 const students = [
   {
     grade: "4",
@@ -268,11 +286,28 @@ const routes = [
         ],
         devices: [{ ...device, classId: "class-4a" }],
         activeSession: teacherSessionActive
-          ? { id: "session-1", classId: "class-4a", className: "Grade 4A", teacherId: "teacher-1", status: "ACTIVE", startedAt: now, endedAt: null, reason: null, events: [] }
+          ? {
+              id: "session-1",
+              classId: "class-4a",
+              className: "Grade 4A",
+              teacherId: "teacher-1",
+              status: "ACTIVE",
+              startedAt: now,
+              endedAt: null,
+              reason: null,
+              events: [],
+            }
           : null,
         recentSessions: [],
         templates: [],
-        approvedResources: [{ id: "app-1", name: "School Reader", packageId: "edu.example.reader", category: "READING" }],
+        approvedResources: [
+          {
+            id: "app-1",
+            name: "School Reader",
+            packageId: "edu.example.reader",
+            category: "READING",
+          },
+        ],
       }),
   ],
   [
@@ -431,6 +466,23 @@ const routes = [
       }),
   ],
   ["GET", `/tenants/${tenantId}/apps`, () => json([app])],
+  [
+    "GET",
+    `/tenants/${tenantId}/content-library`,
+    () => json([contentLibraryItem]),
+  ],
+  [
+    "GET",
+    `/tenants/${tenantId}/content-library/report`,
+    () =>
+      json({
+        active: 1,
+        archived: 0,
+        expired: 0,
+        expiringWithin30Days: 0,
+        expiredItems: [],
+      }),
+  ],
   [
     "GET",
     `/tenants/${tenantId}/policies/events/blocked-domains/aggregates`,
@@ -697,7 +749,11 @@ const server = createServer(async (request, response) => {
       // Retain the raw payload to make unexpected request formats diagnosable.
     }
     mutationJournal.push({ body, method: request.method, path: pathname });
-    if (request.method === "POST" && pathname === `/tenants/${tenantId}/teacher/sessions`) teacherSessionActive = true;
+    if (
+      request.method === "POST" &&
+      pathname === `/tenants/${tenantId}/teacher/sessions`
+    )
+      teacherSessionActive = true;
     response.writeHead(201, {
       "content-type": "application/json; charset=utf-8",
     });

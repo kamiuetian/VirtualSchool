@@ -26,6 +26,7 @@ import { LmsModule } from "./lms/lms.module";
 import { EducationResourcesModule } from "./education-resources/education-resources.module";
 import { WebhooksModule } from "./webhooks/webhooks.module";
 import { ByodModule } from "./byod/byod.module";
+import { ContentLibraryModule } from "./content-library/content-library.module";
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { ByodModule } from "./byod/byod.module";
     EducationResourcesModule,
     WebhooksModule,
     ByodModule,
+    ContentLibraryModule,
   ],
 })
 export class AppModule {}

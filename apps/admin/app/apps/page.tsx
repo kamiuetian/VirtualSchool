@@ -12,8 +12,10 @@ import {
   bulkCreateAppsAction,
   createAppAction,
   deployAppAction,
+  createContentLibraryItemAction,
+  updateContentLibraryItemAction,
 } from "../../lib/actions";
-import { getAdminData } from "../../lib/api";
+import { getAdminData, getContentLibrary } from "../../lib/api";
 import { roleCan } from "../../lib/auth/portal-access";
 import { formatCount, formatDateTime, humanize } from "../../lib/format";
 
@@ -22,6 +24,9 @@ export const dynamic = "force-dynamic";
 export default async function AppsPage() {
   const data = await getAdminData("/apps");
   const selectedTenant = data.selectedTenant;
+  const library = selectedTenant
+    ? await getContentLibrary(selectedTenant.id)
+    : { items: [], report: null, connectionIssue: false };
   const canDeployApps = roleCan(data.session.role, "device:command");
   const approved = data.apps.filter((app) => app.approvalStatus === "APPROVED");
   const blocked = data.apps.filter((app) => app.approvalStatus === "BLOCKED");
@@ -57,6 +62,179 @@ export default async function AppsPage() {
             />
           </section>
         </PageSection>
+
+        {selectedTenant ? (
+          <PageSection
+            kicker="Curriculum resources"
+            title="Categorized Content Library"
+          >
+            <section className="stat-grid" aria-label="Content library summary">
+              <StatCard
+                label="Available"
+                tone="good"
+                value={formatCount(library.report?.active ?? 0)}
+              />
+              <StatCard
+                label="Expired"
+                tone={
+                  (library.report?.expired ?? 0) > 0 ? "warning" : "neutral"
+                }
+                value={formatCount(library.report?.expired ?? 0)}
+              />
+              <StatCard
+                label="Expiring in 30 days"
+                value={formatCount(library.report?.expiringWithin30Days ?? 0)}
+              />
+              <StatCard
+                label="Archived"
+                value={formatCount(library.report?.archived ?? 0)}
+              />
+            </section>
+            <ActionPanel title="Approve a learning resource">
+              <form
+                action={createContentLibraryItemAction}
+                className="stacked-form"
+              >
+                <input
+                  name="tenantId"
+                  type="hidden"
+                  value={selectedTenant.id}
+                />
+                <div className="form-row">
+                  <Field label="Title">
+                    <input name="title" required />
+                  </Field>
+                  <Field label="Type">
+                    <select name="type" defaultValue="LINK">
+                      <option>APP</option>
+                      <option>LINK</option>
+                      <option>PDF</option>
+                      <option>WORKSHEET</option>
+                      <option>VIDEO</option>
+                      <option>LMS</option>
+                      <option>EXAM</option>
+                    </select>
+                  </Field>
+                  <Field label="Category">
+                    <input name="category" placeholder="Mathematics" required />
+                  </Field>
+                </div>
+                <Field label="Package ID or HTTPS URL">
+                  <input name="locator" required />
+                </Field>
+                <Field label="Description">
+                  <textarea name="description" />
+                </Field>
+                <div className="form-row">
+                  <Field label="Grades">
+                    <input name="grades" placeholder="5, 6" />
+                  </Field>
+                  <Field label="Subjects">
+                    <input name="subjects" placeholder="Mathematics, Science" />
+                  </Field>
+                  <Field label="Classes">
+                    <select multiple name="classIds">
+                      {data.classes.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Expires">
+                    <input name="expiresAt" type="datetime-local" />
+                  </Field>
+                </div>
+                <SubmitButton>Add resource</SubmitButton>
+              </form>
+            </ActionPanel>
+            {library.items.length > 0 ? (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Resource</th>
+                      <th>Category</th>
+                      <th>Scope</th>
+                      <th>Expiry</th>
+                      <th>Status</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {library.items.map((item) => (
+                      <tr key={item.id}>
+                        <td>
+                          <strong>{item.title}</strong>
+                          <br />
+                          {humanize(item.type)}
+                        </td>
+                        <td>
+                          {item.category}
+                          <br />
+                          {item.subjects.join(", ") || "All subjects"}
+                        </td>
+                        <td>
+                          {item.grades.length
+                            ? `Grades ${item.grades.join(", ")}`
+                            : "All grades"}
+                          {item.classIds.length
+                            ? ` · ${item.classIds.length} classes`
+                            : ""}
+                        </td>
+                        <td>
+                          {item.expiresAt
+                            ? formatDateTime(item.expiresAt)
+                            : "No expiry"}
+                        </td>
+                        <td>
+                          <StatusPill
+                            tone={
+                              item.expired || item.status === "ARCHIVED"
+                                ? "warning"
+                                : "good"
+                            }
+                          >
+                            {item.expired ? "Expired" : humanize(item.status)}
+                          </StatusPill>
+                        </td>
+                        <td>
+                          <form action={updateContentLibraryItemAction}>
+                            <input
+                              name="tenantId"
+                              type="hidden"
+                              value={selectedTenant.id}
+                            />
+                            <input
+                              name="itemId"
+                              type="hidden"
+                              value={item.id}
+                            />
+                            <input
+                              name="status"
+                              type="hidden"
+                              value={
+                                item.status === "ACTIVE" ? "ARCHIVED" : "ACTIVE"
+                              }
+                            />
+                            <SubmitButton>
+                              {item.status === "ACTIVE" ? "Archive" : "Restore"}
+                            </SubmitButton>
+                          </form>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <EmptyState
+                title="No content approved"
+                body="Add apps, links, documents, videos, LMS, or exam resources and scope them to the intended learners."
+              />
+            )}
+          </PageSection>
+        ) : null}
 
         {selectedTenant ? (
           <PageSection kicker="Catalog action" title="Add Approved App">

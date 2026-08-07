@@ -38,6 +38,8 @@ import type {
   SisOperationsSummary,
   WebhookEndpointSummary,
   TenantWebFilterSettings,
+  ContentLibraryItemSummary,
+  ContentLibraryReport,
 } from "@virtual-school/shared";
 import {
   requirePortalRouteAccess,
@@ -317,6 +319,24 @@ export async function getEducationResources(tenantId: string): Promise<{
   return { integrations: result.data ?? [], connectionIssue: result.failed };
 }
 
+export async function getContentLibrary(tenantId: string): Promise<{
+  items: ContentLibraryItemSummary[];
+  report: ContentLibraryReport | null;
+  connectionIssue: boolean;
+}> {
+  const [items, report] = await Promise.all([
+    apiGet<ContentLibraryItemSummary[]>(
+      `/tenants/${tenantId}/content-library?includeUnavailable=true`,
+    ),
+    apiGet<ContentLibraryReport>(`/tenants/${tenantId}/content-library/report`),
+  ]);
+  return {
+    items: items.data ?? [],
+    report: report.data,
+    connectionIssue: items.failed || report.failed,
+  };
+}
+
 export async function getSisOperations(tenantId: string): Promise<{
   operations: SisOperationsSummary | null;
   connectionIssue: boolean;
@@ -483,9 +503,11 @@ export async function adminApiRawGet(path: string): Promise<Response> {
 export async function getWebFilterSettings(
   tenantId: string,
 ): Promise<TenantWebFilterSettings | null> {
-  return (await apiGet<TenantWebFilterSettings>(
-    `/tenants/${tenantId}/policies/web-filter-settings`,
-  )).data;
+  return (
+    await apiGet<TenantWebFilterSettings>(
+      `/tenants/${tenantId}/policies/web-filter-settings`,
+    )
+  ).data;
 }
 
 async function apiGet<T>(path: string): Promise<ApiGetResult<T>> {

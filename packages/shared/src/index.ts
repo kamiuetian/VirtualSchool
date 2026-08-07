@@ -2,6 +2,7 @@ export * from "./app-catalog";
 export * from "./audit";
 export * from "./billing";
 export * from "./classroom";
+export * from "./content-library";
 export * from "./lms";
 export * from "./education-resources";
 export * from "./policy";

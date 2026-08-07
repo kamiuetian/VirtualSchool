@@ -139,6 +139,29 @@ model Tenant {
   webhookEvents                   WebhookEvent[]
   byodStudySessions               ByodStudySession[]
   byodParticipants                ByodSessionParticipant[]
+  contentLibraryItems             ContentLibraryItem[]
+}
+
+model ContentLibraryItem {
+  id          String   @id @default(uuid())
+  tenantId    String
+  title       String
+  description String?
+  type        String
+  category    String
+  locator     String
+  grades      String[]
+  subjects    String[]
+  classIds    String[]
+  status      String   @default("ACTIVE")
+  expiresAt   DateTime?
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status, expiresAt])
+  @@index([tenantId, category, type])
 }
 
 model WebhookEndpoint {

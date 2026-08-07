@@ -116,6 +116,13 @@ test.describe("admin portal regression", () => {
 
     await page.goto("/apps");
     await expect(
+      page.getByRole("heading", { name: "Categorized Content Library" }),
+    ).toBeVisible();
+    await expect(page.getByText("Fractions practice")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Add resource" }),
+    ).toBeVisible();
+    await expect(
       page.getByRole("heading", { name: "Install Or Remove Apps" }),
     ).toBeVisible();
     await expect(
@@ -434,19 +441,32 @@ test.describe("role-aware admin portal", () => {
     ).toBeVisible();
     await expect(page.getByText("TAB001")).toBeVisible();
     await page.getByLabel("Template name").fill("Daily math warmup");
-    await page.getByLabel("Focus message (optional)").fill("Open your math notebooks");
+    await page
+      .getByLabel("Focus message (optional)")
+      .fill("Open your math notebooks");
     await page.getByLabel("Focus minutes").fill("2");
     await page.getByRole("button", { name: "Save template" }).click();
-    await expectMutation(request, "POST", "/tenants/tenant-northview/teacher/templates", {
-      name: "Daily math warmup",
-      focusMessage: "Open your math notebooks",
-      focusDurationMinutes: 2,
-    });
+    await expectMutation(
+      request,
+      "POST",
+      "/tenants/tenant-northview/teacher/templates",
+      {
+        name: "Daily math warmup",
+        focusMessage: "Open your math notebooks",
+        focusDurationMinutes: 2,
+      },
+    );
     const startButton = page.getByRole("button", { name: "Start class mode" });
     if (await startButton.isVisible()) await startButton.click();
-    await expect(page.getByRole("button", { name: "Push resource" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Display focus screen" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Approve temporarily" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Push resource" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Display focus screen" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Approve temporarily" }),
+    ).toBeVisible();
   });
 
   test("keeps billing admins limited to billing and overview", async ({
