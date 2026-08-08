@@ -20,8 +20,8 @@ import {
   Users,
 } from "lucide-react";
 import Link from "next/link";
-import type { ReactNode } from "react";
-import type { TenantSummary } from "@virtual-school/shared";
+import type { CSSProperties, ReactNode } from "react";
+import type { TenantBranding } from "@virtual-school/shared";
 import {
   type PortalHref,
   visiblePortalNavigation,
@@ -66,21 +66,33 @@ export async function AppShell({
 }: {
   children: ReactNode;
   connectionIssue?: boolean;
-  tenant: TenantSummary | null;
+  tenant: TenantBranding | null;
 }) {
   const session = await getAdminSession();
   const navigation = session ? visiblePortalNavigation(session.role) : [];
 
   return (
-    <div className="app-shell">
+    <div
+      className="app-shell"
+      style={
+        {
+          "--tenant-primary": tenant?.primaryColor ?? "#116b5f",
+          "--tenant-accent": tenant?.accentColor ?? "#315f91",
+        } as CSSProperties
+      }
+    >
       <aside className="sidebar">
         <Link className="brand" href="/">
           <span className="brand-mark">
-            <BookOpenCheck size={22} strokeWidth={2.4} />
+            {tenant?.logoUrl ? (
+              <img alt="" src={tenant.logoUrl} />
+            ) : (
+              <BookOpenCheck size={22} strokeWidth={2.4} />
+            )}
           </span>
           <span>
-            <strong>Virtual School</strong>
-            <small>Device Management</small>
+            <strong>{tenant?.name ?? "Virtual School"}</strong>
+            <small>{tenant?.deviceLabel ?? "Device Management"}</small>
           </span>
         </Link>
 
@@ -98,7 +110,7 @@ export async function AppShell({
 
         <div className="sidebar-status">
           <Boxes size={18} />
-          <span>Android tablet fleet</span>
+          <span>{tenant?.deviceLabel ?? "Android tablet"} fleet</span>
         </div>
       </aside>
 
@@ -151,7 +163,8 @@ export async function AppShell({
           <div>
             <strong>Daily focus</strong>
             <span>
-              Enrollment, device health, policy delivery, and learning access.
+              Enrollment, {tenant?.deviceLabel?.toLowerCase() ?? "device"}{" "}
+              health, policy delivery, and learning access.
             </span>
           </div>
         </div>

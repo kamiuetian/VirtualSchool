@@ -126,7 +126,7 @@ describe("TenantsService", () => {
       service.updateProfile(
         "tenant-1",
         {
-          accentColor: "#f5c65f",
+          accentColor: "#315f91",
           logoUrl: "https://assets.example.edu/logo.png",
           primaryColor: "#116b5f",
           supportEmail: "support@example.edu",
@@ -135,7 +135,7 @@ describe("TenantsService", () => {
         "auth0|admin",
       ),
     ).resolves.toMatchObject({
-      accentColor: "#f5c65f",
+      accentColor: "#315f91",
       logoUrl: "https://assets.example.edu/logo.png",
       primaryColor: "#116b5f",
       supportEmail: "support@example.edu",
@@ -148,6 +148,15 @@ describe("TenantsService", () => {
       outcome: "SUCCESS",
       tenantId: "tenant-1",
     });
+  });
+
+  it("rejects brand colors that cannot support accessible white text", async () => {
+    const service = new TenantsService({
+      tenant: { findUnique: async () => ({ id: "tenant-1" }) },
+    } as never);
+    await expect(
+      service.updateProfile("tenant-1", { primaryColor: "#ffffff" }, "admin-1"),
+    ).rejects.toThrow("4.5:1 contrast");
   });
 
   it("creates a branch and records a branch audit event", async () => {

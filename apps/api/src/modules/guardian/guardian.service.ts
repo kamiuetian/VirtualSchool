@@ -36,9 +36,16 @@ export class GuardianService {
         supportRequests: { orderBy: { createdAt: "desc" }, take: 10 },
         tenant: {
           select: {
+            accentColor: true,
+            deviceLabel: true,
+            logoUrl: true,
             name: true,
+            primaryColor: true,
+            studentLabel: true,
             timezone: true,
             supportEmail: true,
+            supportPhone: true,
+            websiteUrl: true,
             language: true,
           },
         },
@@ -236,6 +243,18 @@ export class GuardianService {
       guardian.language ?? guardian.tenant.language,
     );
     return {
+      branding: {
+        accentColor: guardian.tenant.accentColor,
+        deviceLabel: guardian.tenant.deviceLabel,
+        logoUrl: guardian.tenant.logoUrl,
+        name: guardian.tenant.name,
+        primaryColor: guardian.tenant.primaryColor,
+        studentLabel: guardian.tenant.studentLabel,
+        supportEmail: guardian.tenant.supportEmail,
+        supportPhone: guardian.tenant.supportPhone,
+        websiteUrl: guardian.tenant.websiteUrl,
+        timezone: guardian.tenant.timezone,
+      },
       tenantId,
       guardianName: guardian.name,
       schoolName: guardian.tenant.name,

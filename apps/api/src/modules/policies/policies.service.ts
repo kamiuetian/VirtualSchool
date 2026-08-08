@@ -1722,6 +1722,24 @@ export class PoliciesService {
           entry.scopeId === (device?.class?.grade ?? device?.student?.grade)) ||
         (entry.scope === "MODE" && entry.scopeId === rules.mode),
     );
+    const tenantBranding = await this.prisma.tenant.findUnique({
+      select: {
+        accentColor: true,
+        deviceLabel: true,
+        logoUrl: true,
+        name: true,
+        primaryColor: true,
+        studentLabel: true,
+        supportEmail: true,
+        supportPhone: true,
+        timezone: true,
+        websiteUrl: true,
+      },
+      where: { id: tenantId },
+    });
+    if (!tenantBranding) {
+      throw new NotFoundException(`Tenant ${tenantId} was not found`);
+    }
     return {
       browser: {
         blockedCategories: webFilterSettings.blockedCategories,
@@ -1759,6 +1777,7 @@ export class PoliciesService {
       deviceId,
       generatedAt: new Date().toISOString(),
       launcher: {
+        branding: tenantBranding,
         approvedApps: apps.map((app) => ({
           category: app.category,
           iconUrl: app.iconUrl,

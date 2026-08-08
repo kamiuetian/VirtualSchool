@@ -166,6 +166,7 @@ export type DevicePolicyPayload = {
     explanation: string;
   };
   launcher: {
+    branding: import("./tenant").TenantBranding;
     approvedApps: DeviceApprovedApp[];
     webShortcuts: Array<{
       title: string;

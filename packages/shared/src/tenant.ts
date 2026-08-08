@@ -14,7 +14,23 @@ export type TenantSummary = {
   websiteUrl?: string | null;
   supportEmail?: string | null;
   supportPhone?: string | null;
+  studentLabel?: string | null;
+  deviceLabel?: string | null;
 };
+
+export type TenantBranding = Pick<
+  TenantSummary,
+  | "name"
+  | "logoUrl"
+  | "primaryColor"
+  | "accentColor"
+  | "websiteUrl"
+  | "supportEmail"
+  | "supportPhone"
+  | "studentLabel"
+  | "deviceLabel"
+  | "timezone"
+>;
 
 export type BranchSummary = {
   id: string;

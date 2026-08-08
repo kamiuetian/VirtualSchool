@@ -401,6 +401,8 @@ export async function updateTenantProfileAction(
     primaryColor: text(formData, "primaryColor"),
     supportEmail: text(formData, "supportEmail"),
     supportPhone: text(formData, "supportPhone"),
+    studentLabel: text(formData, "studentLabel"),
+    deviceLabel: text(formData, "deviceLabel"),
     timezone: text(formData, "timezone"),
     websiteUrl: text(formData, "websiteUrl"),
   });

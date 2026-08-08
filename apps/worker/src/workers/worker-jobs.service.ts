@@ -105,6 +105,21 @@ export class WorkerJobsService {
   private async dispatchNotificationsForTenant(
     tenantId: string,
   ): Promise<Record<string, unknown>> {
+    const branding = await this.prisma.tenant.findUnique({
+      select: {
+        accentColor: true,
+        logoUrl: true,
+        name: true,
+        primaryColor: true,
+        supportEmail: true,
+        supportPhone: true,
+        websiteUrl: true,
+      },
+      where: { id: tenantId },
+    });
+    if (!branding) {
+      return { delivered: 0, failed: 0, skipped: true, tenantId };
+    }
     const preferences = await this.prisma.notificationPreference.findUnique({
       where: { tenantId },
     });
@@ -165,10 +180,11 @@ export class WorkerJobsService {
           continue;
         const result = await this.emailService.send({
           alertId: alert.id,
+          branding,
           recipient,
-          subject: `[Virtual School] ${alert.title}`,
+          subject: `[${branding.name}] ${alert.title}`,
           tenantId,
-          text: `${alert.message}\n\nDevice: ${alert.device?.serialNumber ?? "tenant-wide"}\nSeverity: ${alert.severity}`,
+          text: `${alert.message}\n\nDevice: ${alert.device?.serialNumber ?? "tenant-wide"}\nSeverity: ${alert.severity}${branding.supportEmail ? `\nSupport: ${branding.supportEmail}` : ""}`,
         });
         await this.prisma.$transaction(async (tx) => {
           const saved = await tx.notificationDelivery.upsert({

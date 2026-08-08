@@ -12,7 +12,7 @@ const now = "2026-05-17T10:00:00.000Z";
 
 const tenant = {
   id: tenantId,
-  accentColor: "#f5c65f",
+  accentColor: "#315f91",
   country: "US",
   logoUrl: "https://assets.example.edu/northview-logo.png",
   name: "Northview Primary School",
@@ -21,6 +21,8 @@ const tenant = {
   status: "ACTIVE",
   supportEmail: "support@northview.edu",
   supportPhone: "+1 555 0100",
+  studentLabel: "Learner",
+  deviceLabel: "Managed tablet",
   timezone: "America/New_York",
   websiteUrl: "https://northview.example.edu",
 };

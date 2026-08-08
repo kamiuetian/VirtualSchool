@@ -25,6 +25,16 @@ const mockApiURL = `http://127.0.0.1:${process.env.ADMIN_E2E_API_PORT ?? "4100"}
 
 test.describe("admin portal regression", () => {
   test.beforeEach(async ({ baseURL, context }) => {
+    await context.route("https://assets.example.edu/**", async (route) => {
+      await route.fulfill({
+        body: Buffer.from(
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+          "base64",
+        ),
+        contentType: "image/png",
+        status: 200,
+      });
+    });
     await signInAs(context, baseURL, "PLATFORM_SUPER_ADMIN");
   });
 
@@ -47,6 +57,11 @@ test.describe("admin portal regression", () => {
       ).toBeVisible();
       await expect(page.getByLabel("Sign out")).toBeVisible();
       await expect(page.locator(".app-shell")).toBeVisible();
+      await expect(page.getByText("Managed tablet fleet")).toBeVisible();
+      await expect(page.locator(".brand-mark img")).toHaveAttribute(
+        "src",
+        "https://assets.example.edu/northview-logo.png",
+      );
       expect(consoleErrors).toEqual([]);
     });
   }

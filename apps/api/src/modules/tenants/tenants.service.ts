@@ -118,6 +118,7 @@ export class TenantsService {
     input: UpdateTenantProfileDto,
     actorId: string | undefined,
   ): Promise<TenantSummary> {
+    this.validateAccessibleBrandColors(input);
     const existing = await this.prisma.tenant.findUnique({
       where: {
         id: tenantId,
@@ -391,6 +392,8 @@ export class TenantsService {
     supportPhone?: string | null;
     timezone: string;
     websiteUrl?: string | null;
+    studentLabel?: string | null;
+    deviceLabel?: string | null;
   }): TenantSummary {
     return {
       accentColor: tenant.accentColor,
@@ -406,6 +409,8 @@ export class TenantsService {
       supportPhone: tenant.supportPhone,
       timezone: tenant.timezone,
       websiteUrl: tenant.websiteUrl,
+      studentLabel: tenant.studentLabel,
+      deviceLabel: tenant.deviceLabel,
     };
   }
 
@@ -428,6 +433,8 @@ export class TenantsService {
     supportPhone?: string | null;
     timezone: string;
     websiteUrl?: string | null;
+    studentLabel?: string | null;
+    deviceLabel?: string | null;
   }): Prisma.InputJsonObject {
     return {
       accentColor: tenant.accentColor ?? null,
@@ -440,6 +447,36 @@ export class TenantsService {
       supportPhone: tenant.supportPhone ?? null,
       timezone: tenant.timezone,
       websiteUrl: tenant.websiteUrl ?? null,
+      studentLabel: tenant.studentLabel ?? null,
+      deviceLabel: tenant.deviceLabel ?? null,
     };
+  }
+
+  private validateAccessibleBrandColors(input: UpdateTenantProfileDto): void {
+    for (const [field, color] of [
+      ["primaryColor", input.primaryColor],
+      ["accentColor", input.accentColor],
+    ] as const) {
+      if (!color) continue;
+      const channels = [1, 3, 5].map(
+        (offset) => Number.parseInt(color.slice(offset, offset + 2), 16) / 255,
+      );
+      const luminance = channels
+        .map((value) =>
+          value <= 0.03928
+            ? value / 12.92
+            : Math.pow((value + 0.055) / 1.055, 2.4),
+        )
+        .reduce(
+          (sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index]!,
+          0,
+        );
+      const contrastWithWhite = 1.05 / (luminance + 0.05);
+      if (contrastWithWhite < 4.5) {
+        throw new BadRequestException(
+          `${field} must provide at least 4.5:1 contrast with white text`,
+        );
+      }
+    }
   }
 }

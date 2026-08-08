@@ -26,7 +26,10 @@ export default async function GuardianPage() {
   const locale = dashboard?.locale ?? "en";
   const t = (text: string) => guardianText(locale, text);
   return (
-    <AppShell connectionIssue={connectionIssue} tenant={null}>
+    <AppShell
+      connectionIssue={connectionIssue}
+      tenant={dashboard?.branding ?? null}
+    >
       <div className="content-stack">
         <section className="hero-panel">
           <div>

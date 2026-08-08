@@ -60,6 +60,22 @@ textarea {
   min-height: 100vh;
 }
 
+.app-shell .sidebar {
+  background: var(--tenant-primary, var(--nav));
+}
+
+.app-shell .brand-mark {
+  background: var(--tenant-accent, #f5c65f);
+  overflow: hidden;
+}
+
+.brand-mark img {
+  background: white;
+  height: 100%;
+  object-fit: contain;
+  width: 100%;
+}
+
 .sidebar {
   background: var(--nav);
   color: var(--nav-ink);
@@ -78,9 +94,9 @@ textarea {
 
 .brand-mark {
   align-items: center;
-  background: #f5c65f;
+  background: var(--tenant-accent, #f5c65f);
   border-radius: 8px;
-  color: #17323a;
+  color: white;
   display: inline-flex;
   height: 42px;
   justify-content: center;

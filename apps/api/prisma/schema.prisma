@@ -89,6 +89,8 @@ model Tenant {
   websiteUrl                      String?
   supportEmail                    String?
   supportPhone                    String?
+  studentLabel                    String?
+  deviceLabel                     String?
   webFilterSettings               Json?
   createdAt                       DateTime                         @default(now())
   updatedAt                       DateTime                         @updatedAt

@@ -221,6 +221,32 @@ export default async function TenantsPage() {
                           />
                         </Field>
                       </div>
+                      <div className="form-row">
+                        <Field label="Student terminology">
+                          <input
+                            name="studentLabel"
+                            defaultValue={
+                              selectedTenant.studentLabel ?? "Student"
+                            }
+                            maxLength={32}
+                            required
+                          />
+                        </Field>
+                        <Field label="Device terminology">
+                          <input
+                            name="deviceLabel"
+                            defaultValue={
+                              selectedTenant.deviceLabel ?? "Learning device"
+                            }
+                            maxLength={32}
+                            required
+                          />
+                        </Field>
+                      </div>
+                      <p className="form-help">
+                        Brand colors must meet WCAG contrast for readable white
+                        text. HTTPS is required for logos and websites.
+                      </p>
                       <SubmitButton>Save profile</SubmitButton>
                     </form>
                   </ActionPanel>

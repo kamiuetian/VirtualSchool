@@ -54,34 +54,65 @@ describe("WorkerJobsService", () => {
     const createAlert = vi.fn().mockResolvedValue({ id: "risk-1" });
     const service = new WorkerJobsService(
       {
-        $transaction: async (callback: (tx: unknown) => Promise<unknown>) => callback({
-          auditEvent: { create: vi.fn() },
-          deviceAlert: { create: createAlert },
-        }),
-        attendanceRecord: { findMany: async () => [
-          { status: "ABSENT", studentId: "student-1" },
-          { status: "ABSENT", studentId: "student-1" },
-          { status: "ABSENT", studentId: "student-1" },
-        ] },
-        device: { findMany: async () => [{ id: "device-1", lastCheckInAt: null, status: "OFFLINE", studentId: "student-1" }] },
-        deviceAlert: { findMany: vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]) },
+        $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
+          callback({
+            auditEvent: { create: vi.fn() },
+            deviceAlert: { create: createAlert },
+          }),
+        attendanceRecord: {
+          findMany: async () => [
+            { status: "ABSENT", studentId: "student-1" },
+            { status: "ABSENT", studentId: "student-1" },
+            { status: "ABSENT", studentId: "student-1" },
+          ],
+        },
+        device: {
+          findMany: async () => [
+            {
+              id: "device-1",
+              lastCheckInAt: null,
+              status: "OFFLINE",
+              studentId: "student-1",
+            },
+          ],
+        },
+        deviceAlert: {
+          findMany: vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]),
+        },
         guardian: { findMany: async () => [] },
-        notificationPreference: { findUnique: async () => ({ complianceFailureThreshold: 3, engagementRiskEnabled: true, missedSessionThreshold: 3, weeklyAdminSummaryEnabled: true, weeklyGuardianSummaryEnabled: false }) },
+        notificationPreference: {
+          findUnique: async () => ({
+            complianceFailureThreshold: 3,
+            engagementRiskEnabled: true,
+            missedSessionThreshold: 3,
+            weeklyAdminSummaryEnabled: true,
+            weeklyGuardianSummaryEnabled: false,
+          }),
+        },
         student: { findMany: async () => [{ id: "student-1", name: "Amina" }] },
         tenant: { findMany: async () => [{ id: "tenant-1" }] },
       } as never,
       { dispatchCommand: vi.fn() } as never,
     );
 
-    await expect(service.processJob("engagement.scan", {})).resolves.toMatchObject({
+    await expect(
+      service.processJob("engagement.scan", {}),
+    ).resolves.toMatchObject({
       details: [{ alertsCreated: 2, evaluatedStudents: 1, risks: 1 }],
     });
-    expect(createAlert).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({
-      message: expect.stringContaining("3 missed sessions"),
-      metadata: expect.objectContaining({ reasons: expect.any(Array), studentId: "student-1" }),
-      severity: "CRITICAL",
-      type: "ENGAGEMENT_RISK",
-    }) }));
+    expect(createAlert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          message: expect.stringContaining("3 missed sessions"),
+          metadata: expect.objectContaining({
+            reasons: expect.any(Array),
+            studentId: "student-1",
+          }),
+          severity: "CRITICAL",
+          type: "ENGAGEMENT_RISK",
+        }),
+      }),
+    );
   });
 
   it("delivers enabled alert email once and records the outcome", async () => {
@@ -90,13 +121,11 @@ describe("WorkerJobsService", () => {
       id: "delivery-1",
     }));
     const email = {
-      send: vi
-        .fn()
-        .mockResolvedValue({
-          delivered: true,
-          provider: "WEBHOOK",
-          providerId: "message-1",
-        }),
+      send: vi.fn().mockResolvedValue({
+        delivered: true,
+        provider: "WEBHOOK",
+        providerId: "message-1",
+      }),
     };
     const service = new WorkerJobsService(
       {
@@ -112,7 +141,10 @@ describe("WorkerJobsService", () => {
               firstSeenAt: now,
               id: "alert-1",
               message: "Device offline",
-              metadata: { notificationRecipients: ["guardian@example.edu"], privacyScope: "LINKED_GUARDIAN" },
+              metadata: {
+                notificationRecipients: ["guardian@example.edu"],
+                privacyScope: "LINKED_GUARDIAN",
+              },
               severity: "WARNING",
               title: "Device offline",
             },
@@ -129,7 +161,18 @@ describe("WorkerJobsService", () => {
             repeatedEnrollmentEnabled: true,
           }),
         },
-        tenant: { findMany: async () => [{ id: "tenant-1" }] },
+        tenant: {
+          findMany: async () => [{ id: "tenant-1" }],
+          findUnique: async () => ({
+            accentColor: "#315f91",
+            logoUrl: "https://assets.example.edu/logo.png",
+            name: "Northview School",
+            primaryColor: "#116b5f",
+            supportEmail: "support@example.edu",
+            supportPhone: null,
+            websiteUrl: "https://example.edu",
+          }),
+        },
       } as never,
       { dispatchCommand: vi.fn() } as never,
       email as never,
@@ -138,7 +181,13 @@ describe("WorkerJobsService", () => {
       service.processJob("notifications.dispatch", {}),
     ).resolves.toMatchObject({ details: [{ delivered: 1, failed: 0 }] });
     expect(email.send).toHaveBeenCalledOnce();
-    expect(email.send).toHaveBeenCalledWith(expect.objectContaining({ recipient: "guardian@example.edu" }));
+    expect(email.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        branding: expect.objectContaining({ name: "Northview School" }),
+        recipient: "guardian@example.edu",
+        subject: "[Northview School] Device offline",
+      }),
+    );
     expect(deliveryUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
         create: expect.objectContaining({ status: "DELIVERED" }),

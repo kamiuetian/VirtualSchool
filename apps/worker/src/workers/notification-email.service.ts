@@ -16,6 +16,15 @@ export class NotificationEmailService {
     text: string;
     tenantId: string;
     alertId: string;
+    branding?: {
+      name: string;
+      logoUrl?: string | null;
+      primaryColor?: string | null;
+      accentColor?: string | null;
+      supportEmail?: string | null;
+      supportPhone?: string | null;
+      websiteUrl?: string | null;
+    };
   }): Promise<EmailSendResult> {
     const endpoint = process.env.EMAIL_DELIVERY_WEBHOOK_URL;
     if (!endpoint) {
@@ -30,6 +39,7 @@ export class NotificationEmailService {
       const response = await fetch(endpoint, {
         body: JSON.stringify({
           alertId: input.alertId,
+          branding: input.branding,
           from: process.env.EMAIL_FROM ?? "alerts@virtualschool.local",
           subject: input.subject,
           tenantId: input.tenantId,

@@ -6,6 +6,7 @@ import {
   IsString,
   IsUrl,
   IsIn,
+  MaxLength,
   Matches,
 } from "class-validator";
 
@@ -36,6 +37,7 @@ export class UpdateTenantProfileDto {
   @ApiProperty({ required: false })
   @IsOptional()
   @IsUrl({ require_tld: false })
+  @Matches(/^https:\/\//i, { message: "logoUrl must use HTTPS" })
   logoUrl?: string;
 
   @ApiProperty({ example: "#116b5f", required: false })
@@ -51,6 +53,7 @@ export class UpdateTenantProfileDto {
   @ApiProperty({ required: false })
   @IsOptional()
   @IsUrl({ require_tld: false })
+  @Matches(/^https:\/\//i, { message: "websiteUrl must use HTTPS" })
   websiteUrl?: string;
 
   @ApiProperty({ required: false })
@@ -62,4 +65,18 @@ export class UpdateTenantProfileDto {
   @IsOptional()
   @IsString()
   supportPhone?: string;
+
+  @ApiProperty({ example: "Learner", required: false })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(32)
+  studentLabel?: string;
+
+  @ApiProperty({ example: "Learning device", required: false })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(32)
+  deviceLabel?: string;
 }

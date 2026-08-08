@@ -60,6 +60,7 @@ export type GuardianDashboard = {
   supportedNotificationChannels: string[];
   consentForms: GuardianConsentForm[];
   supportRequests: GuardianSupportRequestSummary[];
+  branding: import("./tenant").TenantBranding;
 };
 
 export type GuardianConsentForm = {
