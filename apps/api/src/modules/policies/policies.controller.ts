@@ -23,6 +23,7 @@ import type {
   AssessmentLaunchSummary,
   ExamReport,
   EducationalVideoAccessEvaluation,
+  PlatformPolicySimulation,
 } from "@virtual-school/shared";
 import { RequirePermissions } from "../auth/decorators/require-permissions.decorator";
 import { AssignPolicyDto } from "./dto/assign-policy.dto";
@@ -43,6 +44,10 @@ import {
 } from "./dto/exam-operations.dto";
 import { UpdateWebFilterSettingsDto } from "./dto/update-web-filter-settings.dto";
 import { EvaluateEducationalVideoDto } from "./dto/evaluate-educational-video.dto";
+import {
+  SimulatePlatformPolicyDto,
+  UpdatePlatformOverridesDto,
+} from "./dto/platform-policy.dto";
 
 @ApiTags("policies")
 @Controller("tenants/:tenantId/policies")
@@ -193,6 +198,36 @@ export class PoliciesController {
     @Body() body: SimulateUrlPolicyDto,
   ): Promise<UrlPolicySimulation> {
     return this.policiesService.simulateUrlPolicy(tenantId, policyId, body.url);
+  }
+
+  @Patch(":policyId/platform-overrides")
+  @RequirePermissions("policy:manage")
+  updatePlatformOverrides(
+    @Param("tenantId") tenantId: string,
+    @Param("policyId") policyId: string,
+    @Body() body: UpdatePlatformOverridesDto,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<PolicySummary> {
+    return this.policiesService.updatePlatformOverrides(
+      tenantId,
+      policyId,
+      body,
+      request.user?.subject,
+    );
+  }
+
+  @Post(":policyId/simulate-platform")
+  @RequirePermissions("policy:manage")
+  simulatePlatformPolicy(
+    @Param("tenantId") tenantId: string,
+    @Param("policyId") policyId: string,
+    @Body() body: SimulatePlatformPolicyDto,
+  ): Promise<PlatformPolicySimulation> {
+    return this.policiesService.simulatePlatformPolicy(
+      tenantId,
+      policyId,
+      body,
+    );
   }
 
   @Post(":policyId/publish")

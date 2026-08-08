@@ -1516,4 +1516,101 @@ describe("PoliciesService", () => {
       unlocks: [{ deviceId: "device-1", durationMinutes: 5 }],
     });
   });
+
+  it("simulates platform overrides and exposes conflicts and unsupported controls", async () => {
+    const service = new PoliciesService(
+      {
+        policy: {
+          findFirst: async () => ({
+            id: "policy-1",
+            rules: {
+              ...baseRules,
+              platformOverrides: { WINDOWS: { kiosk: false } },
+              restrictions: { ...baseRules.restrictions, blockSettings: true },
+            },
+            version: 2,
+          }),
+        },
+      } as never,
+      connectorRegistry() as never,
+    );
+    await expect(
+      service.simulatePlatformPolicy("tenant-1", "policy-1", {
+        enrollmentType: "FULLY_MANAGED",
+        ownershipType: "SCHOOL_OWNED",
+        platform: "WINDOWS",
+      }),
+    ).resolves.toMatchObject({
+      conflicts: ["kiosk"],
+      controls: expect.arrayContaining([
+        expect.objectContaining({
+          control: "kiosk",
+          effectiveValue: false,
+          source: "PLATFORM_OVERRIDE",
+        }),
+      ]),
+      publishable: false,
+      unsupportedControls: ["web-filter"],
+    });
+  });
+
+  it("saves tenant-scoped draft platform overrides with audit evidence", async () => {
+    const update = vi.fn().mockResolvedValue({
+      id: "policy-1",
+      tenantId: "tenant-1",
+      name: "Baseline",
+      status: "DRAFT",
+      version: 1,
+      rules: {
+        ...baseRules,
+        platformOverrides: { CHROMEOS: { "web-filter": true } },
+      },
+      createdAt: now,
+      updatedAt: now,
+    });
+    const auditCreate = vi.fn();
+    const service = new PoliciesService(
+      {
+        policy: {
+          findFirst: async () => ({
+            id: "policy-1",
+            status: "DRAFT",
+            rules: baseRules,
+          }),
+          update,
+        },
+        auditEvent: { create: auditCreate },
+        $transaction: async (callback: (tx: unknown) => unknown) =>
+          callback({ policy: { update }, auditEvent: { create: auditCreate } }),
+      } as never,
+      connectorRegistry() as never,
+    );
+    await service.updatePlatformOverrides(
+      "tenant-1",
+      "policy-1",
+      {
+        platform: "CHROMEOS",
+        overrides: [{ control: "web-filter", enabled: true }],
+      },
+      "admin-1",
+    );
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          rules: expect.objectContaining({
+            platformOverrides: { CHROMEOS: { "web-filter": true } },
+          }),
+        },
+      }),
+    );
+    expect(auditCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "policy.platform_overrides.update",
+          actorId: "admin-1",
+          tenantId: "tenant-1",
+        }),
+      }),
+    );
+  });
 });

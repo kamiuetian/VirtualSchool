@@ -1,3 +1,10 @@
+import type {
+  CapabilitySupport,
+  DeviceEnrollmentType,
+  DeviceOwnership,
+  DevicePlatform,
+} from "./device";
+
 export const learningModes = [
   "LOST_DEVICE",
   "EXAM",
@@ -108,6 +115,36 @@ export type PolicyRuleSet = {
       powerButtonActions: "POWER_BUTTON_BLOCKED" | "POWER_BUTTON_AVAILABLE";
     };
   };
+  platformOverrides?: Partial<
+    Record<DevicePlatform, Partial<Record<BusinessPolicyControl, boolean>>>
+  >;
+};
+
+export const businessPolicyControls = [
+  "kiosk",
+  "web-filter",
+  "app-deployment",
+] as const;
+export type BusinessPolicyControl = (typeof businessPolicyControls)[number];
+
+export type PlatformPolicySimulation = {
+  policyId: string;
+  policyVersion: number;
+  platform: DevicePlatform;
+  enrollmentType: DeviceEnrollmentType;
+  ownershipType: DeviceOwnership;
+  controls: Array<{
+    control: BusinessPolicyControl;
+    businessValue: boolean;
+    effectiveValue: boolean;
+    source: "BUSINESS_POLICY" | "PLATFORM_OVERRIDE";
+    support: CapabilitySupport;
+    conflict: boolean;
+    note: string | null;
+  }>;
+  conflicts: BusinessPolicyControl[];
+  unsupportedControls: BusinessPolicyControl[];
+  publishable: boolean;
 };
 
 export const webFilterCategories = [

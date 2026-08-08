@@ -20,12 +20,15 @@ import {
   launchAssessmentAction,
   unlockExamDeviceAction,
   updateWebFilterSettingsAction,
+  updatePlatformOverridesAction,
+  simulatePlatformPolicyAction,
 } from "../../lib/actions";
 import {
   getAdminData,
   getExamReadiness,
   getExamReport,
   getWebFilterSettings,
+  getDeviceCapabilities,
 } from "../../lib/api";
 import { formatCount, formatDateTime, humanize } from "../../lib/format";
 
@@ -41,6 +44,9 @@ export default async function PoliciesPage({
   const webFilter = data.selectedTenant
     ? await getWebFilterSettings(data.selectedTenant.id)
     : null;
+  const capabilityData = data.selectedTenant
+    ? await getDeviceCapabilities(data.selectedTenant.id)
+    : { catalog: [], connectionIssue: false };
   const published = data.policies.filter(
     (policy) => policy.status === "PUBLISHED",
   );
@@ -334,110 +340,236 @@ export default async function PoliciesPage({
               ) : null}
 
               {data.policies.some((policy) => policy.status === "DRAFT") ? (
-                <ActionPanel title="Android device controls">
-                  <form
-                    action={updateAndroidPolicyControlsAction}
-                    className="stacked-form"
-                  >
-                    <input
-                      name="tenantId"
-                      type="hidden"
-                      value={data.selectedTenant.id}
-                    />
-                    <Field label="Draft policy">
-                      <select name="policyId" required>
-                        {data.policies
-                          .filter((policy) => policy.status === "DRAFT")
-                          .map((policy) => (
+                <>
+                  <ActionPanel title="Cross-platform overrides">
+                    <form
+                      action={updatePlatformOverridesAction}
+                      className="stacked-form"
+                    >
+                      <input
+                        name="tenantId"
+                        type="hidden"
+                        value={data.selectedTenant.id}
+                      />
+                      <Field label="Draft policy">
+                        <select name="policyId" required>
+                          {data.policies
+                            .filter((policy) => policy.status === "DRAFT")
+                            .map((policy) => (
+                              <option key={policy.id} value={policy.id}>
+                                {policy.name}
+                              </option>
+                            ))}
+                        </select>
+                      </Field>
+                      <Field label="Platform">
+                        <select name="platform" required>
+                          {capabilityData.catalog.map((entry) => (
+                            <option key={entry.platform} value={entry.platform}>
+                              {humanize(entry.platform)}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      <label>
+                        <input name="kiosk" type="checkbox" /> Enable kiosk
+                      </label>
+                      <label>
+                        <input name="web-filter" type="checkbox" /> Enable web
+                        filtering
+                      </label>
+                      <label>
+                        <input name="app-deployment" type="checkbox" /> Enable
+                        app deployment
+                      </label>
+                      <p className="form-help">
+                        Saving makes all three values explicit for the selected
+                        OS. Preview the target enrollment before publishing; an
+                        override that differs from the business policy is
+                        reported as a conflict.
+                      </p>
+                      <SubmitButton>Save OS overrides</SubmitButton>
+                    </form>
+                  </ActionPanel>
+                  <ActionPanel title="Preview platform mapping">
+                    <form
+                      action={simulatePlatformPolicyAction}
+                      className="stacked-form"
+                    >
+                      <input
+                        name="tenantId"
+                        type="hidden"
+                        value={data.selectedTenant.id}
+                      />
+                      <Field label="Policy">
+                        <select name="policyId" required>
+                          {data.policies.map((policy) => (
                             <option key={policy.id} value={policy.id}>
                               {policy.name}
                             </option>
                           ))}
-                      </select>
-                    </Field>
-                    <Field label="System update behavior">
-                      <select name="updateType" defaultValue="WINDOWED">
-                        <option value="WINDOWED">
-                          Install in daily window
-                        </option>
-                        <option value="AUTOMATIC">Install automatically</option>
-                        <option value="POSTPONE">Postpone up to 30 days</option>
-                      </select>
-                    </Field>
-                    <div className="form-row">
-                      <Field label="Window starts">
+                        </select>
+                      </Field>
+                      <Field label="Platform">
+                        <select name="platform" required>
+                          {capabilityData.catalog.map((entry) => (
+                            <option key={entry.platform} value={entry.platform}>
+                              {humanize(entry.platform)}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      <Field label="Enrollment">
+                        <select
+                          name="enrollmentType"
+                          defaultValue="FULLY_MANAGED"
+                        >
+                          <option value="FULLY_MANAGED">Fully managed</option>
+                          <option value="SUPERVISED">Supervised</option>
+                          <option value="USER_ENROLLED">User enrolled</option>
+                          <option value="BYOD_SESSION">BYOD session</option>
+                        </select>
+                      </Field>
+                      <Field label="Ownership">
+                        <select
+                          name="ownershipType"
+                          defaultValue="SCHOOL_OWNED"
+                        >
+                          <option value="SCHOOL_OWNED">School owned</option>
+                          <option value="CORPORATE">Corporate</option>
+                          <option value="PERSONAL">Personal</option>
+                        </select>
+                      </Field>
+                      <Field label="OS version">
                         <input
-                          defaultValue="01:00"
-                          name="updateStartTime"
-                          type="time"
+                          name="osVersion"
+                          placeholder="Optional inventory version"
                         />
                       </Field>
-                      <Field label="Window ends">
-                        <input
-                          defaultValue="05:00"
-                          name="updateEndTime"
-                          type="time"
-                        />
-                      </Field>
-                    </div>
-                    <Field label="System navigation">
-                      <select
-                        name="systemNavigation"
-                        defaultValue="NAVIGATION_DISABLED"
-                      >
-                        <option value="NAVIGATION_DISABLED">Disabled</option>
-                        <option value="HOME_BUTTON_ONLY">
-                          Home button only
-                        </option>
-                        <option value="NAVIGATION_ENABLED">Enabled</option>
-                      </select>
-                    </Field>
-                    <Field label="Status bar">
-                      <select
-                        name="statusBar"
-                        defaultValue="NOTIFICATIONS_AND_SYSTEM_INFO_DISABLED"
-                      >
-                        <option value="NOTIFICATIONS_AND_SYSTEM_INFO_DISABLED">
-                          Hidden
-                        </option>
-                        <option value="SYSTEM_INFO_ONLY">
-                          System info only
-                        </option>
-                        <option value="NOTIFICATIONS_AND_SYSTEM_INFO_ENABLED">
-                          Notifications and system info
-                        </option>
-                      </select>
-                    </Field>
-                    <Field label="Power button">
-                      <select
-                        name="powerButtonActions"
-                        defaultValue="POWER_BUTTON_BLOCKED"
-                      >
-                        <option value="POWER_BUTTON_BLOCKED">
-                          Menu blocked
-                        </option>
-                        <option value="POWER_BUTTON_AVAILABLE">
-                          Menu available
-                        </option>
-                      </select>
-                    </Field>
-                    <label>
+                      <SubmitButton>Preview controls</SubmitButton>
+                      {simulation?.platformName ? (
+                        <p className="form-help" aria-live="polite">
+                          <strong>{humanize(simulation.platformName)}</strong>:{" "}
+                          {simulation.platformPublishable === "true"
+                            ? "publishable"
+                            : "blocked by unsupported enabled controls"}
+                          . Conflicts: {simulation.platformConflicts || "none"}.
+                          Unsupported:{" "}
+                          {simulation.platformUnsupported || "none"}.
+                        </p>
+                      ) : null}
+                    </form>
+                  </ActionPanel>
+                  <ActionPanel title="Android device controls">
+                    <form
+                      action={updateAndroidPolicyControlsAction}
+                      className="stacked-form"
+                    >
                       <input
-                        defaultChecked
-                        name="blockFactoryReset"
-                        type="checkbox"
-                      />{" "}
-                      Block factory reset from device settings
-                    </label>
-                    <p className="form-help">
-                      Android Management supports a daily update window, a
-                      30-day postponement, and kiosk navigation/status controls.
-                      It cannot schedule different windows by weekday, set kiosk
-                      wallpaper, or block hardware recovery resets.
-                    </p>
-                    <SubmitButton>Save Android controls</SubmitButton>
-                  </form>
-                </ActionPanel>
+                        name="tenantId"
+                        type="hidden"
+                        value={data.selectedTenant.id}
+                      />
+                      <Field label="Draft policy">
+                        <select name="policyId" required>
+                          {data.policies
+                            .filter((policy) => policy.status === "DRAFT")
+                            .map((policy) => (
+                              <option key={policy.id} value={policy.id}>
+                                {policy.name}
+                              </option>
+                            ))}
+                        </select>
+                      </Field>
+                      <Field label="System update behavior">
+                        <select name="updateType" defaultValue="WINDOWED">
+                          <option value="WINDOWED">
+                            Install in daily window
+                          </option>
+                          <option value="AUTOMATIC">
+                            Install automatically
+                          </option>
+                          <option value="POSTPONE">
+                            Postpone up to 30 days
+                          </option>
+                        </select>
+                      </Field>
+                      <div className="form-row">
+                        <Field label="Window starts">
+                          <input
+                            defaultValue="01:00"
+                            name="updateStartTime"
+                            type="time"
+                          />
+                        </Field>
+                        <Field label="Window ends">
+                          <input
+                            defaultValue="05:00"
+                            name="updateEndTime"
+                            type="time"
+                          />
+                        </Field>
+                      </div>
+                      <Field label="System navigation">
+                        <select
+                          name="systemNavigation"
+                          defaultValue="NAVIGATION_DISABLED"
+                        >
+                          <option value="NAVIGATION_DISABLED">Disabled</option>
+                          <option value="HOME_BUTTON_ONLY">
+                            Home button only
+                          </option>
+                          <option value="NAVIGATION_ENABLED">Enabled</option>
+                        </select>
+                      </Field>
+                      <Field label="Status bar">
+                        <select
+                          name="statusBar"
+                          defaultValue="NOTIFICATIONS_AND_SYSTEM_INFO_DISABLED"
+                        >
+                          <option value="NOTIFICATIONS_AND_SYSTEM_INFO_DISABLED">
+                            Hidden
+                          </option>
+                          <option value="SYSTEM_INFO_ONLY">
+                            System info only
+                          </option>
+                          <option value="NOTIFICATIONS_AND_SYSTEM_INFO_ENABLED">
+                            Notifications and system info
+                          </option>
+                        </select>
+                      </Field>
+                      <Field label="Power button">
+                        <select
+                          name="powerButtonActions"
+                          defaultValue="POWER_BUTTON_BLOCKED"
+                        >
+                          <option value="POWER_BUTTON_BLOCKED">
+                            Menu blocked
+                          </option>
+                          <option value="POWER_BUTTON_AVAILABLE">
+                            Menu available
+                          </option>
+                        </select>
+                      </Field>
+                      <label>
+                        <input
+                          defaultChecked
+                          name="blockFactoryReset"
+                          type="checkbox"
+                        />{" "}
+                        Block factory reset from device settings
+                      </label>
+                      <p className="form-help">
+                        Android Management supports a daily update window, a
+                        30-day postponement, and kiosk navigation/status
+                        controls. It cannot schedule different windows by
+                        weekday, set kiosk wallpaper, or block hardware recovery
+                        resets.
+                      </p>
+                      <SubmitButton>Save Android controls</SubmitButton>
+                    </form>
+                  </ActionPanel>
+                </>
               ) : null}
 
               {published.length > 0 ? (

@@ -7,6 +7,7 @@ import type {
   Permission,
   RosterImportSummary,
   UrlPolicySimulation,
+  PlatformPolicySimulation,
 } from "@virtual-school/shared";
 import { adminApiJsonMutation, adminApiMutation } from "./api";
 import { roleCan } from "./auth/portal-access";
@@ -1011,6 +1012,49 @@ export async function simulateUrlPolicyAction(
     effectiveAccess: result.effectiveAccess,
     matchedRule: result.matchedRule ?? "",
     reason: result.reason,
+  });
+  redirect(`/policies?${params.toString()}`);
+}
+
+export async function updatePlatformOverridesAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("policy:manage");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "PATCH",
+    `/tenants/${tenantId}/policies/${required(formData, "policyId")}/platform-overrides`,
+    {
+      platform: required(formData, "platform"),
+      overrides: ["kiosk", "web-filter", "app-deployment"].map((control) => ({
+        control,
+        enabled: formData.get(control) === "on",
+      })),
+    },
+  );
+  revalidateAll();
+}
+
+export async function simulatePlatformPolicyAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("policy:manage");
+  const tenantId = required(formData, "tenantId");
+  const result = await adminApiJsonMutation<PlatformPolicySimulation>(
+    "POST",
+    `/tenants/${tenantId}/policies/${required(formData, "policyId")}/simulate-platform`,
+    {
+      enrollmentType: required(formData, "enrollmentType"),
+      osVersion: text(formData, "osVersion"),
+      ownershipType: required(formData, "ownershipType"),
+      platform: required(formData, "platform"),
+    },
+  );
+  const params = new URLSearchParams({
+    platformConflicts: result.conflicts.join(","),
+    platformName: result.platform,
+    platformPublishable: String(result.publishable),
+    platformUnsupported: result.unsupportedControls.join(","),
   });
   redirect(`/policies?${params.toString()}`);
 }

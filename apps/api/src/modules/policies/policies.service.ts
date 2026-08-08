@@ -25,6 +25,7 @@ import type {
   TenantWebFilterSettings,
   EducationalVideoAccessEvaluation,
   EducationalVideoAllowlistEntry,
+  PlatformPolicySimulation,
 } from "@virtual-school/shared";
 import {
   type AppCatalogItem,
@@ -54,6 +55,11 @@ import { evaluateUrlPolicy } from "./url-policy-evaluator";
 import type { UpdateWebFilterSettingsDto } from "./dto/update-web-filter-settings.dto";
 import type { EvaluateEducationalVideoDto } from "./dto/evaluate-educational-video.dto";
 import { matchesEducationalVideo } from "./educational-video-evaluator";
+import { platformCapabilityCatalog } from "../enrollment/device-capability.catalog";
+import type {
+  SimulatePlatformPolicyDto,
+  UpdatePlatformOverridesDto,
+} from "./dto/platform-policy.dto";
 
 type PolicyAssignmentWithPolicy = PolicyAssignment & {
   policy: Policy;
@@ -218,6 +224,140 @@ export class PoliciesService {
         error instanceof Error ? error.message : "Invalid URL",
       );
     }
+  }
+
+  async updatePlatformOverrides(
+    tenantId: string,
+    policyId: string,
+    input: UpdatePlatformOverridesDto,
+    actorId?: string,
+  ): Promise<PolicySummary> {
+    const policy = await this.prisma.policy.findFirst({
+      where: { id: policyId, tenantId },
+    });
+    if (!policy)
+      throw new NotFoundException(
+        `Policy ${policyId} was not found for tenant ${tenantId}`,
+      );
+    if (policy.status !== "DRAFT")
+      throw new BadRequestException(
+        "Platform overrides can only be changed on a draft policy",
+      );
+    if (
+      new Set(input.overrides.map((item) => item.control)).size !==
+      input.overrides.length
+    ) {
+      throw new BadRequestException(
+        "Each platform control may be overridden only once",
+      );
+    }
+    const existingRules = policy.rules as PolicyRuleSet;
+    const platformOverrides = { ...(existingRules.platformOverrides ?? {}) };
+    platformOverrides[input.platform] = Object.fromEntries(
+      input.overrides.map((item) => [item.control, item.enabled]),
+    );
+    const rules: PolicyRuleSet = { ...existingRules, platformOverrides };
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const saved = await tx.policy.update({
+        data: { rules: rules as Prisma.InputJsonValue },
+        where: { id: policy.id },
+      });
+      await tx.auditEvent.create({
+        data: {
+          action: "policy.platform_overrides.update",
+          actorId,
+          newValue: {
+            platform: input.platform,
+            overrides: platformOverrides[input.platform],
+          },
+          object: "Policy",
+          objectId: policy.id,
+          outcome: "SUCCESS",
+          tenantId,
+        },
+      });
+      return saved;
+    });
+    return this.toPolicySummary(updated);
+  }
+
+  async simulatePlatformPolicy(
+    tenantId: string,
+    policyId: string,
+    input: SimulatePlatformPolicyDto,
+  ): Promise<PlatformPolicySimulation> {
+    const policy = await this.prisma.policy.findFirst({
+      where: { id: policyId, tenantId },
+    });
+    if (!policy)
+      throw new NotFoundException(
+        `Policy ${policyId} was not found for tenant ${tenantId}`,
+      );
+    const rules = policy.rules as PolicyRuleSet;
+    const catalog = platformCapabilityCatalog.find(
+      (item) => item.platform === input.platform,
+    );
+    if (!catalog)
+      throw new BadRequestException(
+        `No capability catalog exists for ${input.platform}`,
+      );
+    const businessValues = {
+      "app-deployment": rules.approvedAppPackageIds.length > 0,
+      kiosk: rules.restrictions.blockSettings,
+      "web-filter":
+        rules.defaultWebAccess === "DENY" ||
+        rules.urlAllowlist.length > 0 ||
+        rules.urlBlocklist.length > 0,
+    } as const;
+    const overrides = rules.platformOverrides?.[input.platform] ?? {};
+    const controls = (
+      Object.keys(businessValues) as Array<keyof typeof businessValues>
+    ).map((control) => {
+      const capability = catalog.capabilities.find(
+        (item) => item.key === control,
+      );
+      const eligible = Boolean(
+        capability?.enrollmentTypes.includes(input.enrollmentType) &&
+          capability.ownershipTypes.includes(input.ownershipType),
+      );
+      const support =
+        capability && eligible ? capability.support : ("UNSUPPORTED" as const);
+      const override = overrides[control];
+      const businessValue = businessValues[control];
+      return {
+        businessValue,
+        conflict: override !== undefined && override !== businessValue,
+        control,
+        effectiveValue: override ?? businessValue,
+        note: eligible
+          ? (capability?.note ?? null)
+          : capability
+            ? "Not supported for this enrollment or ownership type."
+            : "No platform mapping is available.",
+        source:
+          override === undefined
+            ? ("BUSINESS_POLICY" as const)
+            : ("PLATFORM_OVERRIDE" as const),
+        support,
+      };
+    });
+    return {
+      conflicts: controls
+        .filter((item) => item.conflict)
+        .map((item) => item.control),
+      controls,
+      enrollmentType: input.enrollmentType,
+      ownershipType: input.ownershipType,
+      platform: input.platform,
+      policyId: policy.id,
+      policyVersion: policy.version,
+      publishable: !controls.some(
+        (item) => item.effectiveValue && item.support === "UNSUPPORTED",
+      ),
+      unsupportedControls: controls
+        .filter((item) => item.effectiveValue && item.support === "UNSUPPORTED")
+        .map((item) => item.control),
+    };
   }
 
   async ingestBlockedDomainEvent(
