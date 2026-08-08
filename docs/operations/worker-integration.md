@@ -32,6 +32,7 @@ Scheduled jobs:
 - `WORKER_NOTIFICATION_INTERVAL_MS`: email dispatch interval, default `60000`.
 
 - `WORKER_ENGAGEMENT_SCAN_INTERVAL_MS`: interval for explainable seven-day engagement-risk evaluation and weekly summary generation, default `3600000`. Guardian summaries remain disabled until a tenant explicitly enables them; generated guardian messages contain only linked learners and the rule evidence that triggered the summary.
+- `WORKER_AUTOMATION_INTERVAL_MS`: interval for evaluating enabled tenant automation rules, default `60000`. Rules are restricted to device-offline or repeated-policy-failure triggers and notification or internal-support-item actions. Each rule/target/time-window execution is uniquely recorded to suppress duplicate actions, and automation output is never accepted as trigger evidence.
 - `WORKER_NOTIFICATION_BATCH_SIZE`: maximum alerts evaluated per tenant and run, default `100`.
 - `EMAIL_DELIVERY_WEBHOOK_URL`: HTTPS endpoint for the configured email provider adapter. If absent, attempts fail safely without sending.
 - `EMAIL_DELIVERY_WEBHOOK_TOKEN`: optional bearer token for the email provider adapter.

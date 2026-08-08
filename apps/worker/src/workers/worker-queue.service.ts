@@ -123,6 +123,11 @@ export class WorkerQueueService implements OnModuleInit, OnModuleDestroy {
       { data: {}, name: "engagement.scan", opts: this.jobOptions() },
     );
     await this.queue.upsertJobScheduler(
+      "automation-evaluate",
+      { every: this.envInt("WORKER_AUTOMATION_INTERVAL_MS", 60_000) },
+      { data: {}, name: "automation.evaluate", opts: this.jobOptions() },
+    );
+    await this.queue.upsertJobScheduler(
       "classroom-sync",
       { every: this.envInt("WORKER_CLASSROOM_SYNC_INTERVAL_MS", 60_000) },
       { data: {}, name: "classroom.sync", opts: this.jobOptions() },

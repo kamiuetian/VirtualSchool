@@ -28,6 +28,7 @@ import { WebhooksModule } from "./webhooks/webhooks.module";
 import { ByodModule } from "./byod/byod.module";
 import { ContentLibraryModule } from "./content-library/content-library.module";
 import { AttendanceModule } from "./attendance/attendance.module";
+import { AutomationModule } from "./automation/automation.module";
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { AttendanceModule } from "./attendance/attendance.module";
     ByodModule,
     ContentLibraryModule,
     AttendanceModule,
+    AutomationModule,
   ],
 })
 export class AppModule {}

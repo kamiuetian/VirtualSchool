@@ -24,6 +24,59 @@ export async function createTenantAction(formData: FormData): Promise<void> {
   revalidateAll();
 }
 
+export async function createAutomationRuleAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation("POST", `/tenants/${tenantId}/automation-rules`, {
+    name: required(formData, "name"),
+    trigger: required(formData, "trigger"),
+    threshold: Number(required(formData, "threshold")),
+    windowMinutes: Number(required(formData, "windowMinutes")),
+    action: required(formData, "automationAction"),
+    title: required(formData, "title"),
+    severity: required(formData, "severity"),
+    enabled: false,
+  });
+  revalidatePath("/alerts");
+}
+
+export async function updateAutomationRuleAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  const ruleId = required(formData, "ruleId");
+  await adminApiMutation(
+    "PATCH",
+    `/tenants/${tenantId}/automation-rules/${ruleId}`,
+    {
+      name: required(formData, "name"),
+      trigger: required(formData, "trigger"),
+      threshold: Number(required(formData, "threshold")),
+      windowMinutes: Number(required(formData, "windowMinutes")),
+      action: required(formData, "automationAction"),
+      title: required(formData, "title"),
+      severity: required(formData, "severity"),
+      enabled: booleanValue(formData, "enabled"),
+    },
+  );
+  revalidatePath("/alerts");
+}
+
+export async function testAutomationRuleAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("tenant:update");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${required(formData, "tenantId")}/automation-rules/${required(formData, "ruleId")}/test`,
+    {},
+  );
+  revalidatePath("/alerts");
+}
+
 export async function updateAttendanceSettingsAction(
   formData: FormData,
 ): Promise<void> {
@@ -1153,15 +1206,24 @@ export async function updateNotificationPreferencesAction(
         formData,
         "repeatedEnrollmentEnabled",
       ),
-        repeatedEnrollmentThreshold: numberValue(
-          formData,
-          "repeatedEnrollmentThreshold",
-        ),
-        engagementRiskEnabled: booleanValue(formData, "engagementRiskEnabled"),
-        missedSessionThreshold: numberValue(formData, "missedSessionThreshold"),
-        complianceFailureThreshold: numberValue(formData, "complianceFailureThreshold"),
-        weeklyAdminSummaryEnabled: booleanValue(formData, "weeklyAdminSummaryEnabled"),
-        weeklyGuardianSummaryEnabled: booleanValue(formData, "weeklyGuardianSummaryEnabled"),
+      repeatedEnrollmentThreshold: numberValue(
+        formData,
+        "repeatedEnrollmentThreshold",
+      ),
+      engagementRiskEnabled: booleanValue(formData, "engagementRiskEnabled"),
+      missedSessionThreshold: numberValue(formData, "missedSessionThreshold"),
+      complianceFailureThreshold: numberValue(
+        formData,
+        "complianceFailureThreshold",
+      ),
+      weeklyAdminSummaryEnabled: booleanValue(
+        formData,
+        "weeklyAdminSummaryEnabled",
+      ),
+      weeklyGuardianSummaryEnabled: booleanValue(
+        formData,
+        "weeklyGuardianSummaryEnabled",
+      ),
     },
   );
   revalidateAll();

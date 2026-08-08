@@ -12,6 +12,9 @@ import {
   resolveAlertAction,
   scanOfflineAlertsAction,
   updateNotificationPreferencesAction,
+  createAutomationRuleAction,
+  updateAutomationRuleAction,
+  testAutomationRuleAction,
 } from "../../lib/actions";
 import { getAdminData } from "../../lib/api";
 import { roleCan } from "../../lib/auth/portal-access";
@@ -85,6 +88,121 @@ export default async function AlertsPage() {
         ) : null}
 
         {selectedTenant && roleCan(data.session.role, "tenant:update") ? (
+          <PageSection kicker="Bounded workflows" title="Automation Rules">
+            <form
+              action={createAutomationRuleAction}
+              className="action-panel content-stack"
+            >
+              <input name="tenantId" type="hidden" value={selectedTenant.id} />
+              <div className="inline-form">
+                <Field label="Rule name">
+                  <input name="name" required />
+                </Field>
+                <Field label="Trigger">
+                  <select name="trigger">
+                    <option value="DEVICE_OFFLINE">Device offline</option>
+                    <option value="POLICY_FAILURE_REPEATED">
+                      Repeated policy failure
+                    </option>
+                  </select>
+                </Field>
+                <Field label="Threshold">
+                  <input
+                    name="threshold"
+                    type="number"
+                    min="1"
+                    max="20"
+                    defaultValue="1"
+                  />
+                </Field>
+                <Field label="Window minutes">
+                  <input
+                    name="windowMinutes"
+                    type="number"
+                    min="5"
+                    max="10080"
+                    defaultValue="60"
+                  />
+                </Field>
+                <Field label="Action">
+                  <select name="automationAction">
+                    <option value="NOTIFY">Notify</option>
+                    <option value="CREATE_TICKET">Create support item</option>
+                  </select>
+                </Field>
+                <Field label="Title">
+                  <input name="title" required />
+                </Field>
+                <Field label="Severity">
+                  <select name="severity">
+                    <option>WARNING</option>
+                    <option>INFO</option>
+                    <option>CRITICAL</option>
+                  </select>
+                </Field>
+              </div>
+              <SubmitButton>Create disabled rule</SubmitButton>
+            </form>
+            <div className="list-panel">
+              {data.automationRules.map((rule) => (
+                <article className="list-row" key={rule.id}>
+                  <div>
+                    <strong>{rule.name}</strong>
+                    <span>
+                      {humanize(rule.trigger)} → {humanize(rule.action)} ·{" "}
+                      {rule.conditions.threshold} in{" "}
+                      {rule.conditions.windowMinutes} minutes
+                    </span>
+                  </div>
+                  <div className="row-actions">
+                    <StatusPill tone={rule.enabled ? "good" : "neutral"}>
+                      {rule.enabled ? "Enabled" : "Disabled"}
+                    </StatusPill>
+                    <form action={testAutomationRuleAction}>
+                      <input
+                        type="hidden"
+                        name="tenantId"
+                        value={selectedTenant.id}
+                      />
+                      <input type="hidden" name="ruleId" value={rule.id} />
+                      <button className="small-button">Test safely</button>
+                    </form>
+                    <form action={updateAutomationRuleAction}>
+                      {Object.entries({
+                        tenantId: selectedTenant.id,
+                        ruleId: rule.id,
+                        name: rule.name,
+                        trigger: rule.trigger,
+                        threshold: rule.conditions.threshold,
+                        windowMinutes: rule.conditions.windowMinutes,
+                        automationAction: rule.action,
+                        title: rule.actionConfig.title,
+                        severity: rule.actionConfig.severity,
+                      }).map(([name, value]) => (
+                        <input
+                          key={name}
+                          type="hidden"
+                          name={name}
+                          value={String(value)}
+                        />
+                      ))}
+                      <input
+                        type="hidden"
+                        name="enabled"
+                        value={String(!rule.enabled)}
+                      />
+                      <button className="small-button">
+                        {rule.enabled ? "Disable" : "Enable"}
+                      </button>
+                    </form>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </PageSection>
+        ) : null}
+
+        {selectedTenant && roleCan(data.session.role, "tenant:update") ? (
           <PageSection kicker="Email delivery" title="Notification Preferences">
             <form
               action={updateNotificationPreferencesAction}
@@ -128,10 +246,22 @@ export default async function AlertsPage() {
                   />
                 </Field>
                 <Field label="Missed sessions in 7 days">
-                  <input defaultValue={preferences?.missedSessionThreshold ?? 3} min="2" max="20" name="missedSessionThreshold" type="number" />
+                  <input
+                    defaultValue={preferences?.missedSessionThreshold ?? 3}
+                    min="2"
+                    max="20"
+                    name="missedSessionThreshold"
+                    type="number"
+                  />
                 </Field>
                 <Field label="Policy failures in 7 days">
-                  <input defaultValue={preferences?.complianceFailureThreshold ?? 3} min="2" max="20" name="complianceFailureThreshold" type="number" />
+                  <input
+                    defaultValue={preferences?.complianceFailureThreshold ?? 3}
+                    min="2"
+                    max="20"
+                    name="complianceFailureThreshold"
+                    type="number"
+                  />
                 </Field>
               </div>
               <div className="inline-form">
@@ -161,9 +291,21 @@ export default async function AlertsPage() {
                     "Repeated enrollment",
                     preferences?.repeatedEnrollmentEnabled ?? true,
                   ],
-                  ["engagementRiskEnabled", "Engagement-risk alerts", preferences?.engagementRiskEnabled ?? true],
-                  ["weeklyAdminSummaryEnabled", "Weekly admin summary", preferences?.weeklyAdminSummaryEnabled ?? true],
-                  ["weeklyGuardianSummaryEnabled", "Guardian summaries (linked children only)", preferences?.weeklyGuardianSummaryEnabled ?? false],
+                  [
+                    "engagementRiskEnabled",
+                    "Engagement-risk alerts",
+                    preferences?.engagementRiskEnabled ?? true,
+                  ],
+                  [
+                    "weeklyAdminSummaryEnabled",
+                    "Weekly admin summary",
+                    preferences?.weeklyAdminSummaryEnabled ?? true,
+                  ],
+                  [
+                    "weeklyGuardianSummaryEnabled",
+                    "Guardian summaries (linked children only)",
+                    preferences?.weeklyGuardianSummaryEnabled ?? false,
+                  ],
                 ].map(([name, label, checked]) => (
                   <label key={String(name)}>
                     <input

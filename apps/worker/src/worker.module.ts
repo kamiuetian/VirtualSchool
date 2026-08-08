@@ -7,9 +7,11 @@ import { WorkerQueueService } from "./workers/worker-queue.service";
 import { NotificationEmailService } from "./workers/notification-email.service";
 import { ClassroomSyncService } from "./workers/classroom-sync.service";
 import { WebhookDeliveryService } from "./workers/webhook-delivery.service";
+import { AutomationEngineService } from "./workers/automation-engine.service";
 
 @Module({
   providers: [
+    AutomationEngineService,
     ModeSchedulerService,
     WorkerJobsService,
     WorkerMdmConnector,

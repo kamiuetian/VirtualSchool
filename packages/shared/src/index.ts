@@ -22,3 +22,4 @@ export * from "./sis";
 export * from "./webhook";
 export * from "./byod";
 export * from "./attendance";
+export * from "./automation";

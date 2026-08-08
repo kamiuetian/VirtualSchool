@@ -43,6 +43,7 @@ import type {
   AttendanceSettingsSummary,
   AttendanceReport,
   LearningUsageAnalyticsReport,
+  AutomationRuleSummary,
 } from "@virtual-school/shared";
 import {
   requirePortalRouteAccess,
@@ -79,6 +80,7 @@ export type AdminData = {
   retentionSettings: RetentionSettingsSummary | null;
   notificationPreferences: NotificationPreferenceSummary | null;
   notificationDeliveries: NotificationDeliverySummary[];
+  automationRules: AutomationRuleSummary[];
   privacyNotices: PrivacyNoticeSummary[];
   privacyAcceptances: PrivacyAcceptanceSummary[];
   billingUsage: BillingUsageSummary | null;
@@ -123,6 +125,7 @@ export async function getAdminData(
       appDeploymentReport: null,
       retentionSettings: null,
       notificationPreferences: null,
+      automationRules: [],
       notificationDeliveries: [],
       privacyNotices: [],
       privacyAcceptances: [],
@@ -152,6 +155,7 @@ export async function getAdminData(
     blockedDomainAggregates,
     notificationPreferences,
     notificationDeliveries,
+    automationRules,
     privacyNotices,
     privacyAcceptances,
   ] = await Promise.all([
@@ -224,6 +228,9 @@ export async function getAdminData(
         )
       : skipped([]),
     can("tenant:update")
+      ? apiGet<AutomationRuleSummary[]>(`${tenantPath}/automation-rules`)
+      : skipped([]),
+    can("tenant:update")
       ? apiGet<PrivacyNoticeSummary[]>(`${tenantPath}/privacy/notices`)
       : skipped([]),
     can("tenant:update")
@@ -259,6 +266,7 @@ export async function getAdminData(
       blockedDomainAggregates,
       notificationPreferences,
       notificationDeliveries,
+      automationRules,
       privacyNotices,
       privacyAcceptances,
     ].some((result) => result.failed),
@@ -279,6 +287,7 @@ export async function getAdminData(
     retentionSettings: retentionSettings.data ?? null,
     notificationPreferences: notificationPreferences.data ?? null,
     notificationDeliveries: notificationDeliveries.data ?? [],
+    automationRules: automationRules.data ?? [],
     privacyNotices: privacyNotices.data ?? [],
     privacyAcceptances: privacyAcceptances.data ?? [],
     session,
@@ -376,7 +385,10 @@ export async function getLearningUsageAnalytics(
     deviceGroup?: string;
     category?: string;
   },
-): Promise<{ report: LearningUsageAnalyticsReport | null; connectionIssue: boolean }> {
+): Promise<{
+  report: LearningUsageAnalyticsReport | null;
+  connectionIssue: boolean;
+}> {
   const query = new URLSearchParams();
   Object.entries(filters).forEach(([key, value]) => {
     if (value) query.set(key, value);

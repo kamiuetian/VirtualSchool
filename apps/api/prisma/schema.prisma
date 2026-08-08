@@ -142,6 +142,45 @@ model Tenant {
   contentLibraryItems             ContentLibraryItem[]
   attendanceSettings              AttendanceSettings?
   attendanceRecords               AttendanceRecord[]
+  automationRules                 AutomationRule[]
+  automationExecutions            AutomationExecution[]
+}
+
+model AutomationRule {
+  id          String   @id @default(uuid())
+  tenantId    String
+  name        String
+  trigger     String
+  conditions  Json
+  action      String
+  actionConfig Json
+  enabled     Boolean  @default(false)
+  createdBy   String?
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  executions  AutomationExecution[]
+
+  @@index([tenantId, enabled, trigger])
+}
+
+model AutomationExecution {
+  id          String   @id @default(uuid())
+  tenantId    String
+  ruleId      String
+  fingerprint String
+  targetType  String
+  targetId    String
+  outcome     String
+  evidence    Json
+  result      Json?
+  createdAt   DateTime @default(now())
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rule        AutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@unique([ruleId, fingerprint])
+  @@index([tenantId, createdAt])
 }
 
 model AttendanceSettings {
