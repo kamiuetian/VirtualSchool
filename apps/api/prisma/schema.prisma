@@ -140,6 +140,43 @@ model Tenant {
   byodStudySessions               ByodStudySession[]
   byodParticipants                ByodSessionParticipant[]
   contentLibraryItems             ContentLibraryItem[]
+  attendanceSettings              AttendanceSettings?
+  attendanceRecords               AttendanceRecord[]
+}
+
+model AttendanceSettings {
+  id                   String   @id @default(uuid())
+  tenantId             String   @unique
+  sessionSignalEnabled Boolean  @default(true)
+  deviceSignalEnabled  Boolean  @default(true)
+  lmsSignalEnabled     Boolean  @default(false)
+  teacherSignalEnabled Boolean  @default(true)
+  presentThreshold     Int      @default(1)
+  updatedBy            String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  tenant               Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model AttendanceRecord {
+  id               String   @id @default(uuid())
+  tenantId         String
+  classId          String
+  studentId        String
+  attendanceDate   String
+  status           String
+  derivedStatus    String
+  signals          Json
+  correctedBy      String?
+  correctionReason String?
+  correctedAt      DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, classId, studentId, attendanceDate])
+  @@index([tenantId, attendanceDate])
+  @@index([tenantId, classId, attendanceDate])
 }
 
 model ContentLibraryItem {

@@ -24,6 +24,49 @@ export async function createTenantAction(formData: FormData): Promise<void> {
   revalidateAll();
 }
 
+export async function updateAttendanceSettingsAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("class:manage");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation("PATCH", `/tenants/${tenantId}/attendance/settings`, {
+    sessionSignalEnabled: formData.get("sessionSignalEnabled") === "on",
+    deviceSignalEnabled: formData.get("deviceSignalEnabled") === "on",
+    lmsSignalEnabled: formData.get("lmsSignalEnabled") === "on",
+    teacherSignalEnabled: formData.get("teacherSignalEnabled") === "on",
+    presentThreshold: Number(required(formData, "presentThreshold")),
+  });
+  revalidatePath("/reports");
+}
+
+export async function captureAttendanceAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("class:manage");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation("POST", `/tenants/${tenantId}/attendance/capture`, {
+    classId: required(formData, "classId"),
+    attendanceDate: required(formData, "attendanceDate"),
+  });
+  revalidatePath("/reports");
+}
+
+export async function correctAttendanceAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("class:manage");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "PATCH",
+    `/tenants/${tenantId}/attendance/records/${required(formData, "recordId")}`,
+    {
+      status: required(formData, "status"),
+      reason: required(formData, "reason"),
+    },
+  );
+  revalidatePath("/reports");
+}
+
 export async function createContentLibraryItemAction(
   formData: FormData,
 ): Promise<void> {

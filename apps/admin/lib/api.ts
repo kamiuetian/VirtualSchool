@@ -40,6 +40,8 @@ import type {
   TenantWebFilterSettings,
   ContentLibraryItemSummary,
   ContentLibraryReport,
+  AttendanceSettingsSummary,
+  AttendanceReport,
 } from "@virtual-school/shared";
 import {
   requirePortalRouteAccess,
@@ -334,6 +336,32 @@ export async function getContentLibrary(tenantId: string): Promise<{
     items: items.data ?? [],
     report: report.data,
     connectionIssue: items.failed || report.failed,
+  };
+}
+
+export async function getAttendanceData(
+  tenantId: string,
+  classId?: string,
+  date?: string,
+): Promise<{
+  settings: AttendanceSettingsSummary | null;
+  report: AttendanceReport | null;
+  connectionIssue: boolean;
+}> {
+  const [settings, report] = await Promise.all([
+    apiGet<AttendanceSettingsSummary>(
+      `/tenants/${tenantId}/attendance/settings`,
+    ),
+    classId && date
+      ? apiGet<AttendanceReport>(
+          `/tenants/${tenantId}/attendance/records?classId=${encodeURIComponent(classId)}&date=${date}`,
+        )
+      : skipped<AttendanceReport>(),
+  ]);
+  return {
+    settings: settings.data,
+    report: report.data,
+    connectionIssue: settings.failed || report.failed,
   };
 }
 
