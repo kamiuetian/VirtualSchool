@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type {
   Permission,
@@ -10,6 +11,23 @@ import type {
 import { adminApiJsonMutation, adminApiMutation } from "./api";
 import { roleCan } from "./auth/portal-access";
 import { requireAdminSession } from "./auth/session";
+import { adminLocaleCookie } from "./locale";
+
+export async function updateAdminLanguageAction(
+  formData: FormData,
+): Promise<void> {
+  await requireAdminSession();
+  const language = required(formData, "language");
+  if (!["school", "en", "ur"].includes(language))
+    throw new Error("Unsupported language");
+  (await cookies()).set(adminLocaleCookie, language, {
+    httpOnly: true,
+    maxAge: 60 * 60 * 24 * 365,
+    sameSite: "lax",
+    path: "/",
+  });
+  revalidateAll();
+}
 
 export async function createTenantAction(formData: FormData): Promise<void> {
   await requireActionPermission("tenant:create");

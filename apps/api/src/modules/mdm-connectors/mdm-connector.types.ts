@@ -38,6 +38,7 @@ export type MdmCommandDispatchResult = {
 
 export type MdmPolicyPublishInput = {
   tenantId: string;
+  language?: "en" | "ur";
   policy: {
     id: string;
     name: string;

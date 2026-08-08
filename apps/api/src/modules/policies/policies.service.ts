@@ -510,6 +510,7 @@ export class PoliciesService {
     input: PublishPolicyDto,
   ): Promise<PolicyPublishSummary> {
     const policy = await this.prisma.policy.findFirst({
+      include: { tenant: { select: { language: true } } },
       where: {
         id: policyId,
         tenantId,
@@ -603,6 +604,7 @@ export class PoliciesService {
     try {
       publishResult = await connector.publishPolicy({
         apps,
+        language: policy.tenant?.language === "ur" ? "ur" : "en",
         offlineResources,
         policy: {
           id: updated.id,
@@ -1724,6 +1726,7 @@ export class PoliciesService {
     );
     const tenantBranding = await this.prisma.tenant.findUnique({
       select: {
+        language: true,
         accentColor: true,
         deviceLabel: true,
         logoUrl: true,
@@ -1777,7 +1780,11 @@ export class PoliciesService {
       deviceId,
       generatedAt: new Date().toISOString(),
       launcher: {
-        branding: tenantBranding,
+        branding: {
+          ...tenantBranding,
+          language: tenantBranding.language === "ur" ? "ur" : "en",
+        },
+        language: tenantBranding.language === "ur" ? "ur" : "en",
         approvedApps: apps.map((app) => ({
           category: app.category,
           iconUrl: app.iconUrl,

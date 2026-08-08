@@ -35,6 +35,8 @@ class ManagedPolicyStore(private val context: Context) {
             webShortcuts = bundle.getString("webShortcutsJson", "[]").let(::shortcutsFromJson),
             showMessages = bundle.getBoolean("showMessages", false),
             showSupportContact = bundle.getBoolean("showSupportContact", true),
+            language = bundle.getString("languageOverride")?.takeIf { it == "en" || it == "ur" }
+                ?: bundle.getString("language", "en"),
             offlineResources = bundle.getString("offlineLessonsJson", "[]").let(::offlineFromJson),
         )
     }
@@ -51,6 +53,7 @@ class ManagedPolicyStore(private val context: Context) {
         })
         .put("showMessages", policy.showMessages)
         .put("showSupportContact", policy.showSupportContact)
+        .put("language", policy.language)
         .put("offlineResources", JSONArray().apply {
             policy.offlineResources.forEach { item ->
                 put(JSONObject()
@@ -71,6 +74,7 @@ class ManagedPolicyStore(private val context: Context) {
             webShortcuts = shortcutsFromArray(json.optJSONArray("webShortcuts") ?: JSONArray()),
             showMessages = json.optBoolean("showMessages"),
             showSupportContact = json.optBoolean("showSupportContact", true),
+            language = json.optString("language", "en"),
             offlineResources = offlineFromArray(json.optJSONArray("offlineResources") ?: JSONArray()),
         )
     }.getOrNull()

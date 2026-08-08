@@ -27,6 +27,9 @@ import {
   visiblePortalNavigation,
 } from "../lib/auth/portal-access";
 import { getAdminSession, logoutHref } from "../lib/auth/session";
+import { coreText } from "../lib/core-i18n";
+import { resolveAdminLocale } from "../lib/locale";
+import { updateAdminLanguageAction } from "../lib/actions";
 
 const navigationIcons = {
   "/": LayoutDashboard,
@@ -70,9 +73,31 @@ export async function AppShell({
 }) {
   const session = await getAdminSession();
   const navigation = session ? visiblePortalNavigation(session.role) : [];
+  const locale = await resolveAdminLocale(tenant?.language);
+  const t = (key: Parameters<typeof coreText>[1]) => coreText(locale, key);
+  const navigationKeys: Record<PortalHref, Parameters<typeof coreText>[1]> = {
+    "/": "dashboard",
+    "/alerts": "alerts",
+    "/apps": "apps",
+    "/billing": "billing",
+    "/devices": "devices",
+    "/enrollment": "enrollment",
+    "/policies": "policies",
+    "/privacy": "privacy",
+    "/reports": "reports",
+    "/roster": "roster",
+    "/support": "support",
+    "/teacher": "teacher",
+    "/guardian": "guardian",
+    "/tenants": "tenants",
+    "/timetable": "timetable",
+    "/integrations": "integrations",
+  };
 
   return (
     <div
+      lang={locale}
+      dir={locale === "ur" ? "rtl" : "ltr"}
       className="app-shell"
       style={
         {
@@ -96,13 +121,15 @@ export async function AppShell({
           </span>
         </Link>
 
-        <nav className="sidebar-nav" aria-label="Primary">
+        <nav className="sidebar-nav" aria-label={t("primary")}>
           {navigation.map((item) => {
             const Icon = navigationIcons[item.href];
             return (
               <Link href={item.href} key={item.href}>
                 <Icon size={18} />
-                <span>{item.label}</span>
+                <span>
+                  {locale === "ur" ? t(navigationKeys[item.href]) : item.label}
+                </span>
               </Link>
             );
           })}
@@ -117,8 +144,8 @@ export async function AppShell({
       <main className="workspace">
         <header className="workspace-header">
           <div>
-            <span className="eyebrow">School operations</span>
-            <h1>{tenant?.name ?? "Managed learning console"}</h1>
+            <span className="eyebrow">{t("schoolOperations")}</span>
+            <h1>{tenant?.name ?? t("managedConsole")}</h1>
           </div>
           <div className="workspace-actions">
             <div className="tenant-switcher">
@@ -133,7 +160,7 @@ export async function AppShell({
                   <small>{session.email}</small>
                 </span>
                 <a
-                  aria-label="Sign out"
+                  aria-label={t("signOut")}
                   className="icon-action"
                   href={logoutHref()}
                 >
@@ -141,16 +168,25 @@ export async function AppShell({
                 </a>
               </div>
             ) : null}
+            <form
+              action={updateAdminLanguageAction}
+              className="tenant-switcher"
+            >
+              <label htmlFor="admin-language">{t("language")}</label>
+              <select id="admin-language" name="language" defaultValue="school">
+                <option value="school">{t("useSchoolLanguage")}</option>
+                <option value="en">{t("english")}</option>
+                <option value="ur">{t("urdu")}</option>
+              </select>
+              <button type="submit">✓</button>
+            </form>
           </div>
         </header>
 
         {connectionIssue ? (
           <section className="notice-band" role="status">
             <AlertTriangle size={18} />
-            <span>
-              The console could not refresh every data source. Existing screens
-              remain available while the service reconnects.
-            </span>
+            <span>{t("connectionIssue")}</span>
           </section>
         ) : null}
 
@@ -161,7 +197,7 @@ export async function AppShell({
         <div className="rail-panel">
           <BarChart3 size={20} />
           <div>
-            <strong>Daily focus</strong>
+            <strong>{t("dailyFocus")}</strong>
             <span>
               Enrollment, {tenant?.deviceLabel?.toLowerCase() ?? "device"}{" "}
               health, policy delivery, and learning access.

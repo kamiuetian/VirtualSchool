@@ -15,6 +15,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import com.virtualschool.launcher.policy.LauncherPolicy
+import com.virtualschool.launcher.policy.LauncherStrings
 import com.virtualschool.launcher.policy.ManagedPolicyStore
 import com.virtualschool.launcher.policy.OfflineLessonCache
 
@@ -56,25 +57,26 @@ class MainActivity : Activity() {
 
     private fun render() {
         val policy = policyStore.current()
+        val t = { key: String -> LauncherStrings.text(policy.language, key) }
         offlineCache.reconcile(policy.offlineResources)
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(32, 32, 32, 32)
             addView(header("Virtual School", 26f))
-            addView(header("Mode: ${policy.displayMode()} · Policy ${policy.policyVersion}", 16f))
+            addView(header("${t("mode")}: ${policy.displayMode()} · ${t("policy")} ${policy.policyVersion}", 16f))
         }
 
         if (policy.isLostMode) {
-            content.addView(message("This device is managed by your school. Please return it to school staff."))
+            content.addView(message(t("managedDevice")))
         } else {
             addApps(content, policy)
             addShortcuts(content, policy)
             addOfflineLessons(content, policy)
-            if (policy.showMessages) content.addView(message("School messages are enabled for this device."))
+            if (policy.showMessages) content.addView(message(t("messages")))
         }
 
         if (policy.showSupportContact) {
-            content.addView(message("Need help? Contact your school support team."))
+            content.addView(message(t("support")))
         }
 
         setContentView(ScrollView(this).apply { addView(content) })
@@ -89,9 +91,9 @@ class MainActivity : Activity() {
     }
 
     private fun addApps(content: LinearLayout, policy: LauncherPolicy) {
-        content.addView(header("Approved apps", 20f))
+        content.addView(header(LauncherStrings.text(policy.language, "approvedApps"), 20f))
         val apps = policy.safeApprovedApps()
-        if (apps.isEmpty()) content.addView(message("No apps are available in this mode."))
+        if (apps.isEmpty()) content.addView(message(LauncherStrings.text(policy.language, "noApps")))
         apps.forEach { app ->
             content.addView(action(app.name) {
                 packageManager.getLaunchIntentForPackage(app.packageId)?.let(::startActivity)
@@ -100,7 +102,7 @@ class MainActivity : Activity() {
     }
 
     private fun addShortcuts(content: LinearLayout, policy: LauncherPolicy) {
-        content.addView(header("Learning links", 20f))
+        content.addView(header(LauncherStrings.text(policy.language, "learningLinks"), 20f))
         policy.safeWebShortcuts().forEach { shortcut ->
             content.addView(action(shortcut.title) {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(shortcut.url)).setPackage(SECURE_BROWSER))
@@ -109,9 +111,9 @@ class MainActivity : Activity() {
     }
 
     private fun addOfflineLessons(content: LinearLayout, policy: LauncherPolicy) {
-        content.addView(header("Offline Mode", 20f))
+        content.addView(header(LauncherStrings.text(policy.language, "offlineMode"), 20f))
         val cached = offlineCache.cached(policy.offlineResources)
-        if (cached.isEmpty()) content.addView(message("No verified lessons are available offline."))
+        if (cached.isEmpty()) content.addView(message(LauncherStrings.text(policy.language, "noLessons")))
         cached.forEach { content.addView(message("${it.title} · ${it.type.lowercase()} · v${it.version}")) }
     }
 

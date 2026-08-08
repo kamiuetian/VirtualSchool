@@ -29,6 +29,7 @@ data class LauncherPolicy(
     val webShortcuts: List<WebShortcut>,
     val showMessages: Boolean,
     val showSupportContact: Boolean,
+    val language: String = "en",
     val offlineResources: List<OfflineLessonResource> = emptyList(),
 ) {
     fun safeApprovedApps(): List<ApprovedApp> = approvedApps
@@ -61,6 +62,7 @@ data class LauncherPolicy(
             webShortcuts = emptyList(),
             showMessages = false,
             showSupportContact = true,
+            language = "en",
             offlineResources = emptyList(),
         )
     }

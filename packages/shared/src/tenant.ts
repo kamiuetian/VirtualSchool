@@ -30,6 +30,7 @@ export type TenantBranding = Pick<
   | "studentLabel"
   | "deviceLabel"
   | "timezone"
+  | "language"
 >;
 
 export type BranchSummary = {

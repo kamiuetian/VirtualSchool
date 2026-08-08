@@ -117,6 +117,7 @@ export class AndroidManagementConnector implements MdmConnector {
         packageId: app.packageId,
       })),
       enterpriseId,
+      language: input.language,
       offlineResources: input.offlineResources,
       policyId: input.policy.id,
       rules: input.policy.rules,

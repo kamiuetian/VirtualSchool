@@ -53,6 +53,7 @@ export class AndroidManagementPolicyMapper {
   map(input: {
     enterpriseId: string;
     tenantId: string;
+    language?: "en" | "ur";
     policyId: string;
     version: number;
     rules: PolicyRuleSet;
@@ -98,6 +99,7 @@ export class AndroidManagementPolicyMapper {
             })),
         ),
         mode: input.rules.mode,
+        language: input.language ?? "en",
         policyId: input.policyId,
         policyVersion: input.version,
         showMessages: input.rules.launcher.showMessages,
