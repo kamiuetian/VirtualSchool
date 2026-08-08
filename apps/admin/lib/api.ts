@@ -49,6 +49,7 @@ import type {
   AutomationRuleSummary,
   AnnouncementSummary,
   PilotFeedbackSummary,
+  PlatformCapabilityCatalog,
 } from "@virtual-school/shared";
 import {
   requirePortalRouteAccess,
@@ -593,6 +594,16 @@ export async function getDeviceOperationsData(
     diagnostics: diagnostics.data ?? [],
     history: history.data ?? { assignments: [], lifecycle: [] },
   };
+}
+
+export async function getDeviceCapabilities(tenantId: string): Promise<{
+  catalog: PlatformCapabilityCatalog[];
+  connectionIssue: boolean;
+}> {
+  const result = await apiGet<PlatformCapabilityCatalog[]>(
+    `/tenants/${tenantId}/device-capabilities`,
+  );
+  return { catalog: result.data ?? [], connectionIssue: result.failed };
 }
 
 export async function adminApiRawGet(path: string): Promise<Response> {

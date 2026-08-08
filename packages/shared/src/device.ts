@@ -32,6 +32,48 @@ export type RemoteCommandType = (typeof remoteCommandTypes)[number];
 
 export type EnrollmentBatchStatus = "ACTIVE" | "EXPIRED" | "REVOKED";
 
+export const devicePlatforms = [
+  "ANDROID",
+  "CHROMEOS",
+  "IOS",
+  "IPADOS",
+  "MACOS",
+  "WINDOWS",
+] as const;
+export type DevicePlatform = (typeof devicePlatforms)[number];
+export type DeviceOwnership = "SCHOOL_OWNED" | "PERSONAL" | "CORPORATE";
+export type DeviceEnrollmentType =
+  | "FULLY_MANAGED"
+  | "SUPERVISED"
+  | "USER_ENROLLED"
+  | "BYOD_SESSION"
+  | "UNKNOWN";
+export type CapabilitySupport = "SUPPORTED" | "PARTIAL" | "UNSUPPORTED";
+
+export type DeviceCapability = {
+  key: string;
+  label: string;
+  support: CapabilitySupport;
+  minimumOsVersion?: string | null;
+  enrollmentTypes: DeviceEnrollmentType[];
+  ownershipTypes: DeviceOwnership[];
+  note?: string | null;
+};
+
+export type PlatformCapabilityCatalog = {
+  platform: DevicePlatform;
+  provider: string;
+  capabilities: DeviceCapability[];
+};
+
+export type DeviceInventoryFilters = {
+  platform?: DevicePlatform;
+  provider?: string;
+  compliance?: string;
+  enrollmentType?: DeviceEnrollmentType;
+  ownershipType?: DeviceOwnership;
+};
+
 export type EnrollmentBatchSummary = {
   id: string;
   tenantId: string;
@@ -59,7 +101,13 @@ export type DeviceSummary = {
   enrollmentId?: string | null;
   mdmConnector: string;
   connectorDeviceName?: string | null;
-  ownershipType: "SCHOOL_OWNED";
+  platform: DevicePlatform;
+  provider: string;
+  osVersion?: string | null;
+  enrollmentType: DeviceEnrollmentType;
+  ownershipType: DeviceOwnership;
+  supportedControls: string[];
+  unsupportedControls: string[];
   status: DeviceStatus;
   health: string;
   compliance: string;

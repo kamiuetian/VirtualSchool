@@ -5,6 +5,30 @@ import { EnrollmentService } from "./enrollment.service";
 const now = new Date("2026-05-17T10:00:00.000Z");
 
 describe("EnrollmentService", () => {
+  it("exposes multi-OS capabilities and filters the unified inventory", async () => {
+    const service = new EnrollmentService({
+      device: {
+        findMany: async () => [{
+          androidVersion: "14", branchId: null, classId: null,
+          compliance: "COMPLIANT", connectorDeviceName: null,
+          enrollmentBatchId: "batch-1", enrollmentId: "managed-1",
+          health: "HEALTHY", id: "device-1", lastCheckInAt: now,
+          manufacturer: "Samsung", mdmConnector: "android-management-api",
+          model: "Tab", policyVersion: 3, serialNumber: "SERIAL-1",
+          status: "ONLINE", studentId: null, tags: [], tenantId: "tenant-1",
+        }],
+      },
+      tenant: { findUnique: async () => ({ id: "tenant-1" }) },
+    } as never);
+
+    expect(service.listDeviceCapabilities().map((item) => item.platform)).toEqual(
+      expect.arrayContaining(["ANDROID", "CHROMEOS", "IPADOS", "WINDOWS"]),
+    );
+    await expect(service.listDevices("tenant-1", { platform: "ANDROID", compliance: "COMPLIANT" }))
+      .resolves.toMatchObject([{ platform: "ANDROID", enrollmentType: "FULLY_MANAGED", supportedControls: expect.arrayContaining(["kiosk"]), unsupportedControls: ["hardware-reset-block"] }]);
+    await expect(service.listDevices("tenant-1", { platform: "WINDOWS" })).resolves.toEqual([]);
+  });
+
   it("creates an enrollment batch with a QR payload and audit event", async () => {
     const auditEvents: unknown[] = [];
     const service = new EnrollmentService({

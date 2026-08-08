@@ -637,6 +637,10 @@ export class DeviceDiagnosticsService {
       manufacturer: device.manufacturer,
       mdmConnector: device.mdmConnector,
       model: device.model,
+      platform: "ANDROID",
+      provider: device.mdmConnector,
+      osVersion: device.androidVersion,
+      enrollmentType: device.enrollmentId ? "FULLY_MANAGED" : "UNKNOWN",
       ownershipType: "SCHOOL_OWNED",
       policyVersion: device.policyVersion,
       serialNumber: device.serialNumber,
@@ -644,6 +648,8 @@ export class DeviceDiagnosticsService {
       studentId: device.studentId,
       tags: device.tags,
       tenantId: device.tenantId,
+      supportedControls: ["kiosk", "web-filter", "app-deployment", "remote-lock", "remote-wipe"],
+      unsupportedControls: ["hardware-reset-block"],
     };
   }
 

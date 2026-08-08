@@ -10,6 +10,7 @@ import type {
   DeviceHistory,
   DeviceSummary,
   EnrollmentBatchSummary,
+  PlatformCapabilityCatalog,
 } from "@virtual-school/shared";
 import { randomBytes } from "node:crypto";
 import type {
@@ -21,6 +22,8 @@ import { PrismaService } from "../prisma/prisma.service";
 import type { AssignDeviceDto } from "./dto/assign-device.dto";
 import type { CreateEnrollmentBatchDto } from "./dto/create-enrollment-batch.dto";
 import type { DeviceCheckInDto } from "./dto/device-check-in.dto";
+import type { ListDevicesDto } from "./dto/list-devices.dto";
+import { androidControlSummary, platformCapabilityCatalog } from "./device-capability.catalog";
 
 @Injectable()
 export class EnrollmentService {
@@ -91,7 +94,7 @@ export class EnrollmentService {
     return this.toEnrollmentBatchSummary(batch);
   }
 
-  async listDevices(tenantId: string): Promise<DeviceSummary[]> {
+  async listDevices(tenantId: string, filters: ListDevicesDto = {}): Promise<DeviceSummary[]> {
     await this.ensureTenantExists(tenantId);
 
     const devices = await this.prisma.device.findMany({
@@ -101,7 +104,19 @@ export class EnrollmentService {
       },
     });
 
-    return devices.map((device) => this.toDeviceSummary(device));
+    return devices
+      .map((device) => this.toDeviceSummary(device))
+      .filter((device) =>
+        (!filters.platform || device.platform === filters.platform) &&
+        (!filters.provider || device.provider === filters.provider) &&
+        (!filters.compliance || device.compliance === filters.compliance) &&
+        (!filters.enrollmentType || device.enrollmentType === filters.enrollmentType) &&
+        (!filters.ownershipType || device.ownershipType === filters.ownershipType),
+      );
+  }
+
+  listDeviceCapabilities(): PlatformCapabilityCatalog[] {
+    return platformCapabilityCatalog;
   }
 
   async recordDeviceCheckIn(
@@ -564,6 +579,7 @@ export class EnrollmentService {
   }
 
   private toDeviceSummary(device: Device): DeviceSummary {
+    const controls = androidControlSummary();
     return {
       androidVersion: device.androidVersion,
       branchId: device.branchId,
@@ -578,6 +594,10 @@ export class EnrollmentService {
       connectorDeviceName: device.connectorDeviceName,
       mdmConnector: device.mdmConnector,
       model: device.model,
+      platform: "ANDROID",
+      provider: device.mdmConnector,
+      osVersion: device.androidVersion,
+      enrollmentType: device.enrollmentId ? "FULLY_MANAGED" : "UNKNOWN",
       ownershipType: "SCHOOL_OWNED",
       policyVersion: device.policyVersion,
       serialNumber: device.serialNumber,
@@ -585,6 +605,7 @@ export class EnrollmentService {
       studentId: device.studentId,
       tags: device.tags,
       tenantId: device.tenantId,
+      ...controls,
     };
   }
 }

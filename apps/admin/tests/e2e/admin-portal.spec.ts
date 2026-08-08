@@ -50,7 +50,7 @@ test.describe("admin portal regression", () => {
       await page.goto(pageCase.path);
 
       await expect(
-        page.getByRole("heading", { name: pageCase.heading }),
+        page.getByRole("heading", { name: pageCase.heading, exact: true }),
       ).toBeVisible();
       await expect(
         page.locator(".workspace-header").getByText("Northview Primary School"),
@@ -567,7 +567,7 @@ test.describe("role-aware admin portal", () => {
 
     await page.goto("/devices");
     await expect(
-      page.getByRole("heading", { name: "Device Inventory" }),
+      page.getByRole("heading", { name: "Device Inventory", exact: true }),
     ).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "Assign Tablet" }),

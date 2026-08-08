@@ -15,7 +15,7 @@ import {
   queueDeviceCommandAction,
   queueWipeDeviceAction,
 } from "../../lib/actions";
-import { getAdminData, getDeviceOperationsData } from "../../lib/api";
+import { getAdminData, getDeviceCapabilities, getDeviceOperationsData } from "../../lib/api";
 import { roleCan } from "../../lib/auth/portal-access";
 import { formatCount, formatDateTime, humanize } from "../../lib/format";
 
@@ -24,11 +24,19 @@ export const dynamic = "force-dynamic";
 export default async function DevicesPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ deviceId?: string }>;
+  searchParams?: Promise<{ deviceId?: string; platform?: string; provider?: string; compliance?: string }>;
 }) {
   const params = await searchParams;
   const data = await getAdminData("/devices");
   const selectedTenant = data.selectedTenant;
+  const capabilityData = selectedTenant
+    ? await getDeviceCapabilities(selectedTenant.id)
+    : { catalog: [], connectionIssue: false };
+  const filteredDevices = data.devices.filter((device) =>
+    (!params?.platform || device.platform === params.platform) &&
+    (!params?.provider || device.provider === params.provider) &&
+    (!params?.compliance || device.compliance === params.compliance),
+  );
   const canAssignDevices = roleCan(data.session.role, "device:enroll");
   const canQueueCommands = roleCan(data.session.role, "device:command");
   const canWipeDevices = roleCan(data.session.role, "device:wipe");
@@ -56,7 +64,7 @@ export default async function DevicesPage({
 
   return (
     <AppShell
-      connectionIssue={data.connectionIssue || operations.connectionIssue}
+      connectionIssue={data.connectionIssue || operations.connectionIssue || capabilityData.connectionIssue}
       tenant={selectedTenant}
     >
       <div className="content-stack">
@@ -82,6 +90,25 @@ export default async function DevicesPage({
               value={formatCount(nonCompliant.length)}
             />
           </section>
+        </PageSection>
+
+        <PageSection kicker="Multi-OS" title="Capability Catalog">
+          <form className="stacked-form" method="get">
+            <div className="form-row">
+              <Field label="Platform"><select defaultValue={params?.platform ?? ""} name="platform"><option value="">All platforms</option>{capabilityData.catalog.map((entry) => <option key={entry.platform} value={entry.platform}>{humanize(entry.platform)}</option>)}</select></Field>
+              <Field label="Provider"><select defaultValue={params?.provider ?? ""} name="provider"><option value="">All providers</option>{[...new Set(capabilityData.catalog.map((entry) => entry.provider))].map((provider) => <option key={provider} value={provider}>{provider}</option>)}</select></Field>
+              <Field label="Compliance"><select defaultValue={params?.compliance ?? ""} name="compliance"><option value="">All states</option><option value="COMPLIANT">Compliant</option><option value="NON_COMPLIANT">Non-compliant</option><option value="UNKNOWN">Unknown</option></select></Field>
+            </div>
+            <SubmitButton>Apply filters</SubmitButton>
+          </form>
+          <div className="record-grid">
+            {capabilityData.catalog.map((entry) => (
+              <article className="record-card" key={entry.platform}>
+                <strong>{humanize(entry.platform)}</strong><span className="cell-note">{entry.provider}</span>
+                <ul>{entry.capabilities.map((capability) => <li key={capability.key}>{capability.label}: <strong>{humanize(capability.support)}</strong>{capability.note ? <span className="cell-note">{capability.note}</span> : null}</li>)}</ul>
+              </article>
+            ))}
+          </div>
         </PageSection>
 
         {selectedTenant && canAssignDevices && data.devices.length > 0 ? (
@@ -341,14 +368,15 @@ export default async function DevicesPage({
           </PageSection>
         ) : null}
 
-        <PageSection title="Managed Tablets">
-          {data.devices.length > 0 ? (
+        <PageSection title="Unified Device Inventory">
+          {filteredDevices.length > 0 ? (
             <div className="table-wrap">
               <table>
                 <thead>
                   <tr>
                     <th>Serial</th>
                     <th>Model</th>
+                    <th>Platform</th>
                     <th>Status</th>
                     <th>Health</th>
                     <th>Policy</th>
@@ -357,7 +385,7 @@ export default async function DevicesPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {data.devices.map((device) => (
+                  {filteredDevices.map((device) => (
                     <tr key={device.id}>
                       <td>
                         <a
@@ -368,6 +396,7 @@ export default async function DevicesPage({
                         </a>
                         <span className="cell-note">ID: {device.id}</span>
                       </td>
+                      <td>{humanize(device.platform ?? "ANDROID")} {device.osVersion ?? device.androidVersion}<span className="cell-note">{device.provider ?? device.mdmConnector} · {humanize(device.enrollmentType ?? "UNKNOWN")} · {humanize(device.ownershipType ?? "SCHOOL_OWNED")}</span>{device.unsupportedControls?.length ? <span className="cell-note">Unsupported: {device.unsupportedControls.map(humanize).join(", ")}</span> : null}</td>
                       <td>
                         {device.model ??
                           device.manufacturer ??
@@ -395,8 +424,8 @@ export default async function DevicesPage({
             </div>
           ) : (
             <EmptyState
-              title="No managed tablets enrolled"
-              body="Create an enrollment batch, scan the QR on school-owned Android tablets, and devices will appear here."
+              title={data.devices.length ? "No devices match these filters" : "No managed devices enrolled"}
+              body={data.devices.length ? "Change or clear the inventory filters." : "Enroll or connect a provider-managed device and it will appear here."}
             />
           )}
         </PageSection>

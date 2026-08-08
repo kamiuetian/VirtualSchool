@@ -1,16 +1,18 @@
-import { Body, Controller, Get, Inject, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, Post, Query } from "@nestjs/common";
 import { ApiCreatedResponse, ApiOkResponse, ApiTags } from "@nestjs/swagger";
 import type {
   DeviceCheckInResult,
   DeviceHistory,
   DeviceSummary,
   EnrollmentBatchSummary,
+  PlatformCapabilityCatalog,
 } from "@virtual-school/shared";
 import { RequirePermissions } from "../auth/decorators/require-permissions.decorator";
 import { AssignDeviceDto } from "./dto/assign-device.dto";
 import { CreateEnrollmentBatchDto } from "./dto/create-enrollment-batch.dto";
 import { DeviceCheckInDto } from "./dto/device-check-in.dto";
 import { DeviceLifecycleDto } from "./dto/device-lifecycle.dto";
+import { ListDevicesDto } from "./dto/list-devices.dto";
 import { EnrollmentService } from "./enrollment.service";
 
 @ApiTags("enrollment")
@@ -44,9 +46,19 @@ export class EnrollmentController {
 
   @Get("devices")
   @RequirePermissions("device:read")
-  @ApiOkResponse({ description: "Tenant Android device inventory" })
-  listDevices(@Param("tenantId") tenantId: string): Promise<DeviceSummary[]> {
-    return this.enrollmentService.listDevices(tenantId);
+  @ApiOkResponse({ description: "Tenant unified device inventory" })
+  listDevices(
+    @Param("tenantId") tenantId: string,
+    @Query() query: ListDevicesDto,
+  ): Promise<DeviceSummary[]> {
+    return this.enrollmentService.listDevices(tenantId, query);
+  }
+
+  @Get("device-capabilities")
+  @RequirePermissions("device:read")
+  @ApiOkResponse({ description: "Multi-OS management capability catalog" })
+  listDeviceCapabilities(): PlatformCapabilityCatalog[] {
+    return this.enrollmentService.listDeviceCapabilities();
   }
 
   @Post("devices/check-ins")
