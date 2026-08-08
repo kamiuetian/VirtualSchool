@@ -151,10 +151,67 @@ model Tenant {
   automationExecutions            AutomationExecution[]
   announcements                   Announcement[]
   pilotFeedback                   PilotFeedback[]
+  googleWorkspaceConnection       GoogleWorkspaceConnection?
+  googleWorkspaceOuMappings       GoogleWorkspaceOuMapping[]
+  chromeOsDeviceStates            ChromeOsDeviceState[]
+}
+
+model GoogleWorkspaceConnection {
+  id                   String                     @id @default(uuid())
+  tenantId             String                     @unique
+  customerId           String
+  delegatedAdminEmail  String
+  credentialReference  String
+  status               String                     @default("AUTHORIZED")
+  lastValidatedAt      DateTime?
+  lastInventorySyncAt  DateTime?
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
+  tenant               Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  organizationalUnits  GoogleWorkspaceOuMapping[]
+  chromeOsDeviceStates ChromeOsDeviceState[]
+}
+
+model GoogleWorkspaceOuMapping {
+  id                     String                    @id @default(uuid())
+  tenantId               String
+  connectionId           String
+  organizationalUnitId   String
+  organizationalUnitPath String
+  branchId               String?
+  enabled                Boolean                   @default(true)
+  createdAt              DateTime                  @default(now())
+  updatedAt              DateTime                  @updatedAt
+  tenant                 Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  connection             GoogleWorkspaceConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  branch                 Branch?                   @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, organizationalUnitId])
+  @@index([tenantId, enabled])
+}
+
+model ChromeOsDeviceState {
+  id                   String                    @id @default(uuid())
+  tenantId             String
+  connectionId         String
+  deviceId             String                    @unique
+  externalDeviceId     String
+  organizationalUnitId String
+  kioskStatus          String                    @default("UNKNOWN")
+  managedSessionStatus String                    @default("UNKNOWN")
+  appExtensionStatus   String                    @default("UNKNOWN")
+  webPolicyStatus      String                    @default("UNKNOWN")
+  lastSyncedAt         DateTime                  @default(now())
+  tenant               Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  connection           GoogleWorkspaceConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  device               Device                    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, externalDeviceId])
+  @@index([tenantId, organizationalUnitId])
 }
 
 model Announcement {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   tenantId    String
   title       String
   message     String
@@ -163,9 +220,9 @@ model Announcement {
   endsAt      DateTime?
   archivedAt  DateTime?
   createdBy   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, startsAt, archivedAt])
 }
@@ -609,19 +666,20 @@ model BillingSubscription {
 }
 
 model Branch {
-  id              String           @id @default(uuid())
-  tenantId        String
-  name            String
-  timezone        String?
-  status          String           @default("ACTIVE")
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  users           User[]
-  students        Student[]
-  classes         ClassSection[]
-  devices         Device[]
-  timetableBlocks TimetableBlock[]
+  id                        String                     @id @default(uuid())
+  tenantId                  String
+  name                      String
+  timezone                  String?
+  status                    String                     @default("ACTIVE")
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+  tenant                    Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  users                     User[]
+  students                  Student[]
+  classes                   ClassSection[]
+  devices                   Device[]
+  timetableBlocks           TimetableBlock[]
+  googleWorkspaceOuMappings GoogleWorkspaceOuMapping[]
 
   @@index([tenantId])
 }
@@ -866,44 +924,45 @@ model RosterImport {
 }
 
 model Device {
-  id                      String                   @id @default(uuid())
-  tenantId                String
-  branchId                String?
-  studentId               String?
-  classId                 String?
-  serialNumber            String
-  manufacturer            String?
-  model                   String?
-  androidVersion          String?
-  enrollmentId            String?
-  mdmConnector            String                   @default("ANDROID_MANAGEMENT_API")
-  connectorDeviceName     String?
-  status                  DeviceStatus             @default(PENDING)
-  lastCheckInAt           DateTime?
-  policyVersion           Int?
-  enrollmentBatchId       String?
-  ownershipType           String                   @default("SCHOOL_OWNED")
-  health                  String                   @default("UNKNOWN")
-  compliance              String                   @default("UNKNOWN")
-  tags                    String[]                 @default([])
-  createdAt               DateTime                 @default(now())
-  updatedAt               DateTime                 @updatedAt
-  tenant                  Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branch                  Branch?                  @relation(fields: [branchId], references: [id])
-  student                 Student?                 @relation(fields: [studentId], references: [id])
-  class                   ClassSection?            @relation(fields: [classId], references: [id])
-  enrollmentBatch         EnrollmentBatch?         @relation(fields: [enrollmentBatchId], references: [id])
-  commands                RemoteCommand[]
-  diagnostics             DeviceDiagnostic[]
-  alerts                  DeviceAlert[]
-  blockedDomainEvents     BlockedDomainEvent[]
-  supportNotes            SupportNote[]
-  supportTickets          SupportTicket[]
+  id                       String                    @id @default(uuid())
+  tenantId                 String
+  branchId                 String?
+  studentId                String?
+  classId                  String?
+  serialNumber             String
+  manufacturer             String?
+  model                    String?
+  androidVersion           String?
+  enrollmentId             String?
+  mdmConnector             String                    @default("ANDROID_MANAGEMENT_API")
+  connectorDeviceName      String?
+  status                   DeviceStatus              @default(PENDING)
+  lastCheckInAt            DateTime?
+  policyVersion            Int?
+  enrollmentBatchId        String?
+  ownershipType            String                    @default("SCHOOL_OWNED")
+  health                   String                    @default("UNKNOWN")
+  compliance               String                    @default("UNKNOWN")
+  tags                     String[]                  @default([])
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  tenant                   Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch                   Branch?                   @relation(fields: [branchId], references: [id])
+  student                  Student?                  @relation(fields: [studentId], references: [id])
+  class                    ClassSection?             @relation(fields: [classId], references: [id])
+  enrollmentBatch          EnrollmentBatch?          @relation(fields: [enrollmentBatchId], references: [id])
+  commands                 RemoteCommand[]
+  diagnostics              DeviceDiagnostic[]
+  alerts                   DeviceAlert[]
+  blockedDomainEvents      BlockedDomainEvent[]
+  supportNotes             SupportNote[]
+  supportTickets           SupportTicket[]
   remoteAssistanceSessions RemoteAssistanceSession[]
-  guardianSupportRequests GuardianSupportRequest[]
-  assignmentHistory       DeviceAssignment[]
-  lifecycleEvents         DeviceLifecycleEvent[]
-  teacherSessionEvents    TeacherSessionEvent[]
+  guardianSupportRequests  GuardianSupportRequest[]
+  assignmentHistory        DeviceAssignment[]
+  lifecycleEvents          DeviceLifecycleEvent[]
+  teacherSessionEvents     TeacherSessionEvent[]
+  chromeOsState            ChromeOsDeviceState?
 
   @@unique([tenantId, serialNumber])
   @@index([tenantId, status])
@@ -1082,24 +1141,24 @@ model SupportTicketNote {
 }
 
 model RemoteAssistanceSession {
-  id                 String    @id @default(uuid())
-  tenantId           String
-  deviceId           String
-  ticketId           String?
-  status             String    @default("ACTIVE")
-  purpose            String
-  visibleNotice      String
-  consentedBy        String
-  consentedAt        DateTime
-  startedBy          String?
-  startedAt          DateTime  @default(now())
-  endedBy            String?
-  endedAt            DateTime?
-  resolution         String?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-  tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  device             Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  id            String    @id @default(uuid())
+  tenantId      String
+  deviceId      String
+  ticketId      String?
+  status        String    @default("ACTIVE")
+  purpose       String
+  visibleNotice String
+  consentedBy   String
+  consentedAt   DateTime
+  startedBy     String?
+  startedAt     DateTime  @default(now())
+  endedBy       String?
+  endedAt       DateTime?
+  resolution    String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  device        Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, deviceId, startedAt])
   @@index([tenantId, status, startedAt])

@@ -24,6 +24,8 @@ import {
   configureWebhookAction,
   rotateWebhookSecretAction,
   setWebhookEnabledAction,
+  authorizeGoogleWorkspaceAction,
+  mapGoogleWorkspaceOuAction,
 } from "../../lib/actions";
 import {
   getAdminData,
@@ -32,6 +34,7 @@ import {
   getEducationResources,
   getSisOperations,
   getWebhookEndpoints,
+  getGoogleWorkspaceIntegration,
 } from "../../lib/api";
 
 export const dynamic = "force-dynamic";
@@ -54,6 +57,10 @@ export default async function IntegrationsPage() {
   const webhookResult = tenant
     ? await getWebhookEndpoints(tenant.id)
     : { endpoints: [], connectionIssue: false };
+  const workspaceResult = tenant
+    ? await getGoogleWorkspaceIntegration(tenant.id)
+    : { integration: null, connectionIssue: false };
+  const workspace = workspaceResult.integration;
   return (
     <AppShell
       connectionIssue={
@@ -63,10 +70,36 @@ export default async function IntegrationsPage() {
         educationResult.connectionIssue ||
         sisResult.connectionIssue ||
         webhookResult.connectionIssue
+        || workspaceResult.connectionIssue
       }
       tenant={tenant}
     >
       <div className="content-stack">
+        <PageSection kicker="ChromeOS management" title="Google Workspace">
+          {tenant ? (
+            <div className="form-grid two">
+              <ActionPanel title="Guided authorization">
+                <form action={authorizeGoogleWorkspaceAction} className="stacked-form">
+                  <input name="tenantId" type="hidden" value={tenant.id} />
+                  <Field label="Google customer ID"><input defaultValue={workspace?.customerId} name="customerId" required /></Field>
+                  <Field label="Delegated admin email"><input defaultValue={workspace?.delegatedAdminEmail} name="delegatedAdminEmail" type="email" required /></Field>
+                  <Field label="Service-account secret reference"><input defaultValue={workspace?.credentialReference} name="credentialReference" placeholder="secret://google-workspace" required /></Field>
+                  <small>Only an external secret reference is stored. Domain-wide delegation must be configured in Google Workspace.</small>
+                  <SubmitButton>{workspace ? "Reauthorize" : "Authorize"}</SubmitButton>
+                </form>
+              </ActionPanel>
+              <ActionPanel title="Map organizational unit">
+                {workspace ? <form action={mapGoogleWorkspaceOuAction} className="stacked-form">
+                  <input name="tenantId" type="hidden" value={tenant.id} />
+                  <Field label="Organizational unit ID"><input name="organizationalUnitId" required /></Field>
+                  <Field label="Organizational unit path"><input name="organizationalUnitPath" placeholder="/Students/Grade-7" required /></Field>
+                  <SubmitButton>Save mapping</SubmitButton>
+                </form> : <EmptyState title="Authorization required" body="Authorize Google Workspace before mapping organizational units." />}
+              </ActionPanel>
+            </div>
+          ) : null}
+          {workspace ? <div className="table-wrap"><table><thead><tr><th>ChromeOS device</th><th>OU</th><th>Kiosk</th><th>Managed session</th><th>Apps/extensions</th><th>Web policy</th></tr></thead><tbody>{workspace.devices.map((device) => <tr key={device.id}><td>{device.serialNumber}<small>{device.model ?? "ChromeOS"}</small></td><td>{device.organizationalUnitId}</td><td><StatusPill>{device.kioskStatus}</StatusPill></td><td><StatusPill>{device.managedSessionStatus}</StatusPill></td><td><StatusPill>{device.appExtensionStatus}</StatusPill></td><td><StatusPill>{device.webPolicyStatus}</StatusPill></td></tr>)}</tbody></table></div> : null}
+        </PageSection>
         <PageSection kicker="Event delivery" title="Signed education webhooks">
           {tenant ? (
             <div className="form-grid two">

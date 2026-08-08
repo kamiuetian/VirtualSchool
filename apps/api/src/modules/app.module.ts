@@ -30,6 +30,7 @@ import { ContentLibraryModule } from "./content-library/content-library.module";
 import { AttendanceModule } from "./attendance/attendance.module";
 import { AutomationModule } from "./automation/automation.module";
 import { CommunicationsModule } from "./communications/communications.module";
+import { GoogleWorkspaceModule } from "./google-workspace/google-workspace.module";
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { CommunicationsModule } from "./communications/communications.module";
     AttendanceModule,
     AutomationModule,
     CommunicationsModule,
+    GoogleWorkspaceModule,
   ],
 })
 export class AppModule {}

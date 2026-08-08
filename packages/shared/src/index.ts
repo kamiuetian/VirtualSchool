@@ -24,3 +24,4 @@ export * from "./byod";
 export * from "./attendance";
 export * from "./automation";
 export * from "./communications";
+export * from "./google-workspace";

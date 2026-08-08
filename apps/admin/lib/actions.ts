@@ -1645,6 +1645,28 @@ export async function mapClassroomCourseAction(formData: FormData) {
   revalidateAll();
 }
 
+export async function authorizeGoogleWorkspaceAction(formData: FormData) {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation("POST", `/tenants/${tenantId}/integrations/google-workspace/authorize`, {
+    customerId: required(formData, "customerId"),
+    delegatedAdminEmail: required(formData, "delegatedAdminEmail"),
+    credentialReference: required(formData, "credentialReference"),
+  });
+  revalidateAll();
+}
+
+export async function mapGoogleWorkspaceOuAction(formData: FormData) {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation("POST", `/tenants/${tenantId}/integrations/google-workspace/organizational-units`, {
+    organizationalUnitId: required(formData, "organizationalUnitId"),
+    organizationalUnitPath: required(formData, "organizationalUnitPath"),
+    branchId: text(formData, "branchId") || undefined,
+  });
+  revalidateAll();
+}
+
 export async function mapClassroomIdentityAction(formData: FormData) {
   await requireActionPermission("tenant:update");
   const tenantId = required(formData, "tenantId");

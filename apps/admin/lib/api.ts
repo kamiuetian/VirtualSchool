@@ -38,6 +38,7 @@ import type {
   ClassroomConnectionSummary,
   LmsConnectionSummary,
   EducationConnectionSummary,
+  GoogleWorkspaceIntegrationSummary,
   SisOperationsSummary,
   WebhookEndpointSummary,
   TenantWebFilterSettings,
@@ -330,6 +331,16 @@ export async function getClassroomIntegration(tenantId: string): Promise<{
 }> {
   const result = await apiGet<ClassroomConnectionSummary>(
     `/tenants/${tenantId}/integrations/google-classroom`,
+  );
+  return { integration: result.data, connectionIssue: result.failed };
+}
+
+export async function getGoogleWorkspaceIntegration(tenantId: string): Promise<{
+  integration: GoogleWorkspaceIntegrationSummary | null;
+  connectionIssue: boolean;
+}> {
+  const result = await apiGet<GoogleWorkspaceIntegrationSummary>(
+    `/tenants/${tenantId}/integrations/google-workspace`,
   );
   return { integration: result.data, connectionIssue: result.failed };
 }
