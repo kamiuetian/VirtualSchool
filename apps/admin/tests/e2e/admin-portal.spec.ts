@@ -445,7 +445,7 @@ test.describe("admin portal regression", () => {
     for (const pageCase of pages) {
       await page.goto(pageCase.path);
       await expect(
-        page.getByRole("heading", { name: pageCase.heading }),
+        page.getByRole("heading", { name: pageCase.heading, exact: true }),
       ).toBeVisible();
 
       const overflow = await page.evaluate(() => {
