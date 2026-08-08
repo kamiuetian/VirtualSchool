@@ -61,6 +61,16 @@ export class AndroidManagementPolicyMapper {
       packageId: string;
       installRules?: Prisma.JsonValue | null;
     }>;
+    offlineResources?: Array<{
+      id: string;
+      title: string;
+      type: string;
+      url: string;
+      version: number;
+      sha256: string;
+      sizeBytes: number;
+      expiresAtEpochMillis: number | null;
+    }>;
   }): AndroidManagementPolicyPayload {
     const launcherPackageName =
       process.env.ANDROID_LAUNCHER_PACKAGE_NAME ?? "com.virtualschool.launcher";
@@ -93,6 +103,7 @@ export class AndroidManagementPolicyMapper {
         showMessages: input.rules.launcher.showMessages,
         showSupportContact: input.rules.launcher.showSupportContact,
         tenantId: input.tenantId,
+        offlineLessonsJson: JSON.stringify(input.offlineResources ?? []),
         webShortcutsJson: JSON.stringify(input.rules.webShortcuts),
       },
       packageName: launcherPackageName,

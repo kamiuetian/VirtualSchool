@@ -571,12 +571,39 @@ export class PoliciesService {
     });
 
     const apps = await this.getApprovedPolicyApps(tenantId, updated);
+    const offlineItems = this.prisma.contentLibraryItem?.findMany
+      ? await this.prisma.contentLibraryItem.findMany({
+          where: {
+            tenantId,
+            status: "ACTIVE",
+            offlineEnabled: true,
+            offlinePolicyIds: { has: updated.id },
+            OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+          },
+        })
+      : [];
+    const offlineResources = offlineItems
+      .filter(
+        (item) =>
+          item.offlineVersion && item.offlineSha256 && item.offlineSizeBytes,
+      )
+      .map((item) => ({
+        id: item.id,
+        title: item.title,
+        type: item.type,
+        url: item.locator,
+        version: item.offlineVersion!,
+        sha256: item.offlineSha256!,
+        sizeBytes: item.offlineSizeBytes!,
+        expiresAtEpochMillis: item.expiresAt?.getTime() ?? null,
+      }));
     const connector = this.connectorRegistry.getActiveConnector();
     let publishResult: MdmPolicyPublishResult;
 
     try {
       publishResult = await connector.publishPolicy({
         apps,
+        offlineResources,
         policy: {
           id: updated.id,
           name: updated.name,
@@ -1640,10 +1667,37 @@ export class PoliciesService {
       where: { id: deviceId, tenantId },
       select: {
         classId: true,
-        class: { select: { grade: true } },
+        class: { select: { grade: true, subject: true } },
         student: { select: { grade: true } },
       },
     });
+    const offlineRows = this.prisma.contentLibraryItem?.findMany
+      ? await this.prisma.contentLibraryItem.findMany({
+          where: {
+            tenantId,
+            status: "ACTIVE",
+            offlineEnabled: true,
+            OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+          },
+          orderBy: { title: "asc" },
+        })
+      : [];
+    const deviceGrade = device?.class?.grade ?? device?.student?.grade;
+    const deviceSubject = device?.class?.subject;
+    const offlineResources = offlineRows.filter(
+      (item) =>
+        item.offlinePolicyIds.includes(resolution.activePolicy.id) &&
+        (!item.grades.length ||
+          (!!deviceGrade && item.grades.includes(deviceGrade))) &&
+        (!item.subjects.length ||
+          (!!deviceSubject && item.subjects.includes(deviceSubject))) &&
+        (!item.classIds.length ||
+          (!!device?.classId && item.classIds.includes(device.classId))) &&
+        !!item.offlineVersion &&
+        !!item.offlineSha256 &&
+        !!item.offlineSizeBytes &&
+        ["PDF", "WORKSHEET", "VIDEO"].includes(item.type),
+    );
     const lmsLinks = device?.classId
       ? await this.prisma.lmsCourseMapping.findMany({
           where: {
@@ -1686,6 +1740,21 @@ export class PoliciesService {
       cache: {
         ttlSeconds: 3600,
         useLastKnownPolicyWhenOffline: true,
+      },
+      offlineMode: {
+        enabled: offlineResources.length > 0,
+        authoritative: true,
+        refreshAfterSeconds: 3600,
+        resources: offlineResources.map((item) => ({
+          id: item.id,
+          title: item.title,
+          type: item.type as "PDF" | "WORKSHEET" | "VIDEO",
+          url: item.locator,
+          version: item.offlineVersion!,
+          sha256: item.offlineSha256!,
+          sizeBytes: item.offlineSizeBytes!,
+          expiresAt: item.expiresAt?.toISOString() ?? null,
+        })),
       },
       deviceId,
       generatedAt: new Date().toISOString(),

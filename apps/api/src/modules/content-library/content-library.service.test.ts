@@ -19,6 +19,11 @@ function item(overrides: Record<string, unknown> = {}) {
     classIds: ["class-1"],
     status: "ACTIVE",
     expiresAt: future,
+    offlineEnabled: false,
+    offlineVersion: null,
+    offlineSha256: null,
+    offlineSizeBytes: null,
+    offlinePolicyIds: [],
     createdBy: "admin-1",
     createdAt: now,
     updatedAt: now,
@@ -81,6 +86,27 @@ describe("ContentLibraryService", () => {
         classIds: ["00000000-0000-4000-8000-000000000001"],
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it("requires integrity metadata and a tenant-published policy for offline content", async () => {
+    const service = new ContentLibraryService({
+      tenant: { findUnique: async () => ({ id: "tenant-1" }) },
+      classSection: { count: async () => 0 },
+      policy: { count: async () => 0 },
+    } as never);
+    await expect(
+      service.create("tenant-1", {
+        title: "Fractions pack",
+        type: "PDF",
+        category: "Mathematics",
+        locator: "https://cdn.example/fractions.pdf",
+        offlineEnabled: true,
+        offlineVersion: 1,
+        offlineSha256: "a".repeat(64),
+        offlineSizeBytes: 2048,
+        offlinePolicyIds: ["00000000-0000-4000-8000-000000000001"],
+      }),
+    ).rejects.toThrow("published and belong to the tenant");
   });
 
   it("excludes expired and archived resources from the available list", async () => {

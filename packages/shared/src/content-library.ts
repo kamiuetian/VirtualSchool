@@ -24,6 +24,11 @@ export type ContentLibraryItemSummary = {
   status: "ACTIVE" | "ARCHIVED";
   expiresAt: string | null;
   expired: boolean;
+  offlineEnabled: boolean;
+  offlineVersion: number | null;
+  offlineSha256: string | null;
+  offlineSizeBytes: number | null;
+  offlinePolicyIds: string[];
   createdAt: string;
   updatedAt: string;
 };

@@ -6,6 +6,11 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  IsBoolean,
+  IsInt,
+  Matches,
+  Min,
+  Max,
   Length,
   MaxLength,
 } from "class-validator";
@@ -33,6 +38,15 @@ export class CreateContentLibraryItemDto {
   @IsUUID(undefined, { each: true })
   classIds?: string[];
   @IsOptional() @IsDateString() expiresAt?: string;
+  @IsOptional() @IsBoolean() offlineEnabled?: boolean;
+  @IsOptional() @IsInt() @Min(1) @Max(1000000) offlineVersion?: number;
+  @IsOptional() @Matches(/^[a-fA-F0-9]{64}$/) offlineSha256?: string;
+  @IsOptional() @IsInt() @Min(1) @Max(2147483647) offlineSizeBytes?: number;
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsUUID(undefined, { each: true })
+  offlinePolicyIds?: string[];
 }
 
 export class UpdateContentLibraryItemDto {

@@ -145,6 +145,38 @@ export default async function AppsPage() {
                     <input name="expiresAt" type="datetime-local" />
                   </Field>
                 </div>
+                <Field label="Offline lesson pack">
+                  <label>
+                    <input name="offlineEnabled" type="checkbox" /> Cache this
+                    PDF, worksheet, or video on managed devices
+                  </label>
+                </Field>
+                <div className="form-row">
+                  <Field label="Content version">
+                    <input min="1" name="offlineVersion" type="number" />
+                  </Field>
+                  <Field label="Size (bytes)">
+                    <input min="1" name="offlineSizeBytes" type="number" />
+                  </Field>
+                  <Field label="SHA-256">
+                    <input
+                      maxLength={64}
+                      name="offlineSha256"
+                      pattern="[a-fA-F0-9]{64}"
+                    />
+                  </Field>
+                  <Field label="Available under policies">
+                    <select multiple name="offlinePolicyIds">
+                      {data.policies
+                        .filter((policy) => policy.status === "PUBLISHED")
+                        .map((policy) => (
+                          <option key={policy.id} value={policy.id}>
+                            {policy.name} v{policy.version}
+                          </option>
+                        ))}
+                    </select>
+                  </Field>
+                </div>
                 <SubmitButton>Add resource</SubmitButton>
               </form>
             </ActionPanel>
@@ -158,6 +190,7 @@ export default async function AppsPage() {
                       <th>Scope</th>
                       <th>Expiry</th>
                       <th>Status</th>
+                      <th>Offline</th>
                       <th>Action</th>
                     </tr>
                   </thead>
@@ -168,6 +201,11 @@ export default async function AppsPage() {
                           <strong>{item.title}</strong>
                           <br />
                           {humanize(item.type)}
+                        </td>
+                        <td>
+                          {item.offlineEnabled
+                            ? `v${item.offlineVersion} · ${item.offlinePolicyIds.length} policies`
+                            : "Online only"}
                         </td>
                         <td>
                           {item.category}

@@ -50,6 +50,16 @@ export type MdmPolicyPublishInput = {
       "installRules" | "name" | "packageId" | "approvalStatus"
     >
   >;
+  offlineResources: Array<{
+    id: string;
+    title: string;
+    type: string;
+    url: string;
+    version: number;
+    sha256: string;
+    sizeBytes: number;
+    expiresAtEpochMillis: number | null;
+  }>;
 };
 
 export type MdmPolicyPublishResult = {

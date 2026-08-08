@@ -10,6 +10,17 @@ data class WebShortcut(
     val url: String,
 )
 
+data class OfflineLessonResource(
+    val id: String,
+    val title: String,
+    val type: String,
+    val url: String,
+    val version: Int,
+    val sha256: String,
+    val sizeBytes: Long,
+    val expiresAtEpochMillis: Long?,
+)
+
 data class LauncherPolicy(
     val policyId: String,
     val policyVersion: Int,
@@ -18,6 +29,7 @@ data class LauncherPolicy(
     val webShortcuts: List<WebShortcut>,
     val showMessages: Boolean,
     val showSupportContact: Boolean,
+    val offlineResources: List<OfflineLessonResource> = emptyList(),
 ) {
     fun safeApprovedApps(): List<ApprovedApp> = approvedApps
         .filter { it.name.isNotBlank() && PACKAGE_NAME.matches(it.packageId) }
@@ -49,6 +61,7 @@ data class LauncherPolicy(
             webShortcuts = emptyList(),
             showMessages = false,
             showSupportContact = true,
+            offlineResources = emptyList(),
         )
     }
 }

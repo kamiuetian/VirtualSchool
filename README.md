@@ -50,6 +50,12 @@ pnpm dev
 The API listens on `http://localhost:4000/api/v1`.
 The admin portal listens on `http://localhost:3000`.
 
+## Offline lesson packs
+
+Policy managers can mark HTTPS PDF, worksheet, and video content as offline-capable in the Apps and Web Catalog. Each offline resource requires a positive content version, exact byte size, SHA-256 digest, and at least one published policy. The device policy endpoint filters the authoritative manifest by tenant, active policy, grade, subject, and class.
+
+Managed launchers download only HTTPS resources, activate a file only after its size and digest match, and expose verified files under the explicit **Offline Mode** heading. A newer version is downloaded to a temporary file before replacement. Archived, expired, out-of-scope, or policy-revoked resources are omitted from the next manifest and removed locally during reconciliation. After changing an offline resource, republish affected Android Management policies so their managed configuration is refreshed.
+
 ## Current Development Slice
 
 ### Education resource integrations

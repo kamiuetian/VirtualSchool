@@ -155,6 +155,11 @@ model ContentLibraryItem {
   classIds    String[]
   status      String   @default("ACTIVE")
   expiresAt   DateTime?
+  offlineEnabled Boolean @default(false)
+  offlineVersion Int?
+  offlineSha256 String?
+  offlineSizeBytes Int?
+  offlinePolicyIds String[] @default([])
   createdBy   String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -162,6 +167,7 @@ model ContentLibraryItem {
 
   @@index([tenantId, status, expiresAt])
   @@index([tenantId, category, type])
+  @@index([tenantId, offlineEnabled, status])
 }
 
 model WebhookEndpoint {

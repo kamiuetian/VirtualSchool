@@ -824,6 +824,25 @@ describe("PoliciesService", () => {
             tenantId: "tenant-1",
           }),
         },
+        contentLibraryItem: {
+          findMany: async () => [
+            {
+              id: "lesson-1",
+              tenantId: "tenant-1",
+              title: "Fractions pack",
+              type: "PDF",
+              locator: "https://cdn.school.test/fractions.pdf",
+              grades: [],
+              subjects: [],
+              classIds: ["class-1"],
+              offlinePolicyIds: ["policy-1"],
+              offlineVersion: 3,
+              offlineSha256: "a".repeat(64),
+              offlineSizeBytes: 4096,
+              expiresAt: new Date(now.getTime() + 86_400_000),
+            },
+          ],
+        },
         lmsCourseMapping: {
           findMany: async () => [
             {
@@ -896,6 +915,11 @@ describe("PoliciesService", () => {
       policy: {
         id: "policy-1",
         mode: "DEFAULT_SCHOOL",
+      },
+      offlineMode: {
+        enabled: true,
+        authoritative: true,
+        resources: [expect.objectContaining({ id: "lesson-1", version: 3 })],
       },
     });
   });

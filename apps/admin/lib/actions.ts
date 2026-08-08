@@ -44,6 +44,16 @@ export async function createContentLibraryItemAction(
           typeof value === "string" && value.length > 0,
       ),
     expiresAt: text(formData, "expiresAt") || undefined,
+    offlineEnabled: booleanValue(formData, "offlineEnabled"),
+    offlineVersion: numberValue(formData, "offlineVersion"),
+    offlineSha256: text(formData, "offlineSha256") || undefined,
+    offlineSizeBytes: numberValue(formData, "offlineSizeBytes"),
+    offlinePolicyIds: formData
+      .getAll("offlinePolicyIds")
+      .filter(
+        (value): value is string =>
+          typeof value === "string" && value.length > 0,
+      ),
   });
   revalidatePath("/apps");
 }

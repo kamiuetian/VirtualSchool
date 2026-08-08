@@ -196,6 +196,21 @@ export type DevicePolicyPayload = {
     ttlSeconds: number;
     useLastKnownPolicyWhenOffline: boolean;
   };
+  offlineMode: {
+    enabled: boolean;
+    authoritative: true;
+    refreshAfterSeconds: number;
+    resources: Array<{
+      id: string;
+      title: string;
+      type: "PDF" | "WORKSHEET" | "VIDEO";
+      url: string;
+      version: number;
+      sha256: string;
+      sizeBytes: number;
+      expiresAt: string | null;
+    }>;
+  };
 };
 
 export type DeviceAlertSeverity = "INFO" | "WARNING" | "CRITICAL";

@@ -48,6 +48,7 @@ export class ContentLibraryService {
   ) {
     await this.ensureTenant(tenantId);
     await this.validateClasses(tenantId, input.classIds ?? []);
+    await this.validateOffline(tenantId, input);
     const expiresAt = input.expiresAt ? new Date(input.expiresAt) : null;
     if (expiresAt && expiresAt <= new Date())
       throw new BadRequestException("Expiry must be in the future");
@@ -65,6 +66,11 @@ export class ContentLibraryService {
           subjects: this.normalized(input.subjects),
           classIds: [...new Set(input.classIds ?? [])],
           expiresAt,
+          offlineEnabled: input.offlineEnabled ?? false,
+          offlineVersion: input.offlineVersion,
+          offlineSha256: input.offlineSha256?.toLowerCase(),
+          offlineSizeBytes: input.offlineSizeBytes,
+          offlinePolicyIds: [...new Set(input.offlinePolicyIds ?? [])],
           createdBy: actorId,
         },
       });
@@ -83,6 +89,9 @@ export class ContentLibraryService {
             subjects: item.subjects,
             classIds: item.classIds,
             expiresAt,
+            offlineEnabled: item.offlineEnabled,
+            offlineVersion: item.offlineVersion,
+            offlinePolicyIds: item.offlinePolicyIds,
           },
         },
       });
@@ -195,6 +204,36 @@ export class ContentLibraryService {
       );
     return url.toString();
   }
+  private async validateOffline(
+    tenantId: string,
+    input: CreateContentLibraryItemDto,
+  ) {
+    if (!input.offlineEnabled) return;
+    if (!["PDF", "WORKSHEET", "VIDEO"].includes(input.type))
+      throw new BadRequestException(
+        "Offline packs support PDF, worksheet, and video resources only",
+      );
+    if (
+      !input.offlineVersion ||
+      !input.offlineSha256 ||
+      !input.offlineSizeBytes
+    )
+      throw new BadRequestException(
+        "Offline resources require version, SHA-256, and size metadata",
+      );
+    const policyIds = [...new Set(input.offlinePolicyIds ?? [])];
+    if (!policyIds.length)
+      throw new BadRequestException(
+        "Offline resources must be bound to at least one published policy",
+      );
+    const count = await this.prisma.policy.count({
+      where: { id: { in: policyIds }, tenantId, status: "PUBLISHED" },
+    });
+    if (count !== policyIds.length)
+      throw new BadRequestException(
+        "Every offline policy must be published and belong to the tenant",
+      );
+  }
   private normalized(values?: string[]) {
     return [
       ...new Set((values ?? []).map((value) => value.trim()).filter(Boolean)),
@@ -218,6 +257,11 @@ export class ContentLibraryService {
       status: item.status as "ACTIVE" | "ARCHIVED",
       expiresAt: item.expiresAt?.toISOString() ?? null,
       expired: !!item.expiresAt && item.expiresAt <= now,
+      offlineEnabled: item.offlineEnabled,
+      offlineVersion: item.offlineVersion,
+      offlineSha256: item.offlineSha256,
+      offlineSizeBytes: item.offlineSizeBytes,
+      offlinePolicyIds: item.offlinePolicyIds,
       createdAt: item.createdAt.toISOString(),
       updatedAt: item.updatedAt.toISOString(),
     };

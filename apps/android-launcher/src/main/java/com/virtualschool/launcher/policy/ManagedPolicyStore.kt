@@ -35,6 +35,7 @@ class ManagedPolicyStore(private val context: Context) {
             webShortcuts = bundle.getString("webShortcutsJson", "[]").let(::shortcutsFromJson),
             showMessages = bundle.getBoolean("showMessages", false),
             showSupportContact = bundle.getBoolean("showSupportContact", true),
+            offlineResources = bundle.getString("offlineLessonsJson", "[]").let(::offlineFromJson),
         )
     }
 
@@ -50,6 +51,14 @@ class ManagedPolicyStore(private val context: Context) {
         })
         .put("showMessages", policy.showMessages)
         .put("showSupportContact", policy.showSupportContact)
+        .put("offlineResources", JSONArray().apply {
+            policy.offlineResources.forEach { item ->
+                put(JSONObject()
+                    .put("id", item.id).put("title", item.title).put("type", item.type)
+                    .put("url", item.url).put("version", item.version).put("sha256", item.sha256)
+                    .put("sizeBytes", item.sizeBytes).put("expiresAtEpochMillis", item.expiresAtEpochMillis))
+            }
+        })
         .toString()
 
     private fun decode(raw: String): LauncherPolicy? = runCatching {
@@ -62,6 +71,7 @@ class ManagedPolicyStore(private val context: Context) {
             webShortcuts = shortcutsFromArray(json.optJSONArray("webShortcuts") ?: JSONArray()),
             showMessages = json.optBoolean("showMessages"),
             showSupportContact = json.optBoolean("showSupportContact", true),
+            offlineResources = offlineFromArray(json.optJSONArray("offlineResources") ?: JSONArray()),
         )
     }.getOrNull()
 
@@ -80,6 +90,22 @@ class ManagedPolicyStore(private val context: Context) {
     private fun shortcutsFromJson(raw: String): List<WebShortcut> = runCatching {
         shortcutsFromArray(JSONArray(raw))
     }.getOrDefault(emptyList())
+
+    private fun offlineFromJson(raw: String): List<OfflineLessonResource> = runCatching {
+        offlineFromArray(JSONArray(raw))
+    }.getOrDefault(emptyList())
+
+    private fun offlineFromArray(array: JSONArray): List<OfflineLessonResource> = buildList {
+        repeat(array.length()) { index ->
+            array.optJSONObject(index)?.let { item ->
+                add(OfflineLessonResource(
+                    item.optString("id"), item.optString("title"), item.optString("type"),
+                    item.optString("url"), item.optInt("version"), item.optString("sha256"),
+                    item.optLong("sizeBytes"), item.optLong("expiresAtEpochMillis").takeIf { value -> value > 0 },
+                ))
+            }
+        }
+    }
 
     private fun shortcutsFromArray(array: JSONArray): List<WebShortcut> = buildList {
         repeat(array.length()) { index ->
