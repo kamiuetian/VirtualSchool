@@ -18,6 +18,8 @@ import {
   createSupportTicketAction,
   updateSupportTicketAction,
   addSupportTicketNoteAction,
+  startRemoteAssistanceAction,
+  endRemoteAssistanceAction,
 } from "../../lib/actions";
 import { getAdminData, getDeviceSupportData } from "../../lib/api";
 import { roleCan } from "../../lib/auth/portal-access";
@@ -45,7 +47,14 @@ export default async function SupportPage({
   const supportData =
     selectedTenant && selectedDevice
       ? await getDeviceSupportData(selectedTenant.id, selectedDevice.id)
-      : { connectionIssue: false, notes: [], timeline: [], tickets: [] };
+      : {
+          connectionIssue: false,
+          notes: [],
+          timeline: [],
+          tickets: [],
+          assistanceSessions: [],
+          playbooks: [],
+        };
 
   return (
     <AppShell
@@ -85,6 +94,124 @@ export default async function SupportPage({
               value={formatCount(supportData.timeline.length)}
             />
           </section>
+        </PageSection>
+
+        <PageSection kicker="Consented support" title="Remote Assistance">
+          <p className="section-copy">
+            Assistance is visible, permissioned, and logged. It never enables
+            hidden camera, microphone, keystroke, private-message, or screenshot
+            monitoring.
+          </p>
+          {selectedTenant && selectedDevice && canManageSupport ? (
+            <div className="form-grid two">
+              <ActionPanel title="Start visible session">
+                <form
+                  action={startRemoteAssistanceAction}
+                  className="stacked-form"
+                >
+                  <input
+                    name="tenantId"
+                    type="hidden"
+                    value={selectedTenant.id}
+                  />
+                  <input
+                    name="deviceId"
+                    type="hidden"
+                    value={selectedDevice.id}
+                  />
+                  <Field label="Purpose">
+                    <input name="purpose" minLength={5} required />
+                  </Field>
+                  <Field label="Consenting person">
+                    <input
+                      name="consentedBy"
+                      placeholder="Name and relationship/role"
+                      required
+                    />
+                  </Field>
+                  <Field label="Linked ticket (optional)">
+                    <input name="ticketId" />
+                  </Field>
+                  <label className="check-field">
+                    <input name="noticeAcknowledged" type="checkbox" required />
+                    <span>
+                      The device user can see the assistance notice and has
+                      explicitly consented.
+                    </span>
+                  </label>
+                  <SubmitButton>Start assistance</SubmitButton>
+                </form>
+              </ActionPanel>
+              <ActionPanel title="Session history">
+                {supportData.assistanceSessions.length ? (
+                  supportData.assistanceSessions.map((session) => (
+                    <article className="list-row" key={session.id}>
+                      <div>
+                        <strong>{humanize(session.status)}</strong>
+                        <span>{session.purpose}</span>
+                        <small>
+                          Consent: {session.consentedBy} ·{" "}
+                          {formatDateTime(session.startedAt)}
+                        </small>
+                      </div>
+                      {session.status === "ACTIVE" ? (
+                        <form
+                          action={endRemoteAssistanceAction}
+                          className="stacked-form"
+                        >
+                          <input
+                            name="tenantId"
+                            type="hidden"
+                            value={selectedTenant.id}
+                          />
+                          <input
+                            name="sessionId"
+                            type="hidden"
+                            value={session.id}
+                          />
+                          <input
+                            name="resolution"
+                            placeholder="Resolution and handoff"
+                            required
+                          />
+                          <button className="small-button primary">
+                            End and log
+                          </button>
+                        </form>
+                      ) : (
+                        <small>{session.resolution}</small>
+                      )}
+                    </article>
+                  ))
+                ) : (
+                  <EmptyState
+                    title="No assistance sessions"
+                    body="Explicitly consented sessions will appear here with start and end evidence."
+                  />
+                )}
+              </ActionPanel>
+            </div>
+          ) : null}
+        </PageSection>
+
+        <PageSection
+          kicker="Guided resolution"
+          title="Troubleshooting Playbooks"
+        >
+          <div className="form-grid two">
+            {supportData.playbooks.map((playbook) => (
+              <ActionPanel title={playbook.title} key={playbook.id}>
+                <ol>
+                  {playbook.steps.map((step) => (
+                    <li key={step}>{step}</li>
+                  ))}
+                </ol>
+                <p>
+                  <strong>Escalation:</strong> {playbook.escalation}
+                </p>
+              </ActionPanel>
+            ))}
+          </div>
         </PageSection>
 
         <PageSection title="Support Workspace">

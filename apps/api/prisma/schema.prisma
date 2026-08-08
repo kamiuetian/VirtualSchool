@@ -108,6 +108,7 @@ model Tenant {
   supportNotes                    SupportNote[]
   supportTickets                  SupportTicket[]
   supportTicketNotes              SupportTicketNote[]
+  remoteAssistanceSessions        RemoteAssistanceSession[]
   retentionSettings               RetentionSettings?
   retentionRuns                   DataRetentionRun[]
   billingSubscription             BillingSubscription?
@@ -859,6 +860,7 @@ model Device {
   blockedDomainEvents     BlockedDomainEvent[]
   supportNotes            SupportNote[]
   supportTickets          SupportTicket[]
+  remoteAssistanceSessions RemoteAssistanceSession[]
   guardianSupportRequests GuardianSupportRequest[]
   assignmentHistory       DeviceAssignment[]
   lifecycleEvents         DeviceLifecycleEvent[]
@@ -1038,6 +1040,30 @@ model SupportTicketNote {
   ticket      SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, ticketId, createdAt])
+}
+
+model RemoteAssistanceSession {
+  id                 String    @id @default(uuid())
+  tenantId           String
+  deviceId           String
+  ticketId           String?
+  status             String    @default("ACTIVE")
+  purpose            String
+  visibleNotice      String
+  consentedBy        String
+  consentedAt        DateTime
+  startedBy          String?
+  startedAt          DateTime  @default(now())
+  endedBy            String?
+  endedAt            DateTime?
+  resolution         String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  device             Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, deviceId, startedAt])
+  @@index([tenantId, status, startedAt])
 }
 
 model RetentionSettings {

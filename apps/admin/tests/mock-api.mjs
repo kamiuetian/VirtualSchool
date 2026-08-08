@@ -782,6 +782,38 @@ const routes = [
         },
       ]),
   ],
+  ["GET", `/tenants/${tenantId}/support/assistance/sessions`, () => json([])],
+  [
+    "GET",
+    `/tenants/${tenantId}/support/assistance/playbooks`,
+    () =>
+      json([
+        {
+          id: "OFFLINE_DEVICE",
+          title: "Offline device",
+          steps: ["Verify connectivity."],
+          escalation: "Escalate to device operations.",
+        },
+        {
+          id: "FAILED_APP_INSTALL",
+          title: "Failed app install",
+          steps: ["Check the managed deployment result."],
+          escalation: "Escalate the provider error.",
+        },
+        {
+          id: "BLOCKED_WEBSITE",
+          title: "Blocked website",
+          steps: ["Run URL policy simulation."],
+          escalation: "Escalate policy conflicts.",
+        },
+        {
+          id: "STUCK_KIOSK_MODE",
+          title: "Stuck kiosk mode",
+          steps: ["Check the active mode."],
+          escalation: "Escalate unsupported capability.",
+        },
+      ]),
+  ],
   [
     "GET",
     `/tenants/${tenantId}/devices/${deviceId}/commands`,

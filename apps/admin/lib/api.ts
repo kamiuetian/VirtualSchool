@@ -25,6 +25,8 @@ import type {
   SupportNoteSummary,
   SupportTimelineEvent,
   SupportTicketSummary,
+  RemoteAssistanceSessionSummary,
+  TroubleshootingPlaybook,
   StudentSummary,
   TenantSummary,
   TimetableBlockSummary,
@@ -495,20 +497,36 @@ export async function getDeviceSupportData(
   notes: SupportNoteSummary[];
   timeline: SupportTimelineEvent[];
   tickets: SupportTicketSummary[];
+  assistanceSessions: RemoteAssistanceSessionSummary[];
+  playbooks: TroubleshootingPlaybook[];
   connectionIssue: boolean;
 }> {
-  const [notes, timeline, tickets] = await Promise.all([
-    apiGet<SupportNoteSummary[]>(
-      `/tenants/${tenantId}/support/devices/${deviceId}/notes`,
-    ),
-    apiGet<SupportTimelineEvent[]>(
-      `/tenants/${tenantId}/support/devices/${deviceId}/timeline?limit=12`,
-    ),
-    apiGet<SupportTicketSummary[]>(`/tenants/${tenantId}/support/tickets`),
-  ]);
+  const [notes, timeline, tickets, assistanceSessions, playbooks] =
+    await Promise.all([
+      apiGet<SupportNoteSummary[]>(
+        `/tenants/${tenantId}/support/devices/${deviceId}/notes`,
+      ),
+      apiGet<SupportTimelineEvent[]>(
+        `/tenants/${tenantId}/support/devices/${deviceId}/timeline?limit=12`,
+      ),
+      apiGet<SupportTicketSummary[]>(`/tenants/${tenantId}/support/tickets`),
+      apiGet<RemoteAssistanceSessionSummary[]>(
+        `/tenants/${tenantId}/support/assistance/sessions?deviceId=${encodeURIComponent(deviceId)}`,
+      ),
+      apiGet<TroubleshootingPlaybook[]>(
+        `/tenants/${tenantId}/support/assistance/playbooks`,
+      ),
+    ]);
 
   return {
-    connectionIssue: notes.failed || timeline.failed || tickets.failed,
+    connectionIssue:
+      notes.failed ||
+      timeline.failed ||
+      tickets.failed ||
+      assistanceSessions.failed ||
+      playbooks.failed,
+    assistanceSessions: assistanceSessions.data ?? [],
+    playbooks: playbooks.data ?? [],
     notes: notes.data ?? [],
     timeline: timeline.data ?? [],
     tickets: tickets.data ?? [],

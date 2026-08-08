@@ -29,3 +29,9 @@ Ticket descriptions and notes should capture:
 - Troubleshooting steps already attempted.
 
 Tickets are available at `/tenants/:tenantId/support/tickets`; notes are appended below a ticket, and workflow changes use the ticket-specific endpoint. Existing device support-note endpoints remain available for API compatibility and device timelines. Use `SCHOOL` visibility only for notes safe to expose to school staff; keep vendor/internal investigation details as `INTERNAL`.
+
+## Remote assistance
+
+Only staff with device-command permission may start or end remote assistance. Before starting, confirm the device user can see the assistance notice, record the consenting person's name and role or relationship, state the support purpose, and link the relevant ticket when available. Only one active session is allowed per device. End every session with a resolution or handoff note; start and end are tenant-scoped audit events.
+
+Remote assistance guides troubleshooting and exposes management status only. It does not enable hidden camera or microphone access, keystroke capture, private-message inspection, secret screenshots, or covert monitoring. Stop the session if consent is withdrawn. Use the built-in offline-device, failed-app-install, blocked-website, or stuck-kiosk-mode playbook, and follow its escalation step when guided checks do not resolve the issue.

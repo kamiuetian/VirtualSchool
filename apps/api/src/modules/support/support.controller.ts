@@ -28,6 +28,10 @@ import {
   CreateTicketNoteDto,
   UpdateSupportTicketDto,
 } from "./dto/support-ticket.dto";
+import {
+  EndRemoteAssistanceDto,
+  StartRemoteAssistanceDto,
+} from "./dto/remote-assistance.dto";
 
 @ApiTags("support")
 @Controller("tenants/:tenantId")
@@ -35,6 +39,51 @@ export class SupportController {
   constructor(
     @Inject(SupportService) private readonly supportService: SupportService,
   ) {}
+
+  @Get("support/assistance/playbooks")
+  @RequirePermissions("device:read")
+  getTroubleshootingPlaybooks() {
+    return this.supportService.getTroubleshootingPlaybooks();
+  }
+
+  @Get("support/assistance/sessions")
+  @RequirePermissions("device:command")
+  listAssistanceSessions(
+    @Param("tenantId") tenantId: string,
+    @Query("deviceId") deviceId?: string,
+  ) {
+    return this.supportService.listAssistanceSessions(tenantId, deviceId);
+  }
+
+  @Post("support/assistance/sessions")
+  @RequirePermissions("device:command")
+  startAssistanceSession(
+    @Param("tenantId") tenantId: string,
+    @Body() body: StartRemoteAssistanceDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.supportService.startAssistanceSession(
+      tenantId,
+      body,
+      request.user,
+    );
+  }
+
+  @Post("support/assistance/sessions/:sessionId/end")
+  @RequirePermissions("device:command")
+  endAssistanceSession(
+    @Param("tenantId") tenantId: string,
+    @Param("sessionId") sessionId: string,
+    @Body() body: EndRemoteAssistanceDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.supportService.endAssistanceSession(
+      tenantId,
+      sessionId,
+      body,
+      request.user,
+    );
+  }
 
   @Get("support/tickets")
   @RequirePermissions("device:read")

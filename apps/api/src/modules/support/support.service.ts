@@ -1,4 +1,6 @@
 import {
+  BadRequestException,
+  ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -15,6 +17,8 @@ import type {
   SupportNoteVisibility,
   SupportTimelineEvent,
   SupportTicketSummary,
+  RemoteAssistanceSessionSummary,
+  TroubleshootingPlaybook,
 } from "@virtual-school/shared";
 import {
   Prisma,
@@ -36,6 +40,63 @@ import type {
   CreateTicketNoteDto,
   UpdateSupportTicketDto,
 } from "./dto/support-ticket.dto";
+import type {
+  EndRemoteAssistanceDto,
+  StartRemoteAssistanceDto,
+} from "./dto/remote-assistance.dto";
+
+const assistanceNotice =
+  "Remote assistance is active and visible to the device user. The support agent may guide troubleshooting and inspect management status, but this session does not enable camera, microphone, keystroke, private-message, screenshot, or covert monitoring.";
+
+const troubleshootingPlaybooks: TroubleshootingPlaybook[] = [
+  {
+    id: "OFFLINE_DEVICE",
+    title: "Offline device",
+    steps: [
+      "Confirm the device has power and show the user the active assistance notice.",
+      "Ask the user to verify Wi-Fi or mobile connectivity without sharing passwords.",
+      "Check the last device heartbeat and retry the approved policy refresh after connectivity returns.",
+      "Record the network result and device time in the linked ticket.",
+    ],
+    escalation:
+      "Escalate to device operations if the device remains offline after a known-good network test.",
+  },
+  {
+    id: "FAILED_APP_INSTALL",
+    title: "Failed app install",
+    steps: [
+      "Confirm the app is approved and assigned by the active policy.",
+      "Check available storage, enrollment state, and the latest deployment failure reason.",
+      "Retry the approved deployment once after correcting policy or storage issues.",
+      "Record the package, policy version, and retry result without collecting personal app data.",
+    ],
+    escalation:
+      "Escalate with the privacy-limited provider error when the managed store continues to reject the app.",
+  },
+  {
+    id: "BLOCKED_WEBSITE",
+    title: "Blocked website",
+    steps: [
+      "Confirm the exact school resource the user intended to open.",
+      "Run URL policy simulation and identify the winning tenant, class, mode, or global rule.",
+      "Correct an erroneous school allowlist only through the authorized policy workflow.",
+      "Never bypass a global never-allowed rule; record the simulation result in the ticket.",
+    ],
+    escalation: "Escalate policy conflicts to an authorized policy manager.",
+  },
+  {
+    id: "STUCK_KIOSK_MODE",
+    title: "Stuck kiosk mode",
+    steps: [
+      "Confirm the device identity, active mode, and whether an exam or lost-device assignment is active.",
+      "Check the current policy version and management heartbeat.",
+      "Use only an authorized, reason-bound support unlock or policy refresh when appropriate.",
+      "Verify the expected mode returns and document the outcome before ending assistance.",
+    ],
+    escalation:
+      "Escalate if the device cannot receive policy or if platform capability is unsupported.",
+  },
+];
 
 const defaultRetentionSettings = {
   auditRetentionDays: null,
@@ -58,6 +119,140 @@ type RetentionCutoffs = {
 @Injectable()
 export class SupportService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+
+  getTroubleshootingPlaybooks(): TroubleshootingPlaybook[] {
+    return troubleshootingPlaybooks;
+  }
+
+  async listAssistanceSessions(
+    tenantId: string,
+    deviceId?: string,
+  ): Promise<RemoteAssistanceSessionSummary[]> {
+    const sessions = await this.prisma.remoteAssistanceSession.findMany({
+      where: { tenantId, deviceId },
+      orderBy: { startedAt: "desc" },
+    });
+    return sessions.map((session) => this.toAssistanceSummary(session));
+  }
+
+  async startAssistanceSession(
+    tenantId: string,
+    input: StartRemoteAssistanceDto,
+    actor?: AuthenticatedUser,
+  ): Promise<RemoteAssistanceSessionSummary> {
+    if (!input.noticeAcknowledged)
+      throw new BadRequestException(
+        "Visible notice and consent must be acknowledged",
+      );
+    await this.ensureDevice(tenantId, input.deviceId);
+    if (input.ticketId) {
+      const ticket = await this.prisma.supportTicket.findFirst({
+        where: { id: input.ticketId, tenantId },
+        select: { id: true, deviceId: true },
+      });
+      if (!ticket)
+        throw new NotFoundException("Linked support ticket was not found");
+      if (ticket.deviceId && ticket.deviceId !== input.deviceId)
+        throw new BadRequestException(
+          "Linked ticket belongs to another device",
+        );
+    }
+    const active = await this.prisma.remoteAssistanceSession.findFirst({
+      where: { tenantId, deviceId: input.deviceId, status: "ACTIVE" },
+      select: { id: true },
+    });
+    if (active)
+      throw new ConflictException(
+        "This device already has an active assistance session",
+      );
+    const session = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.remoteAssistanceSession.create({
+        data: {
+          tenantId,
+          deviceId: input.deviceId,
+          ticketId: input.ticketId,
+          purpose: input.purpose.trim(),
+          visibleNotice: assistanceNotice,
+          consentedBy: input.consentedBy.trim(),
+          consentedAt: new Date(),
+          startedBy: actor?.subject,
+        },
+      });
+      await tx.auditEvent.create({
+        data: {
+          tenantId,
+          actorId: actor?.subject,
+          action: "remote_assistance.start",
+          object: "RemoteAssistanceSession",
+          objectId: created.id,
+          outcome: "CONSENTED",
+          newValue: {
+            deviceId: input.deviceId,
+            ticketId: input.ticketId,
+            consentedBy: input.consentedBy,
+            noticeDisplayed: true,
+            prohibitedMonitoring: true,
+          },
+        },
+      });
+      return created;
+    });
+    return this.toAssistanceSummary(session);
+  }
+
+  async endAssistanceSession(
+    tenantId: string,
+    sessionId: string,
+    input: EndRemoteAssistanceDto,
+    actor?: AuthenticatedUser,
+  ): Promise<RemoteAssistanceSessionSummary> {
+    const current = await this.prisma.remoteAssistanceSession.findFirst({
+      where: { id: sessionId, tenantId },
+    });
+    if (!current)
+      throw new NotFoundException("Remote assistance session was not found");
+    if (current.status !== "ACTIVE")
+      throw new ConflictException(
+        "Remote assistance session has already ended",
+      );
+    const ended = await this.prisma.$transaction(async (tx) => {
+      const saved = await tx.remoteAssistanceSession.update({
+        where: { id: sessionId },
+        data: {
+          status: "ENDED",
+          endedAt: new Date(),
+          endedBy: actor?.subject,
+          resolution: input.resolution.trim(),
+        },
+      });
+      await tx.auditEvent.create({
+        data: {
+          tenantId,
+          actorId: actor?.subject,
+          action: "remote_assistance.end",
+          object: "RemoteAssistanceSession",
+          objectId: sessionId,
+          outcome: "ENDED",
+          newValue: {
+            deviceId: current.deviceId,
+            resolution: input.resolution.trim(),
+            endedAt: saved.endedAt,
+          },
+        },
+      });
+      return saved;
+    });
+    return this.toAssistanceSummary(ended);
+  }
+
+  private toAssistanceSummary(session: any): RemoteAssistanceSessionSummary {
+    return {
+      ...session,
+      consentedAt: session.consentedAt.toISOString(),
+      startedAt: session.startedAt.toISOString(),
+      endedAt: session.endedAt?.toISOString() ?? null,
+    };
+  }
 
   async listTickets(
     tenantId: string,

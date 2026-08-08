@@ -158,6 +158,17 @@ test.describe("admin portal regression", () => {
       page.getByRole("button", { name: "Open routed ticket" }),
     ).toBeVisible();
     await expect(page.getByText(/HELPDESK/)).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Remote Assistance" }),
+    ).toBeVisible();
+    await expect(page.getByText(/never enables hidden camera/)).toBeVisible();
+    await expect(
+      page.getByRole("checkbox", { name: /explicitly consented/ }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Troubleshooting Playbooks" }),
+    ).toBeVisible();
+    await expect(page.getByText("Stuck kiosk mode")).toBeVisible();
 
     await page.goto("/enrollment");
     await expect(

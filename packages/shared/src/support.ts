@@ -52,6 +52,34 @@ export type SupportTicketNoteSummary = {
   createdAt: string;
 };
 
+export type RemoteAssistanceSessionSummary = {
+  id: string;
+  tenantId: string;
+  deviceId: string;
+  ticketId?: string | null;
+  status: "ACTIVE" | "ENDED";
+  purpose: string;
+  visibleNotice: string;
+  consentedBy: string;
+  consentedAt: string;
+  startedBy?: string | null;
+  startedAt: string;
+  endedBy?: string | null;
+  endedAt?: string | null;
+  resolution?: string | null;
+};
+
+export type TroubleshootingPlaybook = {
+  id:
+    | "OFFLINE_DEVICE"
+    | "FAILED_APP_INSTALL"
+    | "BLOCKED_WEBSITE"
+    | "STUCK_KIOSK_MODE";
+  title: string;
+  steps: string[];
+  escalation: string;
+};
+
 export type SupportNoteSummary = {
   id: string;
   tenantId: string;

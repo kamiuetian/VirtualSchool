@@ -1128,6 +1128,40 @@ export async function addSupportTicketNoteAction(
   revalidateAll();
 }
 
+export async function startRemoteAssistanceAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("device:command");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/support/assistance/sessions`,
+    {
+      deviceId: required(formData, "deviceId"),
+      ticketId: text(formData, "ticketId"),
+      purpose: required(formData, "purpose"),
+      consentedBy: required(formData, "consentedBy"),
+      noticeAcknowledged: booleanValue(formData, "noticeAcknowledged"),
+    },
+  );
+  revalidateAll();
+}
+
+export async function endRemoteAssistanceAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("device:command");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/support/assistance/sessions/${required(formData, "sessionId")}/end`,
+    {
+      resolution: required(formData, "resolution"),
+    },
+  );
+  revalidateAll();
+}
+
 export async function updateSupportNoteAction(
   formData: FormData,
 ): Promise<void> {
