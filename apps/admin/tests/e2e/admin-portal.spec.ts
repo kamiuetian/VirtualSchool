@@ -102,6 +102,9 @@ test.describe("admin portal regression", () => {
     await expect(
       page.getByRole("heading", { name: "Recent Diagnostics" }),
     ).toBeVisible();
+    await expect(page.getByLabel("OS lifecycle")).toBeVisible();
+    await expect(page.getByText("100/100 · Good").first()).toBeVisible();
+    await expect(page.getByText("No OS lifecycle update is currently required.")).toBeVisible();
 
     await page.goto("/roster?importId=import-preview-1");
     await expect(

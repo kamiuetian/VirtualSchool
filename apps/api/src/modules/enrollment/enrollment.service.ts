@@ -23,7 +23,7 @@ import type { AssignDeviceDto } from "./dto/assign-device.dto";
 import type { CreateEnrollmentBatchDto } from "./dto/create-enrollment-batch.dto";
 import type { DeviceCheckInDto } from "./dto/device-check-in.dto";
 import type { ListDevicesDto } from "./dto/list-devices.dto";
-import { androidControlSummary, platformCapabilityCatalog } from "./device-capability.catalog";
+import { androidControlSummary, assessAndroidCompliance, platformCapabilityCatalog } from "./device-capability.catalog";
 
 @Injectable()
 export class EnrollmentService {
@@ -111,7 +111,8 @@ export class EnrollmentService {
         (!filters.provider || device.provider === filters.provider) &&
         (!filters.compliance || device.compliance === filters.compliance) &&
         (!filters.enrollmentType || device.enrollmentType === filters.enrollmentType) &&
-        (!filters.ownershipType || device.ownershipType === filters.ownershipType),
+        (!filters.ownershipType || device.ownershipType === filters.ownershipType) &&
+        (!filters.osLifecycle || device.complianceAssessment.osLifecycle === filters.osLifecycle),
       );
   }
 
@@ -606,6 +607,10 @@ export class EnrollmentService {
       tags: device.tags,
       tenantId: device.tenantId,
       ...controls,
+      complianceAssessment: assessAndroidCompliance({
+        compliance: device.compliance, health: device.health,
+        osVersion: device.androidVersion, status: device.status,
+      }),
     };
   }
 }

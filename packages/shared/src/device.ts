@@ -49,6 +49,19 @@ export type DeviceEnrollmentType =
   | "BYOD_SESSION"
   | "UNKNOWN";
 export type CapabilitySupport = "SUPPORTED" | "PARTIAL" | "UNSUPPORTED";
+export type OsLifecycleStatus = "SUPPORTED" | "UPDATE_RECOMMENDED" | "UNSUPPORTED" | "UNKNOWN";
+
+export type DeviceComplianceAssessment = {
+  score: number;
+  grade: "GOOD" | "ATTENTION" | "CRITICAL";
+  reasons: string[];
+  capabilityNote: string;
+  osLifecycle: OsLifecycleStatus;
+  minimumSupportedVersion?: string | null;
+  recommendedVersion?: string | null;
+  updateRecommendation: string;
+  restrictions: string[];
+};
 
 export type DeviceCapability = {
   key: string;
@@ -108,6 +121,7 @@ export type DeviceSummary = {
   ownershipType: DeviceOwnership;
   supportedControls: string[];
   unsupportedControls: string[];
+  complianceAssessment: DeviceComplianceAssessment;
   status: DeviceStatus;
   health: string;
   compliance: string;

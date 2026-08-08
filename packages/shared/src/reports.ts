@@ -1,4 +1,4 @@
-import type { DeviceStatus } from "./device";
+import type { DeviceComplianceAssessment, DeviceStatus } from "./device";
 import type { PolicyStatus } from "./policy";
 
 export type ReportGeneratedMetadata = {
@@ -23,6 +23,7 @@ export type DeviceInventoryReportRow = {
   connectorDeviceName?: string | null;
   lastCheckInAt?: string | null;
   tags: string[];
+  complianceAssessment?: DeviceComplianceAssessment;
 };
 
 export type DeviceInventoryReport = ReportGeneratedMetadata & {

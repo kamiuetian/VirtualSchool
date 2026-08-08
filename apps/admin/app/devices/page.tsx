@@ -24,7 +24,7 @@ export const dynamic = "force-dynamic";
 export default async function DevicesPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ deviceId?: string; platform?: string; provider?: string; compliance?: string }>;
+  searchParams?: Promise<{ deviceId?: string; platform?: string; provider?: string; compliance?: string; osLifecycle?: string }>;
 }) {
   const params = await searchParams;
   const data = await getAdminData("/devices");
@@ -35,7 +35,8 @@ export default async function DevicesPage({
   const filteredDevices = data.devices.filter((device) =>
     (!params?.platform || device.platform === params.platform) &&
     (!params?.provider || device.provider === params.provider) &&
-    (!params?.compliance || device.compliance === params.compliance),
+    (!params?.compliance || device.compliance === params.compliance) &&
+    (!params?.osLifecycle || device.complianceAssessment?.osLifecycle === params.osLifecycle),
   );
   const canAssignDevices = roleCan(data.session.role, "device:enroll");
   const canQueueCommands = roleCan(data.session.role, "device:command");
@@ -98,6 +99,7 @@ export default async function DevicesPage({
               <Field label="Platform"><select defaultValue={params?.platform ?? ""} name="platform"><option value="">All platforms</option>{capabilityData.catalog.map((entry) => <option key={entry.platform} value={entry.platform}>{humanize(entry.platform)}</option>)}</select></Field>
               <Field label="Provider"><select defaultValue={params?.provider ?? ""} name="provider"><option value="">All providers</option>{[...new Set(capabilityData.catalog.map((entry) => entry.provider))].map((provider) => <option key={provider} value={provider}>{provider}</option>)}</select></Field>
               <Field label="Compliance"><select defaultValue={params?.compliance ?? ""} name="compliance"><option value="">All states</option><option value="COMPLIANT">Compliant</option><option value="NON_COMPLIANT">Non-compliant</option><option value="UNKNOWN">Unknown</option></select></Field>
+              <Field label="OS lifecycle"><select defaultValue={params?.osLifecycle ?? ""} name="osLifecycle"><option value="">All lifecycle states</option><option value="SUPPORTED">Supported</option><option value="UPDATE_RECOMMENDED">Update recommended</option><option value="UNSUPPORTED">Unsupported</option><option value="UNKNOWN">Unknown</option></select></Field>
             </div>
             <SubmitButton>Apply filters</SubmitButton>
           </form>
@@ -327,6 +329,17 @@ export default async function DevicesPage({
                     <span>Compliance</span>
                     <strong>{humanize(selectedDevice.compliance)}</strong>
                   </div>
+                  <div>
+                    <span>Unified score</span>
+                    <strong>{selectedDevice.complianceAssessment?.score ?? "—"}/100 · {humanize(selectedDevice.complianceAssessment?.grade ?? "UNKNOWN")}</strong>
+                    <span className="cell-note">{selectedDevice.complianceAssessment?.reasons.join(" ")}</span>
+                  </div>
+                  <div>
+                    <span>OS lifecycle</span>
+                    <strong>{humanize(selectedDevice.complianceAssessment?.osLifecycle ?? "UNKNOWN")}</strong>
+                    <span className="cell-note">{selectedDevice.complianceAssessment?.updateRecommendation}</span>
+                    {selectedDevice.complianceAssessment?.restrictions.map((restriction) => <span className="cell-note" key={restriction}>{restriction}</span>)}
+                  </div>
                 </div>
               </ActionPanel>
               {canAssignDevices ? (
@@ -378,7 +391,7 @@ export default async function DevicesPage({
                     <th>Model</th>
                     <th>Platform</th>
                     <th>Status</th>
-                    <th>Health</th>
+                    <th>Compliance</th>
                     <th>Policy</th>
                     <th>Assignment</th>
                     <th>Last check-in</th>
@@ -407,7 +420,7 @@ export default async function DevicesPage({
                           {humanize(device.status)}
                         </StatusPill>
                       </td>
-                      <td>{humanize(device.health)}</td>
+                      <td>{device.complianceAssessment?.score ?? "—"}/100 · {humanize(device.complianceAssessment?.grade ?? device.compliance)}<span className="cell-note">OS: {humanize(device.complianceAssessment?.osLifecycle ?? "UNKNOWN")}</span></td>
                       <td>
                         {device.policyVersion
                           ? `v${device.policyVersion}`

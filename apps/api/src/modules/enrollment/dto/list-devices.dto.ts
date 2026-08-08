@@ -27,4 +27,9 @@ export class ListDevicesDto {
   @IsIn(["SCHOOL_OWNED", "PERSONAL", "CORPORATE"])
   @IsOptional()
   ownershipType?: "SCHOOL_OWNED" | "PERSONAL" | "CORPORATE";
+
+  @ApiPropertyOptional({ enum: ["SUPPORTED", "UPDATE_RECOMMENDED", "UNSUPPORTED", "UNKNOWN"] })
+  @IsIn(["SUPPORTED", "UPDATE_RECOMMENDED", "UNSUPPORTED", "UNKNOWN"])
+  @IsOptional()
+  osLifecycle?: "SUPPORTED" | "UPDATE_RECOMMENDED" | "UNSUPPORTED" | "UNKNOWN";
 }

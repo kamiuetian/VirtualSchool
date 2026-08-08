@@ -16,6 +16,7 @@ import {
   Prisma,
 } from "../../generated/prisma";
 import { PrismaService } from "../prisma/prisma.service";
+import { assessAndroidCompliance } from "../enrollment/device-capability.catalog";
 import type { AlertActionDto } from "./dto/alert-action.dto";
 import type { OfflineAlertScanDto } from "./dto/offline-alert-scan.dto";
 import type { UploadDeviceDiagnosticDto } from "./dto/upload-device-diagnostic.dto";
@@ -650,6 +651,10 @@ export class DeviceDiagnosticsService {
       tenantId: device.tenantId,
       supportedControls: ["kiosk", "web-filter", "app-deployment", "remote-lock", "remote-wipe"],
       unsupportedControls: ["hardware-reset-block"],
+      complianceAssessment: assessAndroidCompliance({
+        compliance: device.compliance, health: device.health,
+        osVersion: device.androidVersion, status: device.status,
+      }),
     };
   }
 

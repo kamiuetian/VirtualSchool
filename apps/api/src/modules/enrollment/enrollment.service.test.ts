@@ -1,10 +1,20 @@
 import { BadRequestException, ConflictException } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
 import { EnrollmentService } from "./enrollment.service";
+import { assessAndroidCompliance } from "./device-capability.catalog";
 
 const now = new Date("2026-05-17T10:00:00.000Z");
 
 describe("EnrollmentService", () => {
+  it("scores observable compliance and applies OS lifecycle governance", () => {
+    expect(assessAndroidCompliance({ compliance: "COMPLIANT", health: "HEALTHY", osVersion: "14", status: "ONLINE" })).toMatchObject({
+      grade: "GOOD", osLifecycle: "SUPPORTED", restrictions: [], score: 100,
+    });
+    expect(assessAndroidCompliance({ compliance: "NON_COMPLIANT", health: "UNHEALTHY", osVersion: "10", status: "OFFLINE" })).toMatchObject({
+      grade: "CRITICAL", osLifecycle: "UNSUPPORTED", restrictions: [expect.stringContaining("Block new policy")], score: 0,
+    });
+  });
+
   it("exposes multi-OS capabilities and filters the unified inventory", async () => {
     const service = new EnrollmentService({
       device: {
@@ -27,6 +37,8 @@ describe("EnrollmentService", () => {
     await expect(service.listDevices("tenant-1", { platform: "ANDROID", compliance: "COMPLIANT" }))
       .resolves.toMatchObject([{ platform: "ANDROID", enrollmentType: "FULLY_MANAGED", supportedControls: expect.arrayContaining(["kiosk"]), unsupportedControls: ["hardware-reset-block"] }]);
     await expect(service.listDevices("tenant-1", { platform: "WINDOWS" })).resolves.toEqual([]);
+    await expect(service.listDevices("tenant-1", { osLifecycle: "SUPPORTED" })).resolves.toHaveLength(1);
+    await expect(service.listDevices("tenant-1", { osLifecycle: "UNSUPPORTED" })).resolves.toEqual([]);
   });
 
   it("creates an enrollment batch with a QR payload and audit event", async () => {

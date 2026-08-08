@@ -16,6 +16,7 @@ import {
   type RemoteCommand,
 } from "../../generated/prisma";
 import { PrismaService } from "../prisma/prisma.service";
+import { assessAndroidCompliance } from "../enrollment/device-capability.catalog";
 
 @Injectable()
 export class ReportsService {
@@ -67,6 +68,11 @@ export class ReportsService {
         "status",
         "health",
         "compliance",
+        "compliance_score",
+        "compliance_grade",
+        "os_lifecycle",
+        "update_recommendation",
+        "lifecycle_restrictions",
         "policy_version",
         "student_id",
         "class_id",
@@ -85,6 +91,11 @@ export class ReportsService {
         device.status,
         device.health,
         device.compliance,
+        device.complianceAssessment?.score,
+        device.complianceAssessment?.grade,
+        device.complianceAssessment?.osLifecycle,
+        device.complianceAssessment?.updateRecommendation,
+        device.complianceAssessment?.restrictions.join("|"),
         device.policyVersion,
         device.studentId,
         device.classId,
@@ -420,6 +431,10 @@ export class ReportsService {
       status: device.status,
       studentId: device.studentId,
       tags: device.tags,
+      complianceAssessment: assessAndroidCompliance({
+        compliance: device.compliance, health: device.health,
+        osVersion: device.androidVersion, status: device.status,
+      }),
     };
   }
 
