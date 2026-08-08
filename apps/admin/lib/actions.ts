@@ -1074,6 +1074,60 @@ export async function createSupportNoteAction(
   revalidateAll();
 }
 
+export async function createSupportTicketAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("device:read");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation("POST", `/tenants/${tenantId}/support/tickets`, {
+    deviceId: text(formData, "deviceId"),
+    classId: text(formData, "classId"),
+    category: text(formData, "category"),
+    priority: text(formData, "priority"),
+    subject: required(formData, "subject"),
+    description: required(formData, "description"),
+  });
+  revalidateAll();
+}
+
+export async function updateSupportTicketAction(
+  formData: FormData,
+): Promise<void> {
+  const session = await requireAdminSession();
+  if (
+    !roleCan(session.role, "device:command") &&
+    !roleCan(session.role, "tenant:update")
+  )
+    throw new Error("Missing permission to manage support tickets");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "PATCH",
+    `/tenants/${tenantId}/support/tickets/${required(formData, "ticketId")}`,
+    {
+      status: text(formData, "status"),
+      assigneeId: text(formData, "assigneeId"),
+      priority: text(formData, "priority"),
+    },
+  );
+  revalidateAll();
+}
+
+export async function addSupportTicketNoteAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("device:read");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/support/tickets/${required(formData, "ticketId")}/notes`,
+    {
+      body: required(formData, "body"),
+      visibility: text(formData, "visibility") || "INTERNAL",
+    },
+  );
+  revalidateAll();
+}
+
 export async function updateSupportNoteAction(
   formData: FormData,
 ): Promise<void> {

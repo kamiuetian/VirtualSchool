@@ -365,6 +365,21 @@ export class GuardianService {
         where: { id: tenantId },
         select: { supportEmail: true },
       });
+      const ticket = await tx.supportTicket.create({
+        data: {
+          tenantId,
+          deviceId: device.id,
+          studentId,
+          source: "GUARDIAN",
+          category: input.category,
+          priority: "NORMAL",
+          subject: input.subject.trim(),
+          description: input.description.trim(),
+          routingQueue: "GUARDIAN_SUPPORT",
+          slaDueAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          createdBy: actorId,
+        },
+      });
       const request = await tx.guardianSupportRequest.create({
         data: {
           tenantId,
@@ -376,6 +391,7 @@ export class GuardianService {
           description: input.description.trim(),
           routedTo: tenant?.supportEmail ?? null,
           createdBy: actorId,
+          supportTicketId: ticket.id,
         },
       });
       await tx.auditEvent.create({
@@ -383,20 +399,21 @@ export class GuardianService {
           tenantId,
           actorId,
           action: "guardian.support_request.create",
-          object: "GuardianSupportRequest",
-          objectId: request.id,
+          object: "SupportTicket",
+          objectId: ticket.id,
           outcome: "ROUTED",
           newValue: {
             studentId,
             deviceId: device.id,
             category: input.category,
             routedTo: request.routedTo,
+            guardianSupportRequestId: request.id,
           },
         },
       });
       return {
-        id: request.id,
-        status: request.status,
+        id: ticket.id,
+        status: ticket.status,
         routedTo: request.routedTo,
       };
     });

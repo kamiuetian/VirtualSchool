@@ -23,6 +23,11 @@ import { RunRetentionDto } from "./dto/run-retention.dto";
 import { UpdateRetentionSettingsDto } from "./dto/update-retention-settings.dto";
 import { UpdateSupportNoteDto } from "./dto/update-support-note.dto";
 import { SupportService } from "./support.service";
+import {
+  CreateSupportTicketDto,
+  CreateTicketNoteDto,
+  UpdateSupportTicketDto,
+} from "./dto/support-ticket.dto";
 
 @ApiTags("support")
 @Controller("tenants/:tenantId")
@@ -30,6 +35,57 @@ export class SupportController {
   constructor(
     @Inject(SupportService) private readonly supportService: SupportService,
   ) {}
+
+  @Get("support/tickets")
+  @RequirePermissions("device:read")
+  listTickets(
+    @Param("tenantId") tenantId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.supportService.listTickets(tenantId, request.user);
+  }
+
+  @Post("support/tickets")
+  @RequirePermissions("device:read")
+  createTicket(
+    @Param("tenantId") tenantId: string,
+    @Body() body: CreateSupportTicketDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.supportService.createTicket(tenantId, body, request.user);
+  }
+
+  @Patch("support/tickets/:ticketId")
+  @RequirePermissions("device:read")
+  updateTicket(
+    @Param("tenantId") tenantId: string,
+    @Param("ticketId") ticketId: string,
+    @Body() body: UpdateSupportTicketDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.supportService.updateTicket(
+      tenantId,
+      ticketId,
+      body,
+      request.user,
+    );
+  }
+
+  @Post("support/tickets/:ticketId/notes")
+  @RequirePermissions("device:read")
+  addTicketNote(
+    @Param("tenantId") tenantId: string,
+    @Param("ticketId") ticketId: string,
+    @Body() body: CreateTicketNoteDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.supportService.addTicketNote(
+      tenantId,
+      ticketId,
+      body,
+      request.user,
+    );
+  }
 
   @Get("support/devices/:deviceId/notes")
   @RequirePermissions("device:read")

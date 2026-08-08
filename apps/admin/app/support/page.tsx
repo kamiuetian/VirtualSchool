@@ -15,6 +15,9 @@ import {
   dryRunRetentionAction,
   updateRetentionSettingsAction,
   updateSupportNoteAction,
+  createSupportTicketAction,
+  updateSupportTicketAction,
+  addSupportTicketNoteAction,
 } from "../../lib/actions";
 import { getAdminData, getDeviceSupportData } from "../../lib/api";
 import { roleCan } from "../../lib/auth/portal-access";
@@ -30,7 +33,10 @@ export default async function SupportPage({
   const params = await searchParams;
   const data = await getAdminData("/support");
   const selectedTenant = data.selectedTenant;
-  const canManageSupport = roleCan(data.session.role, "device:command");
+  const canManageSupport =
+    roleCan(data.session.role, "device:command") ||
+    roleCan(data.session.role, "tenant:update");
+  const canCreateTickets = roleCan(data.session.role, "device:read");
   const canManageRetention = roleCan(data.session.role, "tenant:update");
   const selectedDevice =
     data.devices.find((device) => device.id === params?.deviceId) ??
@@ -39,8 +45,7 @@ export default async function SupportPage({
   const supportData =
     selectedTenant && selectedDevice
       ? await getDeviceSupportData(selectedTenant.id, selectedDevice.id)
-      : { connectionIssue: false, notes: [], timeline: [] };
-  const openNotes = supportData.notes.filter((note) => note.status !== "RESOLVED");
+      : { connectionIssue: false, notes: [], timeline: [], tickets: [] };
 
   return (
     <AppShell
@@ -50,15 +55,30 @@ export default async function SupportPage({
       <div className="content-stack">
         <PageSection kicker="Support desk" title="Device Support">
           <section className="stat-grid" aria-label="Support summary">
-            <StatCard label="Devices" value={formatCount(data.devices.length)} />
             <StatCard
-              label="Open notes"
-              tone={openNotes.length > 0 ? "warning" : "good"}
-              value={formatCount(openNotes.length)}
+              label="Devices"
+              value={formatCount(data.devices.length)}
+            />
+            <StatCard
+              label="Open tickets"
+              tone={
+                supportData.tickets.some(
+                  (ticket) => !["RESOLVED", "CLOSED"].includes(ticket.status),
+                )
+                  ? "warning"
+                  : "good"
+              }
+              value={formatCount(
+                supportData.tickets.filter(
+                  (ticket) => !["RESOLVED", "CLOSED"].includes(ticket.status),
+                ).length,
+              )}
             />
             <StatCard
               label="Pinned"
-              value={formatCount(supportData.notes.filter((note) => note.pinned).length)}
+              value={formatCount(
+                supportData.notes.filter((note) => note.pinned).length,
+              )}
             />
             <StatCard
               label="Timeline events"
@@ -83,7 +103,11 @@ export default async function SupportPage({
                       key={device.id}
                     >
                       <strong>{device.serialNumber}</strong>
-                      <span>{device.model ?? device.manufacturer ?? "Android tablet"}</span>
+                      <span>
+                        {device.model ??
+                          device.manufacturer ??
+                          "Android tablet"}
+                      </span>
                     </Link>
                   ))}
                 </div>
@@ -91,9 +115,20 @@ export default async function SupportPage({
 
               {canManageSupport ? (
                 <ActionPanel title="Create support note">
-                  <form action={createSupportNoteAction} className="stacked-form">
-                    <input name="tenantId" type="hidden" value={selectedTenant.id} />
-                    <input name="deviceId" type="hidden" value={selectedDevice.id} />
+                  <form
+                    action={createSupportNoteAction}
+                    className="stacked-form"
+                  >
+                    <input
+                      name="tenantId"
+                      type="hidden"
+                      value={selectedTenant.id}
+                    />
+                    <input
+                      name="deviceId"
+                      type="hidden"
+                      value={selectedDevice.id}
+                    />
                     <div className="form-row">
                       <Field label="Category">
                         <select name="category" defaultValue="GENERAL">
@@ -121,7 +156,11 @@ export default async function SupportPage({
                       </select>
                     </Field>
                     <Field label="Note">
-                      <textarea name="body" placeholder="Record the support finding or next action" required />
+                      <textarea
+                        name="body"
+                        placeholder="Record the support finding or next action"
+                        required
+                      />
                     </Field>
                     <label className="check-field">
                       <input name="pinned" type="checkbox" />
@@ -141,23 +180,166 @@ export default async function SupportPage({
           )}
         </PageSection>
 
+        <PageSection kicker="Helpdesk workflow" title="Support Tickets">
+          {selectedTenant && selectedDevice && canCreateTickets ? (
+            <form
+              action={createSupportTicketAction}
+              className="action-panel content-stack"
+            >
+              <input name="tenantId" type="hidden" value={selectedTenant.id} />
+              <input name="deviceId" type="hidden" value={selectedDevice.id} />
+              <input
+                name="classId"
+                type="hidden"
+                value={selectedDevice.classId ?? ""}
+              />
+              <div className="inline-form">
+                <Field label="Subject">
+                  <input name="subject" required />
+                </Field>
+                <Field label="Category">
+                  <select name="category">
+                    <option>GENERAL</option>
+                    <option>INCIDENT</option>
+                    <option>ENROLLMENT</option>
+                    <option>PRIVACY</option>
+                  </select>
+                </Field>
+                <Field label="Priority">
+                  <select name="priority">
+                    <option>NORMAL</option>
+                    <option>LOW</option>
+                    <option>HIGH</option>
+                    <option>URGENT</option>
+                  </select>
+                </Field>
+              </div>
+              <Field label="Description">
+                <textarea name="description" required />
+              </Field>
+              <SubmitButton>Open routed ticket</SubmitButton>
+            </form>
+          ) : null}
+          {supportData.tickets.length ? (
+            <div className="list-panel">
+              {supportData.tickets.map((ticket) => (
+                <article className="list-row" key={ticket.id}>
+                  <div>
+                    <strong>{ticket.subject}</strong>
+                    <span>{ticket.description}</span>
+                    <small>
+                      {ticket.routingQueue} · SLA{" "}
+                      {formatDateTime(ticket.slaDueAt)} ·{" "}
+                      {ticket.assigneeId ?? "Unassigned"}
+                    </small>
+                    <form
+                      action={addSupportTicketNoteAction}
+                      className="row-form"
+                    >
+                      <input
+                        name="tenantId"
+                        type="hidden"
+                        value={selectedTenant?.id}
+                      />
+                      <input name="ticketId" type="hidden" value={ticket.id} />
+                      <input
+                        name="body"
+                        placeholder="Add scoped note"
+                        required
+                      />
+                      <select name="visibility">
+                        <option value="INTERNAL">Internal</option>
+                        <option value="SCHOOL">School visible</option>
+                      </select>
+                      <button className="small-button">Add note</button>
+                    </form>
+                    {ticket.notes.map((note) => (
+                      <small key={note.id}>
+                        {humanize(note.visibility)}: {note.body}
+                      </small>
+                    ))}
+                  </div>
+                  <div className="row-actions">
+                    <StatusPill
+                      tone={ticket.status === "RESOLVED" ? "good" : "warning"}
+                    >
+                      {humanize(ticket.status)} · {humanize(ticket.priority)}
+                    </StatusPill>
+                    {canManageSupport ? (
+                      <form
+                        action={updateSupportTicketAction}
+                        className="row-form"
+                      >
+                        <input
+                          name="tenantId"
+                          type="hidden"
+                          value={selectedTenant?.id}
+                        />
+                        <input
+                          name="ticketId"
+                          type="hidden"
+                          value={ticket.id}
+                        />
+                        <input
+                          name="priority"
+                          type="hidden"
+                          value={ticket.priority}
+                        />
+                        <input
+                          name="assigneeId"
+                          defaultValue={ticket.assigneeId ?? ""}
+                          placeholder="Assignee ID"
+                        />
+                        <select name="status" defaultValue={ticket.status}>
+                          <option>OPEN</option>
+                          <option>IN_PROGRESS</option>
+                          <option>WAITING</option>
+                          <option>RESOLVED</option>
+                          <option>CLOSED</option>
+                        </select>
+                        <button className="small-button primary">Update</button>
+                      </form>
+                    ) : null}
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              title="No support tickets"
+              body="Linked staff, guardian, and automation tickets will appear here."
+            />
+          )}
+        </PageSection>
+
         <PageSection title="Support Notes">
           {supportData.notes.length > 0 && selectedTenant ? (
             <div className="list-panel">
               {supportData.notes.map((note) => (
                 <article className="list-row" key={note.id}>
                   <div>
-                    <strong>{humanize(note.category)} - {note.severity}</strong>
+                    <strong>
+                      {humanize(note.category)} - {note.severity}
+                    </strong>
                     <span>{note.body}</span>
                     <small>{formatDateTime(note.updatedAt)}</small>
                   </div>
                   <div className="row-actions">
-                    <StatusPill tone={note.status === "RESOLVED" ? "good" : "warning"}>
+                    <StatusPill
+                      tone={note.status === "RESOLVED" ? "good" : "warning"}
+                    >
                       {humanize(note.status)}
                     </StatusPill>
                     {canManageSupport ? (
-                      <form action={updateSupportNoteAction} className="row-form">
-                        <input name="tenantId" type="hidden" value={selectedTenant.id} />
+                      <form
+                        action={updateSupportNoteAction}
+                        className="row-form"
+                      >
+                        <input
+                          name="tenantId"
+                          type="hidden"
+                          value={selectedTenant.id}
+                        />
                         <input name="noteId" type="hidden" value={note.id} />
                         <Field label="Status">
                           <select name="status" defaultValue={note.status}>
@@ -209,12 +391,21 @@ export default async function SupportPage({
           <PageSection kicker="Privacy operations" title="Retention Settings">
             <div className="form-grid two">
               <ActionPanel title="Data retention windows">
-                <form action={updateRetentionSettingsAction} className="stacked-form">
-                  <input name="tenantId" type="hidden" value={selectedTenant.id} />
+                <form
+                  action={updateRetentionSettingsAction}
+                  className="stacked-form"
+                >
+                  <input
+                    name="tenantId"
+                    type="hidden"
+                    value={selectedTenant.id}
+                  />
                   <div className="form-row">
                     <Field label="Diagnostics days">
                       <input
-                        defaultValue={data.retentionSettings.diagnosticRetentionDays}
+                        defaultValue={
+                          data.retentionSettings.diagnosticRetentionDays
+                        }
                         min="7"
                         name="diagnosticRetentionDays"
                         type="number"
@@ -222,7 +413,9 @@ export default async function SupportPage({
                     </Field>
                     <Field label="Resolved alert days">
                       <input
-                        defaultValue={data.retentionSettings.resolvedAlertRetentionDays}
+                        defaultValue={
+                          data.retentionSettings.resolvedAlertRetentionDays
+                        }
                         min="7"
                         name="resolvedAlertRetentionDays"
                         type="number"
@@ -232,7 +425,9 @@ export default async function SupportPage({
                   <div className="form-row">
                     <Field label="Command history days">
                       <input
-                        defaultValue={data.retentionSettings.commandHistoryRetentionDays}
+                        defaultValue={
+                          data.retentionSettings.commandHistoryRetentionDays
+                        }
                         min="30"
                         name="commandHistoryRetentionDays"
                         type="number"
@@ -240,7 +435,9 @@ export default async function SupportPage({
                     </Field>
                     <Field label="Support note days">
                       <input
-                        defaultValue={data.retentionSettings.supportNoteRetentionDays}
+                        defaultValue={
+                          data.retentionSettings.supportNoteRetentionDays
+                        }
                         min="30"
                         name="supportNoteRetentionDays"
                         type="number"
@@ -250,7 +447,9 @@ export default async function SupportPage({
                   <div className="form-row">
                     <Field label="Export artifact days">
                       <input
-                        defaultValue={data.retentionSettings.exportArtifactRetentionDays}
+                        defaultValue={
+                          data.retentionSettings.exportArtifactRetentionDays
+                        }
                         min="1"
                         name="exportArtifactRetentionDays"
                         type="number"
@@ -258,7 +457,9 @@ export default async function SupportPage({
                     </Field>
                     <Field label="Audit days">
                       <input
-                        defaultValue={data.retentionSettings.auditRetentionDays ?? ""}
+                        defaultValue={
+                          data.retentionSettings.auditRetentionDays ?? ""
+                        }
                         min="365"
                         name="auditRetentionDays"
                         placeholder="Retain indefinitely"
@@ -272,16 +473,31 @@ export default async function SupportPage({
 
               <ActionPanel title="Retention run">
                 <form action={dryRunRetentionAction} className="stacked-form">
-                  <input name="tenantId" type="hidden" value={selectedTenant.id} />
+                  <input
+                    name="tenantId"
+                    type="hidden"
+                    value={selectedTenant.id}
+                  />
                   <Field label="Reason">
-                    <input name="reason" placeholder="Monthly privacy operations review" />
+                    <input
+                      name="reason"
+                      placeholder="Monthly privacy operations review"
+                    />
                   </Field>
                   <SubmitButton>Preview cleanup</SubmitButton>
                 </form>
                 <form action={applyRetentionAction} className="stacked-form">
-                  <input name="tenantId" type="hidden" value={selectedTenant.id} />
+                  <input
+                    name="tenantId"
+                    type="hidden"
+                    value={selectedTenant.id}
+                  />
                   <Field label="Reason">
-                    <input name="reason" placeholder="Approved retention cleanup" required />
+                    <input
+                      name="reason"
+                      placeholder="Approved retention cleanup"
+                      required
+                    />
                   </Field>
                   <button className="submit-button danger" type="submit">
                     Apply cleanup

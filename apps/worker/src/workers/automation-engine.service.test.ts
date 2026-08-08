@@ -25,7 +25,7 @@ describe("AutomationEngineService", () => {
         callback({
           automationExecution: { create: execution, update: vi.fn() },
           deviceAlert: { create: alert },
-          supportNote: { create: vi.fn() },
+          supportTicket: { create: vi.fn() },
           auditEvent: { create: vi.fn() },
         }),
     };
@@ -67,5 +67,47 @@ describe("AutomationEngineService", () => {
     await expect(service.processTenant("tenant-1")).resolves.toMatchObject({
       executed: 0,
     });
+  });
+
+  it("routes create-ticket automation into the helpdesk workflow", async () => {
+    const ticket = vi.fn().mockResolvedValue({ id: "ticket-1" });
+    const prisma = {
+      automationRule: {
+        findMany: async () => [
+          {
+            id: "rule-1",
+            tenantId: "tenant-1",
+            name: "Offline",
+            trigger: "DEVICE_OFFLINE",
+            conditions: { threshold: 1, windowMinutes: 60 },
+            action: "CREATE_TICKET",
+            actionConfig: { title: "Device offline", severity: "CRITICAL" },
+            enabled: true,
+          },
+        ],
+      },
+      device: { findMany: async () => [{ id: "device-1" }] },
+      $transaction: async (work: (tx: any) => unknown) =>
+        work({
+          automationExecution: {
+            create: async () => ({ id: "execution-1" }),
+            update: vi.fn(),
+          },
+          supportTicket: { create: ticket },
+          auditEvent: { create: vi.fn() },
+        }),
+    };
+    await new AutomationEngineService(prisma as never).processTenant(
+      "tenant-1",
+    );
+    expect(ticket).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          source: "AUTOMATION",
+          priority: "URGENT",
+          routingQueue: "DEVICE_OPERATIONS",
+        }),
+      }),
+    );
   });
 });

@@ -49,7 +49,7 @@ export class AutomationEngineService {
       where: {
         tenantId: rule.tenantId,
         status: "FAILED",
-          type: "POLICY_REFRESH",
+        type: "POLICY_REFRESH",
         updatedAt: { gte: since },
       },
       _count: { _all: true },
@@ -105,19 +105,24 @@ export class AutomationEngineService {
           });
           result = { alertId: alert.id };
         } else {
-          const note = await tx.supportNote.create({
+          const ticket = await tx.supportTicket.create({
             data: {
               tenantId: rule.tenantId,
               deviceId: match.deviceId,
-              body: `${config.title}: ${rule.name} matched ${rule.trigger} with ${match.count} evidence item(s).`,
+              subject: config.title,
+              description: `${rule.name} matched ${rule.trigger} with ${match.count} evidence item(s).`,
               category: "AUTOMATION",
-              severity: config.severity === "CRITICAL" ? "S1" : "S2",
-              status: "OPEN",
-              visibility: "INTERNAL",
-              authorId: "automation",
+              source: "AUTOMATION",
+              priority: config.severity === "CRITICAL" ? "URGENT" : "HIGH",
+              routingQueue: "DEVICE_OPERATIONS",
+              slaDueAt: new Date(
+                Date.now() +
+                  (config.severity === "CRITICAL" ? 4 : 8) * 3_600_000,
+              ),
+              createdBy: "automation",
             },
           });
-          result = { supportNoteId: note.id };
+          result = { supportTicketId: ticket.id };
         }
         await tx.automationExecution.update({
           where: { id: execution.id },

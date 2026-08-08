@@ -149,6 +149,16 @@ test.describe("admin portal regression", () => {
       page.getByRole("button", { name: "Save notification preferences" }),
     ).toBeVisible();
 
+    await page.goto("/support");
+    await expect(
+      page.getByRole("heading", { name: "Support Tickets" }),
+    ).toBeVisible();
+    await expect(page.getByText("Tablet cannot launch lesson")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Open routed ticket" }),
+    ).toBeVisible();
+    await expect(page.getByText(/HELPDESK/)).toBeVisible();
+
     await page.goto("/enrollment");
     await expect(
       page.getByRole("img", { name: "Enrollment QR for Pilot tablets" }),
@@ -184,7 +194,9 @@ test.describe("admin portal regression", () => {
     await expect(
       page.getByLabel("Learning usage totals").getByText("Approved launches"),
     ).toBeVisible();
-    await expect(page.getByRole("cell", { name: "Grade 4 Blue" })).toBeVisible();
+    await expect(
+      page.getByRole("cell", { name: "Grade 4 Blue" }),
+    ).toBeVisible();
 
     const inventoryDownload = page.waitForEvent("download");
     await page.getByRole("link", { name: "Download inventory CSV" }).click();

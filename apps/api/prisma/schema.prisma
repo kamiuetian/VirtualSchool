@@ -106,6 +106,8 @@ model Tenant {
   timetableBlocks                 TimetableBlock[]
   calendarExceptions              AcademicCalendarException[]
   supportNotes                    SupportNote[]
+  supportTickets                  SupportTicket[]
+  supportTicketNotes              SupportTicketNote[]
   retentionSettings               RetentionSettings?
   retentionRuns                   DataRetentionRun[]
   billingSubscription             BillingSubscription?
@@ -147,26 +149,26 @@ model Tenant {
 }
 
 model AutomationRule {
-  id          String   @id @default(uuid())
-  tenantId    String
-  name        String
-  trigger     String
-  conditions  Json
-  action      String
+  id           String                @id @default(uuid())
+  tenantId     String
+  name         String
+  trigger      String
+  conditions   Json
+  action       String
   actionConfig Json
-  enabled     Boolean  @default(false)
-  createdBy   String?
-  updatedBy   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  executions  AutomationExecution[]
+  enabled      Boolean               @default(false)
+  createdBy    String?
+  updatedBy    String?
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  tenant       Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  executions   AutomationExecution[]
 
   @@index([tenantId, enabled, trigger])
 }
 
 model AutomationExecution {
-  id          String   @id @default(uuid())
+  id          String         @id @default(uuid())
   tenantId    String
   ruleId      String
   fingerprint String
@@ -175,8 +177,8 @@ model AutomationExecution {
   outcome     String
   evidence    Json
   result      Json?
-  createdAt   DateTime @default(now())
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt   DateTime       @default(now())
+  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   rule        AutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
 
   @@unique([ruleId, fingerprint])
@@ -198,7 +200,7 @@ model AttendanceSettings {
 }
 
 model AttendanceRecord {
-  id               String   @id @default(uuid())
+  id               String    @id @default(uuid())
   tenantId         String
   classId          String
   studentId        String
@@ -209,9 +211,9 @@ model AttendanceRecord {
   correctedBy      String?
   correctionReason String?
   correctedAt      DateTime?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, classId, studentId, attendanceDate])
   @@index([tenantId, attendanceDate])
@@ -219,27 +221,27 @@ model AttendanceRecord {
 }
 
 model ContentLibraryItem {
-  id          String   @id @default(uuid())
-  tenantId    String
-  title       String
-  description String?
-  type        String
-  category    String
-  locator     String
-  grades      String[]
-  subjects    String[]
-  classIds    String[]
-  status      String   @default("ACTIVE")
-  expiresAt   DateTime?
-  offlineEnabled Boolean @default(false)
-  offlineVersion Int?
-  offlineSha256 String?
+  id               String    @id @default(uuid())
+  tenantId         String
+  title            String
+  description      String?
+  type             String
+  category         String
+  locator          String
+  grades           String[]
+  subjects         String[]
+  classIds         String[]
+  status           String    @default("ACTIVE")
+  expiresAt        DateTime?
+  offlineEnabled   Boolean   @default(false)
+  offlineVersion   Int?
+  offlineSha256    String?
   offlineSizeBytes Int?
-  offlinePolicyIds String[] @default([])
-  createdBy   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  offlinePolicyIds String[]  @default([])
+  createdBy        String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, status, expiresAt])
   @@index([tenantId, category, type])
@@ -699,24 +701,25 @@ model GuardianNotificationPreference {
 }
 
 model GuardianSupportRequest {
-  id          String   @id @default(uuid())
-  tenantId    String
-  guardianId  String
-  studentId   String
-  deviceId    String
-  category    String
-  priority    String   @default("NORMAL")
-  status      String   @default("OPEN")
-  subject     String
-  description String
-  routedTo    String?
-  createdBy   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  guardian    Guardian @relation(fields: [guardianId], references: [id], onDelete: Cascade)
-  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  device      Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  id              String   @id @default(uuid())
+  tenantId        String
+  guardianId      String
+  studentId       String
+  deviceId        String
+  category        String
+  priority        String   @default("NORMAL")
+  status          String   @default("OPEN")
+  subject         String
+  description     String
+  routedTo        String?
+  supportTicketId String?  @unique
+  createdBy       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  guardian        Guardian @relation(fields: [guardianId], references: [id], onDelete: Cascade)
+  student         Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  device          Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, status, createdAt])
   @@index([tenantId, guardianId, studentId])
@@ -855,6 +858,7 @@ model Device {
   alerts                  DeviceAlert[]
   blockedDomainEvents     BlockedDomainEvent[]
   supportNotes            SupportNote[]
+  supportTickets          SupportTicket[]
   guardianSupportRequests GuardianSupportRequest[]
   assignmentHistory       DeviceAssignment[]
   lifecycleEvents         DeviceLifecycleEvent[]
@@ -991,6 +995,51 @@ model SupportNote {
   @@index([tenantId, status, severity])
 }
 
+model SupportTicket {
+  id              String              @id @default(uuid())
+  tenantId        String
+  deviceId        String?
+  studentId       String?
+  classId         String?
+  sessionId       String?
+  source          String              @default("STAFF")
+  category        String              @default("GENERAL")
+  priority        String              @default("NORMAL")
+  status          String              @default("OPEN")
+  subject         String
+  description     String
+  assigneeId      String?
+  routingQueue    String
+  slaDueAt        DateTime
+  firstResponseAt DateTime?
+  resolvedAt      DateTime?
+  createdBy       String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  tenant          Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  device          Device?             @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  notes           SupportTicketNote[]
+
+  @@index([tenantId, status, priority, slaDueAt])
+  @@index([tenantId, deviceId, createdAt])
+  @@index([tenantId, assigneeId, status])
+}
+
+model SupportTicketNote {
+  id          String        @id @default(uuid())
+  tenantId    String
+  ticketId    String
+  authorId    String?
+  authorEmail String?
+  visibility  String        @default("INTERNAL")
+  body        String
+  createdAt   DateTime      @default(now())
+  tenant      Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ticket      SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, ticketId, createdAt])
+}
+
 model RetentionSettings {
   id                          String   @id @default(uuid())
   tenantId                    String   @unique
@@ -1075,26 +1124,26 @@ model DeviceAlert {
 }
 
 model NotificationPreference {
-  id                          String   @id @default(uuid())
-  tenantId                    String   @unique
-  recipients                  String[] @default([])
-  offlineEnabled              Boolean  @default(true)
-  offlineAfterMinutes         Int      @default(60)
-  policyFailureEnabled        Boolean  @default(true)
-  appFailureEnabled           Boolean  @default(true)
-  lostDeviceEnabled           Boolean  @default(true)
-  repeatedEnrollmentEnabled   Boolean  @default(true)
-  repeatedEnrollmentThreshold Int      @default(3)
-  deduplicationWindowMinutes  Int      @default(60)
-  engagementRiskEnabled       Boolean  @default(true)
-  missedSessionThreshold      Int      @default(3)
-  complianceFailureThreshold  Int      @default(3)
-  weeklyAdminSummaryEnabled   Boolean  @default(true)
-  weeklyGuardianSummaryEnabled Boolean @default(false)
-  updatedBy                   String?
-  createdAt                   DateTime @default(now())
-  updatedAt                   DateTime @updatedAt
-  tenant                      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id                           String   @id @default(uuid())
+  tenantId                     String   @unique
+  recipients                   String[] @default([])
+  offlineEnabled               Boolean  @default(true)
+  offlineAfterMinutes          Int      @default(60)
+  policyFailureEnabled         Boolean  @default(true)
+  appFailureEnabled            Boolean  @default(true)
+  lostDeviceEnabled            Boolean  @default(true)
+  repeatedEnrollmentEnabled    Boolean  @default(true)
+  repeatedEnrollmentThreshold  Int      @default(3)
+  deduplicationWindowMinutes   Int      @default(60)
+  engagementRiskEnabled        Boolean  @default(true)
+  missedSessionThreshold       Int      @default(3)
+  complianceFailureThreshold   Int      @default(3)
+  weeklyAdminSummaryEnabled    Boolean  @default(true)
+  weeklyGuardianSummaryEnabled Boolean  @default(false)
+  updatedBy                    String?
+  createdAt                    DateTime @default(now())
+  updatedAt                    DateTime @updatedAt
+  tenant                       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
 }

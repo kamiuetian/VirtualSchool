@@ -289,6 +289,13 @@ describe("GuardianService", () => {
               ...data,
             }),
           },
+          supportTicket: {
+            create: async ({ data }: any) => ({
+              id: "ticket-1",
+              status: "OPEN",
+              ...data,
+            }),
+          },
           auditEvent: { create: async () => undefined },
         }),
     };
@@ -305,7 +312,7 @@ describe("GuardianService", () => {
         "parent@example.com",
       ),
     ).resolves.toEqual({
-      id: "request-1",
+      id: "ticket-1",
       status: "OPEN",
       routedTo: "help@school.test",
     });

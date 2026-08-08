@@ -1,4 +1,9 @@
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import type {
   RetentionRunResult,
   RetentionRunSummary,
@@ -9,6 +14,7 @@ import type {
   SupportNoteSummary,
   SupportNoteVisibility,
   SupportTimelineEvent,
+  SupportTicketSummary,
 } from "@virtual-school/shared";
 import {
   Prisma,
@@ -24,6 +30,12 @@ import type { CreateSupportNoteDto } from "./dto/create-support-note.dto";
 import type { RunRetentionDto } from "./dto/run-retention.dto";
 import type { UpdateRetentionSettingsDto } from "./dto/update-retention-settings.dto";
 import type { UpdateSupportNoteDto } from "./dto/update-support-note.dto";
+import type { AuthenticatedUser } from "../auth/types/authenticated-request";
+import type {
+  CreateSupportTicketDto,
+  CreateTicketNoteDto,
+  UpdateSupportTicketDto,
+} from "./dto/support-ticket.dto";
 
 const defaultRetentionSettings = {
   auditRetentionDays: null,
@@ -46,6 +58,283 @@ type RetentionCutoffs = {
 @Injectable()
 export class SupportService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+
+  async listTickets(
+    tenantId: string,
+    actor?: AuthenticatedUser,
+  ): Promise<SupportTicketSummary[]> {
+    const where =
+      actor?.role === "TEACHER"
+        ? {
+            tenantId,
+            classId: {
+              in: (
+                await this.prisma.teacherClassAssignment.findMany({
+                  where: { tenantId, teacherId: actor.subject },
+                  select: { classId: true },
+                })
+              ).map((x) => x.classId),
+            },
+          }
+        : { tenantId };
+    const tickets = await this.prisma.supportTicket.findMany({
+      where,
+      include: { notes: { orderBy: { createdAt: "asc" } } },
+      orderBy: [{ status: "asc" }, { slaDueAt: "asc" }],
+    });
+    return tickets.map((ticket) => this.toTicketSummary(ticket));
+  }
+
+  async createTicket(
+    tenantId: string,
+    input: CreateSupportTicketDto,
+    actor?: AuthenticatedUser,
+  ): Promise<SupportTicketSummary> {
+    await this.validateTicketLinks(tenantId, input, actor);
+    const priority = input.priority ?? "NORMAL";
+    const category = input.category?.trim().toUpperCase() || "GENERAL";
+    const routingQueue =
+      category === "PRIVACY"
+        ? "PRIVACY"
+        : category === "ENROLLMENT"
+          ? "DEVICE_OPERATIONS"
+          : "HELPDESK";
+    const hours = { LOW: 72, NORMAL: 24, HIGH: 8, URGENT: 4 }[priority] ?? 24;
+    const ticket = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.supportTicket.create({
+        data: {
+          tenantId,
+          deviceId: input.deviceId,
+          studentId: input.studentId,
+          classId: input.classId,
+          sessionId: input.sessionId,
+          source: actor?.role === "TEACHER" ? "TEACHER" : "STAFF",
+          category,
+          priority,
+          subject: input.subject.trim(),
+          description: input.description.trim(),
+          routingQueue,
+          slaDueAt: new Date(Date.now() + hours * 3_600_000),
+          createdBy: actor?.subject,
+        },
+        include: { notes: true },
+      });
+      await tx.auditEvent.create({
+        data: {
+          tenantId,
+          actorId: actor?.subject,
+          action: "support_ticket.create",
+          object: "SupportTicket",
+          objectId: created.id,
+          outcome: "ROUTED",
+          newValue: {
+            priority,
+            routingQueue,
+            slaDueAt: created.slaDueAt,
+            deviceId: input.deviceId,
+            studentId: input.studentId,
+            classId: input.classId,
+            sessionId: input.sessionId,
+          },
+        },
+      });
+      return created;
+    });
+    return this.toTicketSummary(ticket);
+  }
+
+  async updateTicket(
+    tenantId: string,
+    ticketId: string,
+    input: UpdateSupportTicketDto,
+    actor?: AuthenticatedUser,
+  ): Promise<SupportTicketSummary> {
+    if (actor?.role === "TEACHER")
+      throw new ForbiddenException(
+        "Teachers cannot assign or transition tickets",
+      );
+    const current = await this.prisma.supportTicket.findFirst({
+      where: { id: ticketId, tenantId },
+      include: { notes: true },
+    });
+    if (!current)
+      throw new NotFoundException(`Support ticket ${ticketId} was not found`);
+    if (
+      input.assigneeId &&
+      !(await this.prisma.user.findFirst({
+        where: { id: input.assigneeId, tenantId },
+        select: { id: true },
+      }))
+    )
+      throw new NotFoundException(
+        "Ticket assignee was not found in this tenant",
+      );
+    const resolved = input.status === "RESOLVED" || input.status === "CLOSED";
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const saved = await tx.supportTicket.update({
+        where: { id: ticketId },
+        data: {
+          status: input.status,
+          assigneeId: input.assigneeId,
+          priority: input.priority,
+          firstResponseAt:
+            !current.firstResponseAt &&
+            (input.assigneeId || input.status === "IN_PROGRESS")
+              ? new Date()
+              : undefined,
+          resolvedAt: resolved
+            ? (current.resolvedAt ?? new Date())
+            : input.status
+              ? null
+              : undefined,
+        },
+        include: { notes: { orderBy: { createdAt: "asc" } } },
+      });
+      await tx.auditEvent.create({
+        data: {
+          tenantId,
+          actorId: actor?.subject,
+          action: "support_ticket.update",
+          object: "SupportTicket",
+          objectId: ticketId,
+          outcome: "UPDATED",
+          oldValue: {
+            status: current.status,
+            priority: current.priority,
+            assigneeId: current.assigneeId,
+          },
+          newValue: {
+            status: saved.status,
+            priority: saved.priority,
+            assigneeId: saved.assigneeId,
+            resolvedAt: saved.resolvedAt,
+          },
+        },
+      });
+      return saved;
+    });
+    return this.toTicketSummary(updated);
+  }
+
+  async addTicketNote(
+    tenantId: string,
+    ticketId: string,
+    input: CreateTicketNoteDto,
+    actor?: AuthenticatedUser,
+  ) {
+    const ticket = await this.prisma.supportTicket.findFirst({
+      where: { id: ticketId, tenantId },
+    });
+    if (!ticket)
+      throw new NotFoundException(`Support ticket ${ticketId} was not found`);
+    if (actor?.role === "TEACHER")
+      await this.ensureTeacherClass(tenantId, ticket.classId, actor.subject);
+    return this.prisma.$transaction(async (tx) => {
+      const note = await tx.supportTicketNote.create({
+        data: {
+          tenantId,
+          ticketId,
+          body: input.body.trim(),
+          visibility: input.visibility ?? "INTERNAL",
+          authorId: actor?.subject,
+          authorEmail: actor?.email,
+        },
+      });
+      await tx.auditEvent.create({
+        data: {
+          tenantId,
+          actorId: actor?.subject,
+          action: "support_ticket.note.create",
+          object: "SupportTicket",
+          objectId: ticketId,
+          outcome: "CREATED",
+          newValue: { noteId: note.id, visibility: note.visibility },
+        },
+      });
+      return { ...note, createdAt: note.createdAt.toISOString() };
+    });
+  }
+
+  private async validateTicketLinks(
+    tenantId: string,
+    input: CreateSupportTicketDto,
+    actor?: AuthenticatedUser,
+  ) {
+    const device = input.deviceId
+      ? await this.prisma.device.findFirst({
+          where: { id: input.deviceId, tenantId },
+          select: { id: true, classId: true, studentId: true },
+        })
+      : null;
+    if (input.deviceId && !device)
+      throw new NotFoundException("Linked device was not found");
+    if (device && input.classId && device.classId !== input.classId)
+      throw new ForbiddenException(
+        "Linked device does not belong to the selected class",
+      );
+    if (device && input.studentId && device.studentId !== input.studentId)
+      throw new ForbiddenException(
+        "Linked device is not assigned to the selected student",
+      );
+    if (
+      input.studentId &&
+      !(await this.prisma.student.findFirst({
+        where: { id: input.studentId, tenantId },
+        select: { id: true },
+      }))
+    )
+      throw new NotFoundException("Linked student was not found");
+    if (
+      input.classId &&
+      !(await this.prisma.classSection.findFirst({
+        where: { id: input.classId, tenantId },
+        select: { id: true },
+      }))
+    )
+      throw new NotFoundException("Linked class was not found");
+    if (
+      input.sessionId &&
+      !(await this.prisma.teacherSession.findFirst({
+        where: { id: input.sessionId, tenantId },
+        select: { id: true },
+      }))
+    )
+      throw new NotFoundException("Linked session was not found");
+    if (actor?.role === "TEACHER")
+      await this.ensureTeacherClass(tenantId, input.classId, actor.subject);
+  }
+
+  private async ensureTeacherClass(
+    tenantId: string,
+    classId: string | null | undefined,
+    teacherId: string,
+  ) {
+    if (
+      !classId ||
+      !(await this.prisma.teacherClassAssignment.findFirst({
+        where: { tenantId, classId, teacherId },
+        select: { classId: true },
+      }))
+    )
+      throw new ForbiddenException(
+        "Teachers may create and view tickets only for assigned classes",
+      );
+  }
+
+  private toTicketSummary(ticket: any): SupportTicketSummary {
+    return {
+      ...ticket,
+      slaDueAt: ticket.slaDueAt.toISOString(),
+      firstResponseAt: ticket.firstResponseAt?.toISOString() ?? null,
+      resolvedAt: ticket.resolvedAt?.toISOString() ?? null,
+      createdAt: ticket.createdAt.toISOString(),
+      updatedAt: ticket.updatedAt.toISOString(),
+      notes: (ticket.notes ?? []).map((note: any) => ({
+        ...note,
+        createdAt: note.createdAt.toISOString(),
+      })),
+    };
+  }
 
   async listDeviceSupportNotes(
     tenantId: string,

@@ -12,6 +12,46 @@ export type SupportNoteStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED";
 
 export type SupportNoteVisibility = "INTERNAL" | "SCHOOL";
 
+export type SupportTicketPriority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
+export type SupportTicketStatus =
+  | "OPEN"
+  | "IN_PROGRESS"
+  | "WAITING"
+  | "RESOLVED"
+  | "CLOSED";
+export type SupportTicketSummary = {
+  id: string;
+  tenantId: string;
+  deviceId?: string | null;
+  studentId?: string | null;
+  classId?: string | null;
+  sessionId?: string | null;
+  source: string;
+  category: string;
+  priority: SupportTicketPriority;
+  status: SupportTicketStatus;
+  subject: string;
+  description: string;
+  assigneeId?: string | null;
+  routingQueue: string;
+  slaDueAt: string;
+  firstResponseAt?: string | null;
+  resolvedAt?: string | null;
+  createdBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  notes: SupportTicketNoteSummary[];
+};
+export type SupportTicketNoteSummary = {
+  id: string;
+  ticketId: string;
+  authorId?: string | null;
+  authorEmail?: string | null;
+  visibility: SupportNoteVisibility;
+  body: string;
+  createdAt: string;
+};
+
 export type SupportNoteSummary = {
   id: string;
   tenantId: string;

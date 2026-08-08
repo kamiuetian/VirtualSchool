@@ -24,6 +24,7 @@ import type {
   RosterImportSummary,
   SupportNoteSummary,
   SupportTimelineEvent,
+  SupportTicketSummary,
   StudentSummary,
   TenantSummary,
   TimetableBlockSummary,
@@ -493,21 +494,24 @@ export async function getDeviceSupportData(
 ): Promise<{
   notes: SupportNoteSummary[];
   timeline: SupportTimelineEvent[];
+  tickets: SupportTicketSummary[];
   connectionIssue: boolean;
 }> {
-  const [notes, timeline] = await Promise.all([
+  const [notes, timeline, tickets] = await Promise.all([
     apiGet<SupportNoteSummary[]>(
       `/tenants/${tenantId}/support/devices/${deviceId}/notes`,
     ),
     apiGet<SupportTimelineEvent[]>(
       `/tenants/${tenantId}/support/devices/${deviceId}/timeline?limit=12`,
     ),
+    apiGet<SupportTicketSummary[]>(`/tenants/${tenantId}/support/tickets`),
   ]);
 
   return {
-    connectionIssue: notes.failed || timeline.failed,
+    connectionIssue: notes.failed || timeline.failed || tickets.failed,
     notes: notes.data ?? [],
     timeline: timeline.data ?? [],
+    tickets: tickets.data ?? [],
   };
 }
 
