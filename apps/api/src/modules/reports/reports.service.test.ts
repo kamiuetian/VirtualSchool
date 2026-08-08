@@ -4,6 +4,60 @@ import { ReportsService } from "./reports.service";
 const now = new Date("2026-05-17T10:00:00.000Z");
 
 describe("ReportsService", () => {
+  it("builds tenant-scoped learning usage trends and breakdowns", async () => {
+    const service = new ReportsService({
+      appCatalogItem: {
+        findMany: async () => [{ category: "MATH", id: "resource-1" }],
+      },
+      attendanceRecord: {
+        findMany: async () => [
+          { attendanceDate: "2026-05-17", classId: "class-1", status: "PRESENT" },
+          { attendanceDate: "2026-05-17", classId: "class-1", status: "ABSENT" },
+        ],
+      },
+      classSection: {
+        findMany: async () => [{ grade: "5", id: "class-1", name: "Grade 5 Blue" }],
+      },
+      device: {
+        findMany: async () => [{ classId: "class-1", status: "OFFLINE", tags: ["pilot"] }],
+      },
+      teacherSession: {
+        findMany: async () => [{
+          classId: "class-1",
+          startedAt: now,
+          events: [{ createdAt: now, details: { resourceId: "resource-1" }, type: "RESOURCE_PUSHED" }],
+        }],
+      },
+      tenant: { findUnique: async () => ({ id: "tenant-1" }) },
+    } as never);
+
+    await expect(service.getLearningUsageAnalytics("tenant-1", {
+      from: "2026-05-17",
+      to: "2026-05-17",
+    })).resolves.toMatchObject({
+      byCategory: [{ key: "MATH", approvedResourceLaunches: 1 }],
+      byDeviceGroup: [{ key: "pilot", offlineDevices: 1 }],
+      totals: {
+        approvedResourceLaunches: 1,
+        missedSessions: 1,
+        offlineDevices: 1,
+        participants: 1,
+        sessions: 1,
+      },
+      trend: [{ date: "2026-05-17", approvedResourceLaunches: 1 }],
+    });
+  });
+
+  it("rejects oversized learning usage windows", async () => {
+    const service = new ReportsService({
+      tenant: { findUnique: async () => ({ id: "tenant-1" }) },
+    } as never);
+    await expect(service.getLearningUsageAnalytics("tenant-1", {
+      from: "2024-01-01",
+      to: "2026-05-17",
+    })).rejects.toThrow("no longer than 366 days");
+  });
+
   it("builds a device inventory report with status totals", async () => {
     const service = new ReportsService({
       device: {

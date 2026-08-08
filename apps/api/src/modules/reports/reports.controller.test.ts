@@ -43,4 +43,20 @@ describe("ReportsController", () => {
     ).resolves.toBe("csv");
     expect(getDeviceInventoryCsv).toHaveBeenCalledWith("tenant-1", "admin-1");
   });
+
+  it("passes learning usage filters to the report service", async () => {
+    const getLearningUsageAnalytics = vi.fn().mockResolvedValue({ tenantId: "tenant-1" });
+    const controller = new ReportsController({ getLearningUsageAnalytics } as never);
+    await controller.getLearningUsageAnalytics(
+      "tenant-1", "2026-05-01", "2026-05-17", "class-1", "5", "pilot", "MATH",
+    );
+    expect(getLearningUsageAnalytics).toHaveBeenCalledWith("tenant-1", {
+      category: "MATH",
+      classId: "class-1",
+      deviceGroup: "pilot",
+      from: "2026-05-01",
+      grade: "5",
+      to: "2026-05-17",
+    });
+  });
 });

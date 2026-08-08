@@ -42,6 +42,7 @@ import type {
   ContentLibraryReport,
   AttendanceSettingsSummary,
   AttendanceReport,
+  LearningUsageAnalyticsReport,
 } from "@virtual-school/shared";
 import {
   requirePortalRouteAccess,
@@ -363,6 +364,27 @@ export async function getAttendanceData(
     report: report.data,
     connectionIssue: settings.failed || report.failed,
   };
+}
+
+export async function getLearningUsageAnalytics(
+  tenantId: string,
+  filters: {
+    from: string;
+    to: string;
+    classId?: string;
+    grade?: string;
+    deviceGroup?: string;
+    category?: string;
+  },
+): Promise<{ report: LearningUsageAnalyticsReport | null; connectionIssue: boolean }> {
+  const query = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value) query.set(key, value);
+  });
+  const result = await apiGet<LearningUsageAnalyticsReport>(
+    `/tenants/${tenantId}/reports/learning-usage?${query.toString()}`,
+  );
+  return { report: result.data, connectionIssue: result.failed };
 }
 
 export async function getSisOperations(tenantId: string): Promise<{

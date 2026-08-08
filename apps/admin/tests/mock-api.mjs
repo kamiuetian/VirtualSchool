@@ -521,6 +521,22 @@ const routes = [
       }),
   ],
   ["GET", `/tenants/${tenantId}/students`, () => json(students)],
+  [
+    "GET",
+    `/tenants/${tenantId}/reports/learning-usage`,
+    () =>
+      json({
+        byCategory: [{ key: "Learning", label: "Learning", sessions: 1, participants: 18, missedSessions: 2, approvedResourceLaunches: 4, offlineDevices: 0 }],
+        byClass: [{ key: "class-4-blue", label: "Grade 4 Blue", sessions: 1, participants: 18, missedSessions: 2, approvedResourceLaunches: 4, offlineDevices: 1 }],
+        byDeviceGroup: [{ key: "pilot", label: "pilot", sessions: 1, participants: 18, missedSessions: 2, approvedResourceLaunches: 4, offlineDevices: 1 }],
+        byGrade: [{ key: "4", label: "4", sessions: 1, participants: 18, missedSessions: 2, approvedResourceLaunches: 4, offlineDevices: 1 }],
+        filters: { from: "2026-04-18", to: "2026-05-17" },
+        generatedAt: now,
+        tenantId,
+        totals: { sessions: 1, participants: 18, missedSessions: 2, approvedResourceLaunches: 4, offlineDevices: 1 },
+        trend: [{ date: "2026-05-17", sessions: 1, participants: 18, missedSessions: 2, approvedResourceLaunches: 4 }],
+      }),
+  ],
   ["GET", `/tenants/${tenantId}/classes`, () => json(classes)],
   ["GET", `/tenants/${tenantId}/calendar-exceptions`, () => json([])],
   ["GET", `/tenants/${tenantId}/users`, () => json(users)],

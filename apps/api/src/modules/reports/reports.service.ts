@@ -1,8 +1,10 @@
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type {
   AppDeploymentReport,
   DeviceInventoryReport,
   DeviceInventoryReportRow,
+  LearningUsageAnalyticsReport,
+  LearningUsageBreakdown,
   PolicyDeploymentReport,
   PolicyRuleSet,
   PolicyStatus,
@@ -269,6 +271,122 @@ export class ReportsService {
     };
   }
 
+  async getLearningUsageAnalytics(
+    tenantId: string,
+    input: {
+      from?: string;
+      to?: string;
+      classId?: string;
+      grade?: string;
+      deviceGroup?: string;
+      category?: string;
+    },
+  ): Promise<LearningUsageAnalyticsReport> {
+    await this.ensureTenantExists(tenantId);
+    const to = this.reportDate(input.to ?? new Date().toISOString().slice(0, 10), "to");
+    const defaultFrom = new Date(`${to}T00:00:00.000Z`);
+    defaultFrom.setUTCDate(defaultFrom.getUTCDate() - 29);
+    const from = this.reportDate(input.from ?? defaultFrom.toISOString().slice(0, 10), "from");
+    const startedAt = new Date(`${from}T00:00:00.000Z`);
+    const endedAt = new Date(`${to}T23:59:59.999Z`);
+    if (startedAt > endedAt || endedAt.getTime() - startedAt.getTime() >= 366 * 86_400_000) {
+      throw new BadRequestException("Analytics window must be ordered and no longer than 366 days");
+    }
+
+    const classes = await this.prisma.classSection.findMany({
+      select: { grade: true, id: true, name: true },
+      where: {
+        tenantId,
+        ...(input.classId ? { id: input.classId } : {}),
+        ...(input.grade ? { grade: input.grade } : {}),
+      },
+    });
+    const classIds = classes.map((item) => item.id);
+    const [sessions, attendance, devices, appCatalog] = await Promise.all([
+      this.prisma.teacherSession.findMany({
+        include: { events: { where: { createdAt: { gte: startedAt, lte: endedAt } } } },
+        where: { tenantId, classId: { in: classIds }, startedAt: { gte: startedAt, lte: endedAt } },
+      }),
+      this.prisma.attendanceRecord.findMany({
+        where: { tenantId, classId: { in: classIds }, attendanceDate: { gte: from, lte: to } },
+      }),
+      this.prisma.device.findMany({
+        select: { classId: true, status: true, tags: true },
+        where: {
+          tenantId,
+          classId: { in: classIds },
+          ...(input.deviceGroup ? { tags: { has: input.deviceGroup } } : {}),
+        },
+      }),
+      this.prisma.appCatalogItem.findMany({
+        select: { category: true, id: true },
+        where: { tenantId },
+      }),
+    ]);
+    const appCategories = new Map(
+      appCatalog.map((item) => [item.id, item.category ?? "APPROVED_RESOURCE"]),
+    );
+    const launches = sessions.flatMap((session) =>
+      session.events
+        .filter((event) => ["RESOURCE_PUSHED", "EDUCATION_RESOURCE_PUSHED"].includes(event.type))
+        .map((event) => ({
+          category: this.eventCategory(event.details, appCategories),
+          classId: session.classId,
+          date: event.createdAt.toISOString().slice(0, 10),
+        })),
+    ).filter((event) => !input.category || event.category === input.category);
+    const participants = attendance.filter((row) => ["PRESENT", "LATE"].includes(row.status));
+    const missed = attendance.filter((row) => row.status === "ABSENT");
+    const offline = devices.filter((device) => device.status === "OFFLINE");
+    const buildBreakdown = (entries: Array<{ key: string; label: string; classIds: string[] }>): LearningUsageBreakdown[] =>
+      entries.map((entry) => ({
+        key: entry.key,
+        label: entry.label,
+        sessions: sessions.filter((row) => entry.classIds.includes(row.classId)).length,
+        participants: participants.filter((row) => entry.classIds.includes(row.classId)).length,
+        missedSessions: missed.filter((row) => entry.classIds.includes(row.classId)).length,
+        approvedResourceLaunches: launches.filter((row) => entry.classIds.includes(row.classId)).length,
+        offlineDevices: offline.filter((row) => row.classId && entry.classIds.includes(row.classId)).length,
+      }));
+    const gradeGroups = [...new Set(classes.map((item) => item.grade))].map((grade) => ({
+      key: grade,
+      label: grade,
+      classIds: classes.filter((item) => item.grade === grade).map((item) => item.id),
+    }));
+    const deviceGroups = [...new Set(devices.flatMap((device) => device.tags))].map((tag) => ({
+      key: tag,
+      label: tag,
+      classIds: [...new Set(devices.filter((device) => device.tags.includes(tag) && device.classId).map((device) => device.classId!))],
+    }));
+    const categories = [...new Set(launches.map((event) => event.category))].map((category) => ({
+      key: category,
+      label: category,
+      classIds: [...new Set(launches.filter((event) => event.category === category).map((event) => event.classId))],
+    }));
+    const trend: LearningUsageAnalyticsReport["trend"] = [];
+    for (const cursor = new Date(startedAt); cursor <= endedAt; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
+      const date = cursor.toISOString().slice(0, 10);
+      trend.push({
+        date,
+        sessions: sessions.filter((row) => row.startedAt.toISOString().slice(0, 10) === date).length,
+        participants: participants.filter((row) => row.attendanceDate === date).length,
+        missedSessions: missed.filter((row) => row.attendanceDate === date).length,
+        approvedResourceLaunches: launches.filter((row) => row.date === date).length,
+      });
+    }
+    return {
+      tenantId,
+      generatedAt: new Date().toISOString(),
+      filters: { from, to, ...(input.classId ? { classId: input.classId } : {}), ...(input.grade ? { grade: input.grade } : {}), ...(input.deviceGroup ? { deviceGroup: input.deviceGroup } : {}), ...(input.category ? { category: input.category } : {}) },
+      totals: { sessions: sessions.length, participants: participants.length, missedSessions: missed.length, approvedResourceLaunches: launches.length, offlineDevices: offline.length },
+      byClass: buildBreakdown(classes.map((item) => ({ key: item.id, label: item.name, classIds: [item.id] }))),
+      byGrade: buildBreakdown(gradeGroups),
+      byDeviceGroup: buildBreakdown(deviceGroups),
+      byCategory: buildBreakdown(categories),
+      trend,
+    };
+  }
+
   private async ensureTenantExists(tenantId: string): Promise<void> {
     const tenant = await this.prisma.tenant.findUnique({
       select: {
@@ -381,5 +499,31 @@ export class ReportsService {
     }
 
     return null;
+  }
+
+  private reportDate(value: string, field: string): string {
+    const parsed = new Date(`${value}T00:00:00.000Z`);
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(value) ||
+      Number.isNaN(parsed.getTime()) ||
+      parsed.toISOString().slice(0, 10) !== value
+    ) {
+      throw new BadRequestException(`${field} must be an ISO date`);
+    }
+    return value;
+  }
+
+  private eventCategory(
+    value: Prisma.JsonValue | null,
+    appCategories: Map<string, string>,
+  ): string {
+    const details = value ? this.jsonRecord(value) : null;
+    return typeof details?.category === "string"
+      ? details.category
+      : typeof details?.provider === "string"
+        ? details.provider
+        : typeof details?.resourceId === "string"
+          ? appCategories.get(details.resourceId) ?? "APPROVED_RESOURCE"
+          : "APPROVED_RESOURCE";
   }
 }

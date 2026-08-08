@@ -178,6 +178,14 @@ test.describe("admin portal regression", () => {
   test("downloads CSV exports through portal routes", async ({ page }) => {
     await page.goto("/reports");
 
+    await expect(
+      page.getByRole("heading", { name: "Learning Access And Device Usage" }),
+    ).toBeVisible();
+    await expect(
+      page.getByLabel("Learning usage totals").getByText("Approved launches"),
+    ).toBeVisible();
+    await expect(page.getByRole("cell", { name: "Grade 4 Blue" })).toBeVisible();
+
     const inventoryDownload = page.waitForEvent("download");
     await page.getByRole("link", { name: "Download inventory CSV" }).click();
     const inventory = await inventoryDownload;

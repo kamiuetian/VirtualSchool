@@ -89,3 +89,46 @@ export type AppDeploymentReport = ReportGeneratedMetadata & {
   };
   apps: AppDeploymentReportRow[];
 };
+
+export type LearningUsageAnalyticsFilters = {
+  from: string;
+  to: string;
+  classId?: string;
+  grade?: string;
+  deviceGroup?: string;
+  category?: string;
+};
+
+export type LearningUsageTrendPoint = {
+  date: string;
+  sessions: number;
+  participants: number;
+  missedSessions: number;
+  approvedResourceLaunches: number;
+};
+
+export type LearningUsageBreakdown = {
+  key: string;
+  label: string;
+  sessions: number;
+  participants: number;
+  missedSessions: number;
+  approvedResourceLaunches: number;
+  offlineDevices: number;
+};
+
+export type LearningUsageAnalyticsReport = ReportGeneratedMetadata & {
+  filters: LearningUsageAnalyticsFilters;
+  totals: {
+    sessions: number;
+    participants: number;
+    missedSessions: number;
+    approvedResourceLaunches: number;
+    offlineDevices: number;
+  };
+  byClass: LearningUsageBreakdown[];
+  byGrade: LearningUsageBreakdown[];
+  byDeviceGroup: LearningUsageBreakdown[];
+  byCategory: LearningUsageBreakdown[];
+  trend: LearningUsageTrendPoint[];
+};

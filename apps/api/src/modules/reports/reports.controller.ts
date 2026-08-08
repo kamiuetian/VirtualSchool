@@ -1,8 +1,9 @@
-import { Controller, Get, Header, Inject, Param, Req } from "@nestjs/common";
+import { Controller, Get, Header, Inject, Param, Query, Req } from "@nestjs/common";
 import { ApiOkResponse, ApiTags } from "@nestjs/swagger";
 import type {
   AppDeploymentReport,
   DeviceInventoryReport,
+  LearningUsageAnalyticsReport,
   PolicyDeploymentReport,
 } from "@virtual-school/shared";
 import { RequirePermissions } from "../auth/decorators/require-permissions.decorator";
@@ -56,5 +57,27 @@ export class ReportsController {
     @Param("tenantId") tenantId: string,
   ): Promise<AppDeploymentReport> {
     return this.reportsService.getAppDeploymentReport(tenantId);
+  }
+
+  @Get("learning-usage")
+  @RequirePermissions("report:export")
+  @ApiOkResponse({ description: "Learning access and device usage analytics" })
+  getLearningUsageAnalytics(
+    @Param("tenantId") tenantId: string,
+    @Query("from") from?: string,
+    @Query("to") to?: string,
+    @Query("classId") classId?: string,
+    @Query("grade") grade?: string,
+    @Query("deviceGroup") deviceGroup?: string,
+    @Query("category") category?: string,
+  ): Promise<LearningUsageAnalyticsReport> {
+    return this.reportsService.getLearningUsageAnalytics(tenantId, {
+      category,
+      classId,
+      deviceGroup,
+      from,
+      grade,
+      to,
+    });
   }
 }

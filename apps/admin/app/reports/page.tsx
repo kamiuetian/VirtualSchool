@@ -9,7 +9,11 @@ import {
   Field,
   SubmitButton,
 } from "../../components/ui";
-import { getAdminData, getAttendanceData } from "../../lib/api";
+import {
+  getAdminData,
+  getAttendanceData,
+  getLearningUsageAnalytics,
+} from "../../lib/api";
 import {
   captureAttendanceAction,
   correctAttendanceAction,
@@ -22,7 +26,16 @@ export const dynamic = "force-dynamic";
 export default async function ReportsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ classId?: string; date?: string }>;
+  searchParams?: Promise<{
+    classId?: string;
+    date?: string;
+    analyticsFrom?: string;
+    analyticsTo?: string;
+    analyticsClassId?: string;
+    analyticsGrade?: string;
+    deviceGroup?: string;
+    category?: string;
+  }>;
 }) {
   const data = await getAdminData("/reports");
   const params = await searchParams;
@@ -35,6 +48,20 @@ export default async function ReportsPage({
         attendanceDate,
       )
     : { settings: null, report: null, connectionIssue: false };
+  const analyticsTo = params?.analyticsTo ?? new Date().toISOString().slice(0, 10);
+  const analyticsDefaultFrom = new Date(`${analyticsTo}T00:00:00.000Z`);
+  analyticsDefaultFrom.setUTCDate(analyticsDefaultFrom.getUTCDate() - 29);
+  const analyticsFrom = params?.analyticsFrom ?? analyticsDefaultFrom.toISOString().slice(0, 10);
+  const analytics = data.selectedTenant
+    ? await getLearningUsageAnalytics(data.selectedTenant.id, {
+        from: analyticsFrom,
+        to: analyticsTo,
+        classId: params?.analyticsClassId,
+        grade: params?.analyticsGrade,
+        deviceGroup: params?.deviceGroup,
+        category: params?.category,
+      })
+    : { report: null, connectionIssue: false };
   const canManageAttendance = roleAllows(data.session.role, "class:manage");
   const deviceTotals = data.deviceInventory?.totals;
   const policyTotals = data.policyDeploymentReport?.totals;
@@ -87,6 +114,66 @@ export default async function ReportsPage({
               )}
             />
           </section>
+        </PageSection>
+
+        <PageSection
+          kicker="Privacy-limited learning evidence"
+          title="Learning Access And Device Usage"
+        >
+          <form className="inline-form wide" method="get">
+            <Field label="From">
+              <input defaultValue={analyticsFrom} name="analyticsFrom" type="date" />
+            </Field>
+            <Field label="To">
+              <input defaultValue={analyticsTo} name="analyticsTo" type="date" />
+            </Field>
+            <Field label="Class">
+              <select defaultValue={params?.analyticsClassId ?? ""} name="analyticsClassId">
+                <option value="">All classes</option>
+                {data.classes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+              </select>
+            </Field>
+            <Field label="Grade">
+              <input defaultValue={params?.analyticsGrade ?? ""} name="analyticsGrade" placeholder="All grades" />
+            </Field>
+            <Field label="Device group tag">
+              <input defaultValue={params?.deviceGroup ?? ""} name="deviceGroup" placeholder="All groups" />
+            </Field>
+            <Field label="Resource category">
+              <input defaultValue={params?.category ?? ""} name="category" placeholder="All categories" />
+            </Field>
+            <SubmitButton>Apply analytics filters</SubmitButton>
+          </form>
+          {analytics.report ? (
+            <>
+              <section className="stat-grid" aria-label="Learning usage totals">
+                <StatCard label="Class sessions" value={formatCount(analytics.report.totals.sessions)} />
+                <StatCard label="Participation records" value={formatCount(analytics.report.totals.participants)} />
+                <StatCard label="Missed sessions" tone={analytics.report.totals.missedSessions ? "warning" : "good"} value={formatCount(analytics.report.totals.missedSessions)} />
+                <StatCard label="Approved launches" value={formatCount(analytics.report.totals.approvedResourceLaunches)} />
+                <StatCard label="Offline devices" tone={analytics.report.totals.offlineDevices ? "warning" : "good"} value={formatCount(analytics.report.totals.offlineDevices)} />
+              </section>
+              <div className="table-wrap">
+                <table>
+                  <thead><tr><th>Class</th><th>Sessions</th><th>Participation</th><th>Missed</th><th>Launches</th><th>Offline</th></tr></thead>
+                  <tbody>{analytics.report.byClass.map((row) => (
+                    <tr key={row.key}><td>{row.label}</td><td>{row.sessions}</td><td>{row.participants}</td><td>{row.missedSessions}</td><td>{row.approvedResourceLaunches}</td><td>{row.offlineDevices}</td></tr>
+                  ))}</tbody>
+                </table>
+              </div>
+              <div className="table-wrap">
+                <table>
+                  <thead><tr><th>Date</th><th>Sessions</th><th>Participation</th><th>Missed</th><th>Approved launches</th></tr></thead>
+                  <tbody>{analytics.report.trend.map((row) => (
+                    <tr key={row.date}><td>{row.date}</td><td>{row.sessions}</td><td>{row.participants}</td><td>{row.missedSessions}</td><td>{row.approvedResourceLaunches}</td></tr>
+                  ))}</tbody>
+                </table>
+              </div>
+              <p className="muted">Breakdowns are also available by grade, device group tag, and approved resource category through the tenant-scoped API. Counts use attendance, class-session actions, and current managed-device state; browsing history is not collected.</p>
+            </>
+          ) : (
+            <EmptyState title="Learning analytics unavailable" body="Analytics appear after class sessions, attendance capture, or managed-device activity is recorded." />
+          )}
         </PageSection>
 
         <PageSection title="Device Inventory Export">

@@ -50,3 +50,9 @@ The device inventory CSV export writes a `report.export` audit event with actor 
 - Device inventory CSV export creates a `report.export` audit event.
 - Policy deployment totals match assignment counts.
 - App deployment rows show published policies referencing each app package id.
+
+# Learning-access and device-usage analytics
+
+`GET /api/v1/tenants/{tenantId}/reports/learning-usage` requires `report:export` and accepts `from`, `to`, `classId`, `grade`, `deviceGroup`, and `category` query filters. Dates are tenant-scoped ISO calendar dates, are inclusive, and are limited to a 366-day window. The default window is the latest 30 days.
+
+The report derives participation and missed-session counts from durable attendance records, approved resource launches from teacher-session events, and offline-device counts from current managed-device state. It provides daily trends and breakdowns by class, grade, device group tag, and approved resource category. It does not expose URLs, browsing history, unapproved launches, or student-level activity.
