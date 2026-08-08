@@ -149,6 +149,43 @@ model Tenant {
   attendanceRecords               AttendanceRecord[]
   automationRules                 AutomationRule[]
   automationExecutions            AutomationExecution[]
+  announcements                   Announcement[]
+  pilotFeedback                   PilotFeedback[]
+}
+
+model Announcement {
+  id          String   @id @default(uuid())
+  tenantId    String
+  title       String
+  message     String
+  targetRoles String[]
+  startsAt    DateTime
+  endsAt      DateTime?
+  archivedAt  DateTime?
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, startsAt, archivedAt])
+}
+
+model PilotFeedback {
+  id        String   @id @default(uuid())
+  tenantId  String
+  role      String
+  module    String
+  severity  String
+  status    String   @default("NEW")
+  summary   String
+  context   Json?
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status, severity])
+  @@index([tenantId, module, createdAt])
 }
 
 model AutomationRule {

@@ -47,6 +47,8 @@ import type {
   AttendanceReport,
   LearningUsageAnalyticsReport,
   AutomationRuleSummary,
+  AnnouncementSummary,
+  PilotFeedbackSummary,
 } from "@virtual-school/shared";
 import {
   requirePortalRouteAccess,
@@ -84,6 +86,8 @@ export type AdminData = {
   notificationPreferences: NotificationPreferenceSummary | null;
   notificationDeliveries: NotificationDeliverySummary[];
   automationRules: AutomationRuleSummary[];
+  announcements: AnnouncementSummary[];
+  pilotFeedback: PilotFeedbackSummary[];
   privacyNotices: PrivacyNoticeSummary[];
   privacyAcceptances: PrivacyAcceptanceSummary[];
   billingUsage: BillingUsageSummary | null;
@@ -129,6 +133,8 @@ export async function getAdminData(
       retentionSettings: null,
       notificationPreferences: null,
       automationRules: [],
+      announcements: [],
+      pilotFeedback: [],
       notificationDeliveries: [],
       privacyNotices: [],
       privacyAcceptances: [],
@@ -159,6 +165,8 @@ export async function getAdminData(
     notificationPreferences,
     notificationDeliveries,
     automationRules,
+    announcements,
+    pilotFeedback,
     privacyNotices,
     privacyAcceptances,
   ] = await Promise.all([
@@ -233,6 +241,12 @@ export async function getAdminData(
     can("tenant:update")
       ? apiGet<AutomationRuleSummary[]>(`${tenantPath}/automation-rules`)
       : skipped([]),
+    apiGet<AnnouncementSummary[]>(
+      `${tenantPath}/communications/announcements${can("tenant:update") ? "?includeArchived=true" : ""}`,
+    ),
+    can("tenant:update")
+      ? apiGet<PilotFeedbackSummary[]>(`${tenantPath}/communications/feedback`)
+      : skipped([]),
     can("tenant:update")
       ? apiGet<PrivacyNoticeSummary[]>(`${tenantPath}/privacy/notices`)
       : skipped([]),
@@ -270,6 +284,8 @@ export async function getAdminData(
       notificationPreferences,
       notificationDeliveries,
       automationRules,
+      announcements,
+      pilotFeedback,
       privacyNotices,
       privacyAcceptances,
     ].some((result) => result.failed),
@@ -291,6 +307,8 @@ export async function getAdminData(
     notificationPreferences: notificationPreferences.data ?? null,
     notificationDeliveries: notificationDeliveries.data ?? [],
     automationRules: automationRules.data ?? [],
+    announcements: announcements.data ?? [],
+    pilotFeedback: pilotFeedback.data ?? [],
     privacyNotices: privacyNotices.data ?? [],
     privacyAcceptances: privacyAcceptances.data ?? [],
     session,

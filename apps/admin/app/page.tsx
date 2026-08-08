@@ -2,12 +2,17 @@ import { AppShell } from "../components/app-shell";
 import Link from "next/link";
 import {
   EmptyState,
+  Field,
   PageSection,
   ProgressBar,
   StatCard,
   StatusPill,
+  SubmitButton,
 } from "../components/ui";
-import { completeOnboardingAction } from "../lib/actions";
+import {
+  completeOnboardingAction,
+  createPilotFeedbackAction,
+} from "../lib/actions";
 import { getAdminData } from "../lib/api";
 import { roleCan } from "../lib/auth/portal-access";
 import { formatCount, formatDateTime, humanize } from "../lib/format";
@@ -50,6 +55,58 @@ export default async function Home() {
             />
           </div>
         </section>
+
+        {data.selectedTenant ? (
+          <PageSection kicker="Pilot updates" title="School Announcements">
+            {data.announcements.length ? (
+              <div className="list-panel">
+                {data.announcements.map((item) => (
+                  <article className="list-row" key={item.id}>
+                    <div>
+                      <strong>{item.title}</strong>
+                      <span>{item.message}</span>
+                      <small>{formatDateTime(item.startsAt)}</small>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                title="No current announcements"
+                body="Role-targeted school updates will appear here during their scheduled window."
+              />
+            )}
+            <form
+              action={createPilotFeedbackAction}
+              className="action-panel inline-form"
+            >
+              <input
+                name="tenantId"
+                type="hidden"
+                value={data.selectedTenant.id}
+              />
+              <Field label="Module">
+                <input name="module" required placeholder="Attendance" />
+              </Field>
+              <Field label="Severity">
+                <select name="severity">
+                  <option>LOW</option>
+                  <option>MEDIUM</option>
+                  <option>HIGH</option>
+                  <option>CRITICAL</option>
+                </select>
+              </Field>
+              <Field label="Privacy-safe pilot feedback">
+                <input
+                  name="summary"
+                  required
+                  placeholder="Do not include names or device identifiers"
+                />
+              </Field>
+              <SubmitButton>Send pilot feedback</SubmitButton>
+            </form>
+          </PageSection>
+        ) : null}
 
         <section className="stat-grid" aria-label="Operational summary">
           <StatCard

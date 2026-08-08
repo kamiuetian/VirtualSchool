@@ -15,6 +15,10 @@ import {
   createAutomationRuleAction,
   updateAutomationRuleAction,
   testAutomationRuleAction,
+  createAnnouncementAction,
+  archiveAnnouncementAction,
+  createPilotFeedbackAction,
+  updatePilotFeedbackAction,
 } from "../../lib/actions";
 import { getAdminData } from "../../lib/api";
 import { roleCan } from "../../lib/auth/portal-access";
@@ -319,6 +323,158 @@ export default async function AlertsPage() {
               </div>
               <SubmitButton>Save notification preferences</SubmitButton>
             </form>
+          </PageSection>
+        ) : null}
+
+        {selectedTenant ? (
+          <PageSection
+            kicker="Pilot communications"
+            title="Announcements And Feedback"
+          >
+            {roleCan(data.session.role, "tenant:update") ? (
+              <form
+                action={createAnnouncementAction}
+                className="action-panel content-stack"
+              >
+                <input
+                  name="tenantId"
+                  type="hidden"
+                  value={selectedTenant.id}
+                />
+                <div className="inline-form">
+                  <Field label="Announcement title">
+                    <input name="title" required />
+                  </Field>
+                  <Field label="Message">
+                    <input name="message" required />
+                  </Field>
+                  <Field label="Target roles">
+                    <select
+                      name="targetRoles"
+                      multiple
+                      required
+                      defaultValue={["TEACHER"]}
+                    >
+                      <option>SCHOOL_ADMIN</option>
+                      <option>IT_ADMIN</option>
+                      <option>ACADEMIC_ADMIN</option>
+                      <option>TEACHER</option>
+                      <option>SUPPORT_AGENT</option>
+                      <option>GUARDIAN</option>
+                    </select>
+                  </Field>
+                  <Field label="Starts at">
+                    <input name="startsAt" type="datetime-local" required />
+                  </Field>
+                  <Field label="Ends at (optional)">
+                    <input name="endsAt" type="datetime-local" />
+                  </Field>
+                </div>
+                <SubmitButton>Schedule announcement</SubmitButton>
+              </form>
+            ) : null}
+            <div className="list-panel">
+              {data.announcements.map((item) => (
+                <article className="list-row" key={item.id}>
+                  <div>
+                    <strong>{item.title}</strong>
+                    <span>{item.message}</span>
+                    <small>
+                      {item.targetRoles.join(", ")} ·{" "}
+                      {formatDateTime(item.startsAt)}
+                      {item.endsAt ? ` to ${formatDateTime(item.endsAt)}` : ""}
+                    </small>
+                  </div>
+                  <div className="row-actions">
+                    <StatusPill tone={item.archivedAt ? "neutral" : "good"}>
+                      {item.archivedAt ? "Archived" : "Scheduled"}
+                    </StatusPill>
+                    {roleCan(data.session.role, "tenant:update") &&
+                    !item.archivedAt ? (
+                      <form action={archiveAnnouncementAction}>
+                        <input
+                          type="hidden"
+                          name="tenantId"
+                          value={selectedTenant.id}
+                        />
+                        <input
+                          type="hidden"
+                          name="announcementId"
+                          value={item.id}
+                        />
+                        <button className="small-button">Archive</button>
+                      </form>
+                    ) : null}
+                  </div>
+                </article>
+              ))}
+            </div>
+            <form
+              action={createPilotFeedbackAction}
+              className="action-panel content-stack"
+            >
+              <input name="tenantId" type="hidden" value={selectedTenant.id} />
+              <div className="inline-form">
+                <Field label="Module">
+                  <input name="module" required placeholder="Attendance" />
+                </Field>
+                <Field label="Severity">
+                  <select name="severity">
+                    <option>LOW</option>
+                    <option>MEDIUM</option>
+                    <option>HIGH</option>
+                    <option>CRITICAL</option>
+                  </select>
+                </Field>
+                <Field label="Privacy-safe feedback">
+                  <input
+                    name="summary"
+                    required
+                    placeholder="Describe the workflow, without names or identifiers"
+                  />
+                </Field>
+                <Field label="Release">
+                  <input name="release" placeholder="pilot-1" />
+                </Field>
+              </div>
+              <SubmitButton>Submit pilot feedback</SubmitButton>
+            </form>
+            {roleCan(data.session.role, "tenant:update") ? (
+              <div className="list-panel">
+                {data.pilotFeedback.map((item) => (
+                  <article className="list-row" key={item.id}>
+                    <div>
+                      <strong>
+                        {item.module}: {item.summary}
+                      </strong>
+                      <span>
+                        {humanize(item.role)} · {humanize(item.severity)} ·{" "}
+                        {formatDateTime(item.createdAt)}
+                      </span>
+                    </div>
+                    <form
+                      action={updatePilotFeedbackAction}
+                      className="row-actions"
+                    >
+                      <input
+                        type="hidden"
+                        name="tenantId"
+                        value={selectedTenant.id}
+                      />
+                      <input type="hidden" name="feedbackId" value={item.id} />
+                      <select name="status" defaultValue={item.status}>
+                        <option>NEW</option>
+                        <option>TRIAGED</option>
+                        <option>IN_PROGRESS</option>
+                        <option>RESOLVED</option>
+                        <option>CLOSED</option>
+                      </select>
+                      <button className="small-button">Update</button>
+                    </form>
+                  </article>
+                ))}
+              </div>
+            ) : null}
           </PageSection>
         ) : null}
 

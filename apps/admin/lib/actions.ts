@@ -60,6 +60,71 @@ export async function createAutomationRuleAction(
   revalidatePath("/alerts");
 }
 
+export async function createAnnouncementAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/communications/announcements`,
+    {
+      title: required(formData, "title"),
+      message: required(formData, "message"),
+      targetRoles: formData.getAll("targetRoles"),
+      startsAt: required(formData, "startsAt"),
+      endsAt: text(formData, "endsAt") || undefined,
+    },
+  );
+  revalidatePath("/");
+  revalidatePath("/alerts");
+}
+export async function archiveAnnouncementAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "PATCH",
+    `/tenants/${tenantId}/communications/announcements/${required(formData, "announcementId")}/archive`,
+    {},
+  );
+  revalidatePath("/alerts");
+}
+export async function createPilotFeedbackAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("tenant:read");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/communications/feedback`,
+    {
+      module: required(formData, "module"),
+      severity: required(formData, "severity"),
+      summary: required(formData, "summary"),
+      context: {
+        route: "/alerts",
+        release: text(formData, "release") || "pilot",
+      },
+    },
+  );
+  revalidatePath("/");
+  revalidatePath("/alerts");
+}
+export async function updatePilotFeedbackAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "PATCH",
+    `/tenants/${tenantId}/communications/feedback/${required(formData, "feedbackId")}`,
+    { status: required(formData, "status") },
+  );
+  revalidatePath("/alerts");
+}
+
 export async function updateAutomationRuleAction(
   formData: FormData,
 ): Promise<void> {

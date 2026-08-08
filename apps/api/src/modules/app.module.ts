@@ -29,6 +29,7 @@ import { ByodModule } from "./byod/byod.module";
 import { ContentLibraryModule } from "./content-library/content-library.module";
 import { AttendanceModule } from "./attendance/attendance.module";
 import { AutomationModule } from "./automation/automation.module";
+import { CommunicationsModule } from "./communications/communications.module";
 
 @Module({
   imports: [
@@ -62,6 +63,7 @@ import { AutomationModule } from "./automation/automation.module";
     ContentLibraryModule,
     AttendanceModule,
     AutomationModule,
+    CommunicationsModule,
   ],
 })
 export class AppModule {}

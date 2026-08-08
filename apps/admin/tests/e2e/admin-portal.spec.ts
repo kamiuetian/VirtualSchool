@@ -129,6 +129,21 @@ test.describe("admin portal regression", () => {
       page.getByRole("link", { name: "Download staff sample CSV" }),
     ).toBeVisible();
 
+    await page.goto("/alerts");
+    await expect(
+      page.getByRole("heading", { name: "Announcements And Feedback" }),
+    ).toBeVisible();
+    await expect(page.getByText("Teacher pilot briefing")).toBeVisible();
+    await expect(
+      page.getByText("Attendance: Daily capture is easy to find."),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Schedule announcement" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Submit pilot feedback" }),
+    ).toBeVisible();
+
     await page.goto("/apps");
     await expect(
       page.getByRole("heading", { name: "Categorized Content Library" }),
