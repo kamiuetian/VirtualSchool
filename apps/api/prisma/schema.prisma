@@ -1047,6 +1047,11 @@ model NotificationPreference {
   repeatedEnrollmentEnabled   Boolean  @default(true)
   repeatedEnrollmentThreshold Int      @default(3)
   deduplicationWindowMinutes  Int      @default(60)
+  engagementRiskEnabled       Boolean  @default(true)
+  missedSessionThreshold      Int      @default(3)
+  complianceFailureThreshold  Int      @default(3)
+  weeklyAdminSummaryEnabled   Boolean  @default(true)
+  weeklyGuardianSummaryEnabled Boolean @default(false)
   updatedBy                   String?
   createdAt                   DateTime @default(now())
   updatedAt                   DateTime @updatedAt

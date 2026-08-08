@@ -50,6 +50,40 @@ function retentionSettings(overrides: Record<string, unknown> = {}) {
 }
 
 describe("WorkerJobsService", () => {
+  it("creates explainable, deduplicated engagement-risk alerts", async () => {
+    const createAlert = vi.fn().mockResolvedValue({ id: "risk-1" });
+    const service = new WorkerJobsService(
+      {
+        $transaction: async (callback: (tx: unknown) => Promise<unknown>) => callback({
+          auditEvent: { create: vi.fn() },
+          deviceAlert: { create: createAlert },
+        }),
+        attendanceRecord: { findMany: async () => [
+          { status: "ABSENT", studentId: "student-1" },
+          { status: "ABSENT", studentId: "student-1" },
+          { status: "ABSENT", studentId: "student-1" },
+        ] },
+        device: { findMany: async () => [{ id: "device-1", lastCheckInAt: null, status: "OFFLINE", studentId: "student-1" }] },
+        deviceAlert: { findMany: vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]) },
+        guardian: { findMany: async () => [] },
+        notificationPreference: { findUnique: async () => ({ complianceFailureThreshold: 3, engagementRiskEnabled: true, missedSessionThreshold: 3, weeklyAdminSummaryEnabled: true, weeklyGuardianSummaryEnabled: false }) },
+        student: { findMany: async () => [{ id: "student-1", name: "Amina" }] },
+        tenant: { findMany: async () => [{ id: "tenant-1" }] },
+      } as never,
+      { dispatchCommand: vi.fn() } as never,
+    );
+
+    await expect(service.processJob("engagement.scan", {})).resolves.toMatchObject({
+      details: [{ alertsCreated: 2, evaluatedStudents: 1, risks: 1 }],
+    });
+    expect(createAlert).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({
+      message: expect.stringContaining("3 missed sessions"),
+      metadata: expect.objectContaining({ reasons: expect.any(Array), studentId: "student-1" }),
+      severity: "CRITICAL",
+      type: "ENGAGEMENT_RISK",
+    }) }));
+  });
+
   it("delivers enabled alert email once and records the outcome", async () => {
     const deliveryUpsert = vi.fn(async ({ create }) => ({
       ...create,
@@ -78,6 +112,7 @@ describe("WorkerJobsService", () => {
               firstSeenAt: now,
               id: "alert-1",
               message: "Device offline",
+              metadata: { notificationRecipients: ["guardian@example.edu"], privacyScope: "LINKED_GUARDIAN" },
               severity: "WARNING",
               title: "Device offline",
             },
@@ -103,6 +138,7 @@ describe("WorkerJobsService", () => {
       service.processJob("notifications.dispatch", {}),
     ).resolves.toMatchObject({ details: [{ delivered: 1, failed: 0 }] });
     expect(email.send).toHaveBeenCalledOnce();
+    expect(email.send).toHaveBeenCalledWith(expect.objectContaining({ recipient: "guardian@example.edu" }));
     expect(deliveryUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
         create: expect.objectContaining({ status: "DELIVERED" }),

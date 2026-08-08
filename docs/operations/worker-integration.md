@@ -30,6 +30,8 @@ Scheduled jobs:
 - `WORKER_OFFLINE_SCAN_INTERVAL_MS`: offline scan interval, default `300000`.
 - `WORKER_OFFLINE_AFTER_MINUTES`: offline alert threshold, default `60`.
 - `WORKER_NOTIFICATION_INTERVAL_MS`: email dispatch interval, default `60000`.
+
+- `WORKER_ENGAGEMENT_SCAN_INTERVAL_MS`: interval for explainable seven-day engagement-risk evaluation and weekly summary generation, default `3600000`. Guardian summaries remain disabled until a tenant explicitly enables them; generated guardian messages contain only linked learners and the rule evidence that triggered the summary.
 - `WORKER_NOTIFICATION_BATCH_SIZE`: maximum alerts evaluated per tenant and run, default `100`.
 - `EMAIL_DELIVERY_WEBHOOK_URL`: HTTPS endpoint for the configured email provider adapter. If absent, attempts fail safely without sending.
 - `EMAIL_DELIVERY_WEBHOOK_TOKEN`: optional bearer token for the email provider adapter.

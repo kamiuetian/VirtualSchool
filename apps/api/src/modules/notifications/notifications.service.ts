@@ -97,6 +97,11 @@ export class NotificationsService {
     return {
       appFailureEnabled: value?.appFailureEnabled ?? true,
       deduplicationWindowMinutes: value?.deduplicationWindowMinutes ?? 60,
+      engagementRiskEnabled: value?.engagementRiskEnabled ?? true,
+      missedSessionThreshold: value?.missedSessionThreshold ?? 3,
+      complianceFailureThreshold: value?.complianceFailureThreshold ?? 3,
+      weeklyAdminSummaryEnabled: value?.weeklyAdminSummaryEnabled ?? true,
+      weeklyGuardianSummaryEnabled: value?.weeklyGuardianSummaryEnabled ?? false,
       lostDeviceEnabled: value?.lostDeviceEnabled ?? true,
       offlineAfterMinutes: value?.offlineAfterMinutes ?? 60,
       offlineEnabled: value?.offlineEnabled ?? true,

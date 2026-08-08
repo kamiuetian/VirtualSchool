@@ -38,6 +38,8 @@ describe("NotificationsService", () => {
         "admin-1",
       ),
     ).resolves.toMatchObject({
+      engagementRiskEnabled: true,
+      missedSessionThreshold: 3,
       recipients: ["it@example.edu", "ops@example.edu"],
       tenantId: "tenant-1",
     });

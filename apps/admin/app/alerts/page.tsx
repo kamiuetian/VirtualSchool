@@ -127,6 +127,12 @@ export default async function AlertsPage() {
                     type="number"
                   />
                 </Field>
+                <Field label="Missed sessions in 7 days">
+                  <input defaultValue={preferences?.missedSessionThreshold ?? 3} min="2" max="20" name="missedSessionThreshold" type="number" />
+                </Field>
+                <Field label="Policy failures in 7 days">
+                  <input defaultValue={preferences?.complianceFailureThreshold ?? 3} min="2" max="20" name="complianceFailureThreshold" type="number" />
+                </Field>
               </div>
               <div className="inline-form">
                 {[
@@ -155,6 +161,9 @@ export default async function AlertsPage() {
                     "Repeated enrollment",
                     preferences?.repeatedEnrollmentEnabled ?? true,
                   ],
+                  ["engagementRiskEnabled", "Engagement-risk alerts", preferences?.engagementRiskEnabled ?? true],
+                  ["weeklyAdminSummaryEnabled", "Weekly admin summary", preferences?.weeklyAdminSummaryEnabled ?? true],
+                  ["weeklyGuardianSummaryEnabled", "Guardian summaries (linked children only)", preferences?.weeklyGuardianSummaryEnabled ?? false],
                 ].map(([name, label, checked]) => (
                   <label key={String(name)}>
                     <input

@@ -73,6 +73,8 @@ export class WorkerJobsService {
         details.push(await this.scanOfflineAlertsForTenant(tenantId));
       } else if (name === "notifications.dispatch") {
         details.push(await this.dispatchNotificationsForTenant(tenantId));
+      } else if (name === "engagement.scan") {
+        details.push(await this.scanEngagementRiskForTenant(tenantId));
       } else if (name === "classroom.sync") {
         details.push(await this.classroomSyncService.processTenant(tenantId));
       } else if (name === "webhooks.dispatch") {
@@ -114,6 +116,9 @@ export class WorkerJobsService {
       ...(preferences.repeatedEnrollmentEnabled
         ? ["REPEATED_ENROLLMENT_FAILED"]
         : []),
+      ...(preferences.engagementRiskEnabled
+        ? ["ENGAGEMENT_RISK", "ENGAGEMENT_WEEKLY_SUMMARY"]
+        : []),
     ];
     const alerts = await this.prisma.deviceAlert.findMany({
       include: { device: { select: { serialNumber: true } } },
@@ -128,7 +133,11 @@ export class WorkerJobsService {
     let delivered = 0;
     let failed = 0;
     for (const alert of alerts) {
-      for (const recipient of preferences.recipients) {
+      const metadata = (alert.metadata ?? {}) as Record<string, unknown>;
+      const scopedRecipients = Array.isArray(metadata.notificationRecipients)
+        ? metadata.notificationRecipients.filter((value): value is string => typeof value === "string")
+        : preferences.recipients;
+      for (const recipient of scopedRecipients) {
         const existing = await this.prisma.notificationDelivery.findUnique({
           where: {
             alertId_recipient_channel: {
@@ -209,6 +218,98 @@ export class WorkerJobsService {
       job: "notifications.dispatch",
       tenantId,
     };
+  }
+
+  private async scanEngagementRiskForTenant(
+    tenantId: string,
+  ): Promise<Record<string, unknown>> {
+    const preference = await this.prisma.notificationPreference.findUnique({ where: { tenantId } });
+    if (!preference?.engagementRiskEnabled) {
+      return { alertsCreated: 0, job: "engagement.scan", skipped: true, tenantId };
+    }
+    const since = new Date(Date.now() - 7 * 86_400_000);
+    const dateSince = since.toISOString().slice(0, 10);
+    const [students, attendance, devices, failures, existing] = await Promise.all([
+      this.prisma.student.findMany({ select: { id: true, name: true }, where: { status: "ACTIVE", tenantId } }),
+      this.prisma.attendanceRecord.findMany({ select: { status: true, studentId: true }, where: { attendanceDate: { gte: dateSince }, status: "ABSENT", tenantId } }),
+      this.prisma.device.findMany({ select: { id: true, lastCheckInAt: true, status: true, studentId: true }, where: { studentId: { not: null }, tenantId } }),
+      this.prisma.deviceAlert.findMany({ select: { deviceId: true }, where: { firstSeenAt: { gte: since }, tenantId, type: "POLICY_DEPLOYMENT_FAILED" } }),
+      this.prisma.deviceAlert.findMany({ select: { metadata: true }, where: { firstSeenAt: { gte: since }, source: "ENGAGEMENT_RISK", tenantId } }),
+    ]);
+    const existingKeys = new Set(existing.map((row) => String((row.metadata as Record<string, unknown> | null)?.deduplicationKey ?? "")));
+    const absenceCounts = new Map<string, number>();
+    for (const row of attendance) absenceCounts.set(row.studentId, (absenceCounts.get(row.studentId) ?? 0) + 1);
+    const deviceStudent = new Map(devices.map((row) => [row.id, row.studentId!]));
+    const failureCounts = new Map<string, number>();
+    for (const row of failures) {
+      const studentId = row.deviceId ? deviceStudent.get(row.deviceId) : undefined;
+      if (studentId) failureCounts.set(studentId, (failureCounts.get(studentId) ?? 0) + 1);
+    }
+    const offlineStudentIds = new Set(devices.filter((row) => row.status === "OFFLINE" || !row.lastCheckInAt || row.lastCheckInAt < since).map((row) => row.studentId!));
+    const risks: Array<{ studentId: string; studentName: string; reasons: string[] }> = [];
+    for (const student of students) {
+      const reasons: string[] = [];
+      const missed = absenceCounts.get(student.id) ?? 0;
+      const failed = failureCounts.get(student.id) ?? 0;
+      if (missed >= preference.missedSessionThreshold) reasons.push(`${missed} missed sessions in 7 days`);
+      if (offlineStudentIds.has(student.id)) reasons.push("assigned device offline or without a recent check-in");
+      if (failed >= preference.complianceFailureThreshold) reasons.push(`${failed} policy delivery failures in 7 days`);
+      if (reasons.length) risks.push({ reasons, studentId: student.id, studentName: student.name });
+    }
+    let alertsCreated = 0;
+    for (const risk of risks) {
+      const deduplicationKey = `risk:${risk.studentId}:${dateSince}`;
+      if (existingKeys.has(deduplicationKey)) continue;
+      await this.createEngagementAlert({
+        firstSeenAt: new Date(), lastSeenAt: new Date(), message: risk.reasons.join("; "),
+        metadata: { deduplicationKey, reasons: risk.reasons, studentId: risk.studentId },
+        severity: risk.reasons.length > 1 ? "CRITICAL" : "WARNING", source: "ENGAGEMENT_RISK",
+        tenantId, title: `Engagement risk: ${risk.studentName}`, type: "ENGAGEMENT_RISK",
+      });
+      alertsCreated += 1;
+    }
+    const weekStart = new Date();
+    weekStart.setUTCHours(0, 0, 0, 0);
+    weekStart.setUTCDate(weekStart.getUTCDate() - ((weekStart.getUTCDay() + 6) % 7));
+    const weekKey = weekStart.toISOString().slice(0, 10);
+    if (preference.weeklyAdminSummaryEnabled && risks.length && !existingKeys.has(`admin-summary:${weekKey}`)) {
+      await this.createEngagementAlert({
+        message: `${risks.length} learner(s) met an explainable engagement-risk rule this week. Review the individual alerts for reasons.`,
+        metadata: { deduplicationKey: `admin-summary:${weekKey}`, privacyScope: "ADMIN", riskCount: risks.length },
+        severity: "INFO", source: "ENGAGEMENT_RISK", tenantId, title: "Weekly engagement summary", type: "ENGAGEMENT_WEEKLY_SUMMARY",
+      });
+      alertsCreated += 1;
+    }
+    if (preference.weeklyGuardianSummaryEnabled && risks.length) {
+      const riskByStudent = new Map(risks.map((risk) => [risk.studentId, risk]));
+      const guardians = await this.prisma.guardian.findMany({
+        include: { notificationPreference: true, students: { select: { studentId: true } } },
+        where: { email: { not: null }, tenantId },
+      });
+      for (const guardian of guardians) {
+        if (!guardian.email || !guardian.notificationPreference?.channels.includes("EMAIL")) continue;
+        const linked = guardian.students.map((link) => riskByStudent.get(link.studentId)).filter((risk): risk is NonNullable<typeof risk> => Boolean(risk));
+        const deduplicationKey = `guardian-summary:${guardian.id}:${weekKey}`;
+        if (!linked.length || existingKeys.has(deduplicationKey)) continue;
+        await this.createEngagementAlert({
+          message: linked.map((risk) => `${risk.studentName}: ${risk.reasons.join("; ")}`).join("\n"),
+          metadata: { deduplicationKey, notificationRecipients: [guardian.email], privacyScope: "LINKED_GUARDIAN", studentIds: linked.map((risk) => risk.studentId) },
+          severity: "INFO", source: "ENGAGEMENT_RISK", tenantId, title: "Weekly learning engagement summary", type: "ENGAGEMENT_WEEKLY_SUMMARY",
+        });
+        alertsCreated += 1;
+      }
+    }
+    return { alertsCreated, evaluatedStudents: students.length, job: "engagement.scan", risks: risks.length, tenantId };
+  }
+
+  private async createEngagementAlert(data: Prisma.DeviceAlertUncheckedCreateInput): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const alert = await tx.deviceAlert.create({ data });
+      await tx.auditEvent.create({ data: {
+        action: "engagement_risk.detected", newValue: { severity: data.severity, type: data.type },
+        object: "DeviceAlert", objectId: alert.id, outcome: "CREATED", tenantId: data.tenantId,
+      }});
+    });
   }
 
   private async resolveTenantIds(

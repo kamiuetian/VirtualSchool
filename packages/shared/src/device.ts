@@ -226,7 +226,9 @@ export type DeviceAlertType =
   | "POLICY_DEPLOYMENT_FAILED"
   | "APP_DEPLOYMENT_FAILED"
   | "DEVICE_LOST"
-  | "REPEATED_ENROLLMENT_FAILED";
+  | "REPEATED_ENROLLMENT_FAILED"
+  | "ENGAGEMENT_RISK"
+  | "ENGAGEMENT_WEEKLY_SUMMARY";
 
 export type NotificationPreferenceSummary = {
   tenantId: string;
@@ -239,6 +241,11 @@ export type NotificationPreferenceSummary = {
   repeatedEnrollmentEnabled: boolean;
   repeatedEnrollmentThreshold: number;
   deduplicationWindowMinutes: number;
+  engagementRiskEnabled: boolean;
+  missedSessionThreshold: number;
+  complianceFailureThreshold: number;
+  weeklyAdminSummaryEnabled: boolean;
+  weeklyGuardianSummaryEnabled: boolean;
   updatedAt: string | null;
   updatedBy: string | null;
 };

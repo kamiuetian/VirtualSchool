@@ -30,4 +30,9 @@ export class UpdateNotificationPreferenceDto {
   @Max(10080)
   @IsOptional()
   deduplicationWindowMinutes?: number;
+  @IsBoolean() @IsOptional() engagementRiskEnabled?: boolean;
+  @IsInt() @Min(2) @Max(20) @IsOptional() missedSessionThreshold?: number;
+  @IsInt() @Min(2) @Max(20) @IsOptional() complianceFailureThreshold?: number;
+  @IsBoolean() @IsOptional() weeklyAdminSummaryEnabled?: boolean;
+  @IsBoolean() @IsOptional() weeklyGuardianSummaryEnabled?: boolean;
 }

@@ -1153,10 +1153,15 @@ export async function updateNotificationPreferencesAction(
         formData,
         "repeatedEnrollmentEnabled",
       ),
-      repeatedEnrollmentThreshold: numberValue(
-        formData,
-        "repeatedEnrollmentThreshold",
-      ),
+        repeatedEnrollmentThreshold: numberValue(
+          formData,
+          "repeatedEnrollmentThreshold",
+        ),
+        engagementRiskEnabled: booleanValue(formData, "engagementRiskEnabled"),
+        missedSessionThreshold: numberValue(formData, "missedSessionThreshold"),
+        complianceFailureThreshold: numberValue(formData, "complianceFailureThreshold"),
+        weeklyAdminSummaryEnabled: booleanValue(formData, "weeklyAdminSummaryEnabled"),
+        weeklyGuardianSummaryEnabled: booleanValue(formData, "weeklyGuardianSummaryEnabled"),
     },
   );
   revalidateAll();
