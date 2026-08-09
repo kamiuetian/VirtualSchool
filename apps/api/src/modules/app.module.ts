@@ -37,6 +37,7 @@ import { IntuneModule } from "./intune/intune.module";
 import { EnterpriseIdentityModule } from "./enterprise-identity/enterprise-identity.module";
 import { AccessGovernanceModule } from "./access-governance/access-governance.module";
 import { PartnerApiModule } from "./partner-api/partner-api.module";
+import { MarketplaceModule } from "./marketplace/marketplace.module";
 
 @Module({
   imports: [
@@ -78,6 +79,7 @@ import { PartnerApiModule } from "./partner-api/partner-api.module";
     EnterpriseIdentityModule,
     AccessGovernanceModule,
     PartnerApiModule,
+    MarketplaceModule,
   ],
 })
 export class AppModule {}

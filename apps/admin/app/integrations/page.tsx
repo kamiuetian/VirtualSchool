@@ -30,6 +30,10 @@ import {
   configureAppleMdmAction,
   authorizeIntuneAction,
   mapIntuneGroupAction,
+  createMarketplaceSubmissionAction,
+  submitMarketplaceVersionAction,
+  reviewMarketplaceVersionAction,
+  marketplaceInstallationAction,
 } from "../../lib/actions";
 import {
   getAdminData,
@@ -41,6 +45,7 @@ import {
   getGoogleWorkspaceIntegration,
   getAppleMdmIntegration,
   getIntuneIntegration,
+  getIntegrationMarketplace,
 } from "../../lib/api";
 
 export const dynamic = "force-dynamic";
@@ -75,6 +80,9 @@ export default async function IntegrationsPage() {
     ? await getIntuneIntegration(tenant.id)
     : { integration: null, connectionIssue: false };
   const intune = intuneResult.integration;
+  const marketplaceResult = tenant
+    ? await getIntegrationMarketplace(tenant.id)
+    : { items: [], submissions: [], connectionIssue: false };
   return (
     <AppShell
       connectionIssue={
@@ -86,11 +94,207 @@ export default async function IntegrationsPage() {
         webhookResult.connectionIssue ||
         workspaceResult.connectionIssue ||
         appleResult.connectionIssue ||
-        intuneResult.connectionIssue
+        intuneResult.connectionIssue ||
+        marketplaceResult.connectionIssue
       }
       tenant={tenant}
     >
       <div className="content-stack">
+        <PageSection kicker="Partner ecosystem" title="Integration marketplace">
+          {tenant ? (
+            <div className="form-grid two">
+              <ActionPanel title="Submit a partner integration version">
+                <form
+                  action={createMarketplaceSubmissionAction}
+                  className="stacked-form"
+                >
+                  <input name="tenantId" type="hidden" value={tenant.id} />
+                  <Field label="Integration slug">
+                    <input
+                      name="slug"
+                      placeholder="learning-library"
+                      pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
+                      required
+                    />
+                  </Field>
+                  <Field label="Display name">
+                    <input name="name" required />
+                  </Field>
+                  <Field label="Category">
+                    <input name="category" placeholder="Content" required />
+                  </Field>
+                  <Field label="Description">
+                    <textarea name="description" required />
+                  </Field>
+                  <Field label="HTTPS test URL">
+                    <input name="testUrl" type="url" required />
+                  </Field>
+                  <Field label="Requested scopes (comma separated)">
+                    <input
+                      name="scopes"
+                      placeholder="roster.read, devices.read"
+                      required
+                    />
+                  </Field>
+                  <SubmitButton>Create draft version</SubmitButton>
+                </form>
+              </ActionPanel>
+              <ActionPanel title="Published catalog">
+                {marketplaceResult.items.length ? (
+                  <div className="data-list">
+                    {marketplaceResult.items.map((item) => (
+                      <div className="data-row" key={item.id}>
+                        <strong>
+                          {item.name} v{item.version}
+                        </strong>
+                        <StatusPill
+                          tone={
+                            item.installation?.status === "ENABLED"
+                              ? "good"
+                              : undefined
+                          }
+                        >
+                          {item.installation?.status ?? "AVAILABLE"}
+                        </StatusPill>
+                        <small>
+                          {item.category} · {item.description}
+                        </small>
+                        <form action={marketplaceInstallationAction}>
+                          <input
+                            name="tenantId"
+                            type="hidden"
+                            value={tenant.id}
+                          />
+                          <input
+                            name="submissionId"
+                            type="hidden"
+                            value={item.id}
+                          />
+                          <button
+                            name="marketplaceAction"
+                            value={
+                              item.installation?.status === "ENABLED"
+                                ? "test"
+                                : "enable"
+                            }
+                          >
+                            {item.installation?.status === "ENABLED"
+                              ? "Test"
+                              : "Enable"}
+                          </button>
+                          {item.installation?.status === "ENABLED" ? (
+                            <button name="marketplaceAction" value="disable">
+                              Disable
+                            </button>
+                          ) : null}
+                        </form>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState
+                    title="No published integrations"
+                    body="Approved partner versions appear here after publication."
+                  />
+                )}
+              </ActionPanel>
+            </div>
+          ) : null}
+          {tenant && marketplaceResult.submissions.length ? (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Submission</th>
+                    <th>Status</th>
+                    <th>Review workflow</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {marketplaceResult.submissions.map((item) => (
+                    <tr key={item.id}>
+                      <td>
+                        {item.name} v{item.version}
+                        <small>{item.slug}</small>
+                      </td>
+                      <td>
+                        <StatusPill>{item.status}</StatusPill>
+                        {item.reviewNotes ? (
+                          <small>{item.reviewNotes}</small>
+                        ) : null}
+                      </td>
+                      <td>
+                        {item.status === "DRAFT" ? (
+                          <form action={submitMarketplaceVersionAction}>
+                            <input
+                              name="tenantId"
+                              type="hidden"
+                              value={tenant.id}
+                            />
+                            <input
+                              name="submissionId"
+                              type="hidden"
+                              value={item.id}
+                            />
+                            <SubmitButton>Submit</SubmitButton>
+                          </form>
+                        ) : null}
+                        {["SUBMITTED", "IN_REVIEW", "APPROVED"].includes(
+                          item.status,
+                        ) ? (
+                          <form
+                            action={reviewMarketplaceVersionAction}
+                            className="stacked-form"
+                          >
+                            <input
+                              name="tenantId"
+                              type="hidden"
+                              value={tenant.id}
+                            />
+                            <input
+                              name="submissionId"
+                              type="hidden"
+                              value={item.id}
+                            />
+                            {item.status === "IN_REVIEW" ? (
+                              <Field label="Decision notes">
+                                <input name="notes" />
+                              </Field>
+                            ) : null}
+                            <select
+                              name="status"
+                              defaultValue={
+                                item.status === "SUBMITTED"
+                                  ? "IN_REVIEW"
+                                  : item.status === "APPROVED"
+                                    ? "PUBLISHED"
+                                    : "APPROVED"
+                              }
+                            >
+                              {item.status === "SUBMITTED" ? (
+                                <option>IN_REVIEW</option>
+                              ) : null}
+                              {item.status === "IN_REVIEW" ? (
+                                <>
+                                  <option>APPROVED</option>
+                                  <option>REJECTED</option>
+                                </>
+                              ) : null}
+                              {item.status === "APPROVED" ? (
+                                <option>PUBLISHED</option>
+                              ) : null}
+                            </select>
+                            <SubmitButton>Apply review</SubmitButton>
+                          </form>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </PageSection>
         <PageSection
           kicker="Windows management"
           title="Microsoft Intune for Education"

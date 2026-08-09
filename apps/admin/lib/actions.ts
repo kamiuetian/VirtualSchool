@@ -1816,6 +1816,60 @@ export async function mapIntuneGroupAction(formData: FormData) {
   revalidateAll();
 }
 
+export async function createMarketplaceSubmissionAction(formData: FormData) {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/integration-marketplace/submissions`,
+    {
+      slug: required(formData, "slug"),
+      name: required(formData, "name"),
+      description: required(formData, "description"),
+      category: required(formData, "category"),
+      manifest: {
+        testUrl: required(formData, "testUrl"),
+        scopes: splitList(required(formData, "scopes")),
+      },
+    },
+  );
+  revalidateAll();
+}
+
+export async function submitMarketplaceVersionAction(formData: FormData) {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/integration-marketplace/submissions/${required(formData, "submissionId")}/submit`,
+    {},
+  );
+  revalidateAll();
+}
+
+export async function reviewMarketplaceVersionAction(formData: FormData) {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "PATCH",
+    `/tenants/${tenantId}/integration-marketplace/submissions/${required(formData, "submissionId")}/review`,
+    { status: required(formData, "status"), notes: text(formData, "notes") },
+  );
+  revalidateAll();
+}
+
+export async function marketplaceInstallationAction(formData: FormData) {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  const action = required(formData, "marketplaceAction");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/integration-marketplace/${required(formData, "submissionId")}/${action}`,
+    {},
+  );
+  revalidateAll();
+}
+
 export async function mapClassroomIdentityAction(formData: FormData) {
   await requireActionPermission("tenant:update");
   const tenantId = required(formData, "tenantId");

@@ -167,40 +167,87 @@ model Tenant {
   accessRoleTemplates             AccessRoleTemplate[]
   accessAssignments               AccessAssignment[]
   accessReviews                   AccessReview[]
+  marketplaceSubmissions          IntegrationSubmission[]
+  marketplaceInstallations        IntegrationInstallation[]
+}
+
+model IntegrationSubmission {
+  id            String                    @id @default(uuid())
+  tenantId      String
+  slug          String
+  version       Int
+  name          String
+  description   String
+  category      String
+  manifest      Json
+  status        String                    @default("DRAFT")
+  reviewNotes   String?
+  submittedBy   String?
+  reviewedBy    String?
+  submittedAt   DateTime?
+  reviewedAt    DateTime?
+  publishedAt   DateTime?
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+  tenant        Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  installations IntegrationInstallation[]
+
+  @@unique([tenantId, slug, version])
+  @@index([tenantId, status, createdAt])
+  @@index([status, publishedAt])
+}
+
+model IntegrationInstallation {
+  id             String                @id @default(uuid())
+  tenantId       String
+  submissionId   String
+  status         String                @default("ENABLED")
+  configuration  Json?
+  lastTestStatus String?
+  lastTestedAt   DateTime?
+  enabledBy      String?
+  disabledAt     DateTime?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  tenant         Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  submission     IntegrationSubmission @relation(fields: [submissionId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, submissionId])
+  @@index([tenantId, status])
 }
 
 model EnterpriseIdentityConnection {
-  id                    String                 @id @default(uuid())
-  tenantId              String                 @unique
-  protocol              String
-  issuer                String
-  clientId              String?
-  metadataUrl           String?
-  credentialReference   String
-  scimTokenReference    String
-  status                String                 @default("ACTIVE")
-  breakGlassUserId      String
-  lastValidatedAt       DateTime?
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
-  tenant                Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  breakGlassUser        User                   @relation("BreakGlassUser", fields: [breakGlassUserId], references: [id], onDelete: Restrict)
-  groupMappings         ScimGroupRoleMapping[]
-  provisionedUsers      User[]                 @relation("ScimProvisionedUsers")
+  id                  String                 @id @default(uuid())
+  tenantId            String                 @unique
+  protocol            String
+  issuer              String
+  clientId            String?
+  metadataUrl         String?
+  credentialReference String
+  scimTokenReference  String
+  status              String                 @default("ACTIVE")
+  breakGlassUserId    String
+  lastValidatedAt     DateTime?
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  tenant              Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  breakGlassUser      User                   @relation("BreakGlassUser", fields: [breakGlassUserId], references: [id], onDelete: Restrict)
+  groupMappings       ScimGroupRoleMapping[]
+  provisionedUsers    User[]                 @relation("ScimProvisionedUsers")
 }
 
 model ScimGroupRoleMapping {
-  id           String                       @id @default(uuid())
-  tenantId     String
-  connectionId String
+  id            String                       @id @default(uuid())
+  tenantId      String
+  connectionId  String
   externalGroup String
-  role         String
-  branchId     String?
-  createdAt    DateTime                     @default(now())
-  updatedAt    DateTime                     @updatedAt
-  tenant       Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  connection   EnterpriseIdentityConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
-  branch       Branch?                      @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  role          String
+  branchId      String?
+  createdAt     DateTime                     @default(now())
+  updatedAt     DateTime                     @updatedAt
+  tenant        Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  connection    EnterpriseIdentityConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  branch        Branch?                      @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
   @@unique([tenantId, externalGroup])
   @@index([tenantId, role])
@@ -262,21 +309,21 @@ model IntuneDeviceState {
 }
 
 model AppleMdmConnection {
-  id                    String             @id @default(uuid())
-  tenantId              String             @unique
-  providerName          String
-  serverUrl             String
-  credentialReference   String
-  appleSchoolManagerId  String
-  status                String             @default("AUTHORIZED")
-  tokenExpiresAt        DateTime
-  certificateExpiresAt  DateTime
-  lastValidatedAt       DateTime?
-  lastInventorySyncAt   DateTime?
-  createdAt             DateTime           @default(now())
-  updatedAt             DateTime           @updatedAt
-  tenant                Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  deviceStates          AppleDeviceState[]
+  id                   String             @id @default(uuid())
+  tenantId             String             @unique
+  providerName         String
+  serverUrl            String
+  credentialReference  String
+  appleSchoolManagerId String
+  status               String             @default("AUTHORIZED")
+  tokenExpiresAt       DateTime
+  certificateExpiresAt DateTime
+  lastValidatedAt      DateTime?
+  lastInventorySyncAt  DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  tenant               Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deviceStates         AppleDeviceState[]
 }
 
 model AppleDeviceState {
@@ -825,23 +872,23 @@ model Branch {
   devices                   Device[]
   timetableBlocks           TimetableBlock[]
   googleWorkspaceOuMappings GoogleWorkspaceOuMapping[]
-  intuneGroupMappings        IntuneGroupMapping[]
-  scimGroupMappings          ScimGroupRoleMapping[]
-  accessAssignments          AccessAssignment[]
+  intuneGroupMappings       IntuneGroupMapping[]
+  scimGroupMappings         ScimGroupRoleMapping[]
+  accessAssignments         AccessAssignment[]
 
   @@index([tenantId])
 }
 
 model User {
-  id                      String                   @id @default(uuid())
+  id                      String                         @id @default(uuid())
   tenantId                String
   branchId                String?
-  auth0Subject            String?                  @unique
+  auth0Subject            String?                        @unique
   email                   String
   name                    String
   role                    String
-  status                  UserStatus               @default(INVITED)
-  mfaEnabled              Boolean                  @default(false)
+  status                  UserStatus                     @default(INVITED)
+  mfaEnabled              Boolean                        @default(false)
   invitedBy               String?
   invitedAt               DateTime?
   suspendedAt             DateTime?
@@ -850,10 +897,10 @@ model User {
   lastRoleChangedAt       DateTime?
   scimExternalId          String?
   scimConnectionId        String?
-  createdAt               DateTime                 @default(now())
-  updatedAt               DateTime                 @updatedAt
-  tenant                  Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branch                  Branch?                  @relation(fields: [branchId], references: [id])
+  createdAt               DateTime                       @default(now())
+  updatedAt               DateTime                       @updatedAt
+  tenant                  Tenant                         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch                  Branch?                        @relation(fields: [branchId], references: [id])
   classAssignments        TeacherClassAssignment[]
   teacherSessions         TeacherSession[]
   teacherSessionTemplates TeacherSessionTemplate[]
@@ -884,23 +931,23 @@ model AccessRoleTemplate {
 }
 
 model AccessAssignment {
-  id             String             @id @default(uuid())
-  tenantId       String
-  userId         String
-  templateId     String
-  scopeType      String
-  regionCodes    Json
-  branchId       String?
-  expiresAt      DateTime?
-  revokedAt      DateTime?
-  revokedReason  String?
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-  tenant         Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  template       AccessRoleTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
-  branch         Branch?            @relation(fields: [branchId], references: [id], onDelete: Restrict)
-  reviewItems    AccessReviewItem[]
+  id            String             @id @default(uuid())
+  tenantId      String
+  userId        String
+  templateId    String
+  scopeType     String
+  regionCodes   Json
+  branchId      String?
+  expiresAt     DateTime?
+  revokedAt     DateTime?
+  revokedReason String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  tenant        Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  template      AccessRoleTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  branch        Branch?            @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  reviewItems   AccessReviewItem[]
 
   @@index([tenantId, userId, revokedAt])
   @@index([tenantId, scopeType])
@@ -1810,12 +1857,12 @@ model HighRiskApprovalConfig {
 }
 
 model HighRiskChangeRequest {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   tenantId    String
   operation   String
   objectType  String
   objectId    String?
-  status      String   @default("PENDING")
+  status      String    @default("PENDING")
   summary     String
   reason      String
   oldValue    Json?
@@ -1825,8 +1872,8 @@ model HighRiskChangeRequest {
   outcome     String?
   decidedAt   DateTime?
   expiresAt   DateTime
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([tenantId, status, createdAt])
   @@index([tenantId, objectType, objectId])

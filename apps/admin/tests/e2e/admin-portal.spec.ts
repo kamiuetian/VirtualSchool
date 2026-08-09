@@ -15,7 +15,7 @@ const pages = [
   { heading: "Privacy notices and consent", path: "/privacy" },
   { heading: "Timetable Blocks", path: "/timetable" },
   { heading: "Apps And Web Catalog", path: "/apps" },
-  { heading: "Microsoft Intune for Education", path: "/integrations" },
+  { heading: "Integration marketplace", path: "/integrations" },
   { heading: "Alerts And Diagnostics", path: "/alerts" },
   { heading: "Device Support", path: "/support" },
   { heading: "Operational Reports", path: "/reports" },

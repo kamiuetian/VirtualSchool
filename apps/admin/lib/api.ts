@@ -56,6 +56,7 @@ import type {
   AccessAssignmentSummary,
   AccessReviewSummary,
   AccessRoleTemplateSummary,
+  IntegrationMarketplaceItem,
 } from "@virtual-school/shared";
 import {
   requirePortalRouteAccess,
@@ -368,6 +369,26 @@ export async function getIntuneIntegration(tenantId: string): Promise<{
     `/tenants/${tenantId}/integrations/intune`,
   );
   return { integration: result.data, connectionIssue: result.failed };
+}
+
+export async function getIntegrationMarketplace(tenantId: string): Promise<{
+  items: IntegrationMarketplaceItem[];
+  submissions: IntegrationMarketplaceItem[];
+  connectionIssue: boolean;
+}> {
+  const [items, submissions] = await Promise.all([
+    apiGet<IntegrationMarketplaceItem[]>(
+      `/tenants/${tenantId}/integration-marketplace`,
+    ),
+    apiGet<IntegrationMarketplaceItem[]>(
+      `/tenants/${tenantId}/integration-marketplace/submissions`,
+    ),
+  ]);
+  return {
+    items: items.data ?? [],
+    submissions: submissions.data ?? [],
+    connectionIssue: items.failed || submissions.failed,
+  };
 }
 
 export async function getAccessGovernance(tenantId: string): Promise<{
