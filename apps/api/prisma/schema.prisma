@@ -185,6 +185,8 @@ model Tenant {
   marketplaceInstallations        IntegrationInstallation[]
   resellerCustomer                ResellerCustomer?
   implementationProject           ImplementationProject?
+  analyticsExportSchedules        AnalyticsExportSchedule[]
+  analyticsExportRuns             AnalyticsExportRun[]
 }
 
 model ResellerPartner {
@@ -206,8 +208,51 @@ model ResellerPartner {
   updatedAt              DateTime                @updatedAt
   customers              ResellerCustomer[]
   implementationProjects ImplementationProject[]
+  analyticsExportSchedules AnalyticsExportSchedule[]
 
   @@index([status])
+}
+
+model AnalyticsExportSchedule {
+  id                   String               @id @default(uuid())
+  tenantId             String?
+  partnerId            String?
+  name                 String
+  scope                 String
+  cadence               String
+  format                String
+  destinationType       String
+  destinationReference String
+  enabled               Boolean              @default(true)
+  nextRunAt             DateTime
+  createdBy             String?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  tenant                Tenant?               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  partner               ResellerPartner?      @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  runs                   AnalyticsExportRun[]
+
+  @@index([enabled, nextRunAt])
+  @@index([tenantId, createdAt])
+  @@index([partnerId, createdAt])
+}
+
+model AnalyticsExportRun {
+  id           String                  @id @default(uuid())
+  scheduleId   String
+  tenantId     String?
+  status       String
+  rowCount     Int
+  checksum     String
+  destination String
+  error        String?
+  startedAt    DateTime                @default(now())
+  completedAt  DateTime?
+  schedule     AnalyticsExportSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  tenant       Tenant?                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([scheduleId, startedAt])
+  @@index([tenantId, startedAt])
 }
 
 model ResellerCustomer {

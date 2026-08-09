@@ -1,4 +1,9 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import type {
   AppDeploymentReport,
   DeviceInventoryReport,
@@ -8,7 +13,11 @@ import type {
   PolicyDeploymentReport,
   PolicyRuleSet,
   PolicyStatus,
+  EnterpriseAnalyticsMetrics,
+  EnterpriseAnalyticsNode,
+  EnterpriseAnalyticsReport,
 } from "@virtual-school/shared";
+import { createHash } from "node:crypto";
 import {
   Prisma,
   type AppCatalogItem,
@@ -17,6 +26,7 @@ import {
 } from "../../generated/prisma";
 import { PrismaService } from "../prisma/prisma.service";
 import { assessAndroidCompliance } from "../enrollment/device-capability.catalog";
+import type { CreateAnalyticsExportScheduleDto } from "./enterprise-reports.dto";
 
 @Injectable()
 export class ReportsService {
@@ -294,14 +304,25 @@ export class ReportsService {
     },
   ): Promise<LearningUsageAnalyticsReport> {
     await this.ensureTenantExists(tenantId);
-    const to = this.reportDate(input.to ?? new Date().toISOString().slice(0, 10), "to");
+    const to = this.reportDate(
+      input.to ?? new Date().toISOString().slice(0, 10),
+      "to",
+    );
     const defaultFrom = new Date(`${to}T00:00:00.000Z`);
     defaultFrom.setUTCDate(defaultFrom.getUTCDate() - 29);
-    const from = this.reportDate(input.from ?? defaultFrom.toISOString().slice(0, 10), "from");
+    const from = this.reportDate(
+      input.from ?? defaultFrom.toISOString().slice(0, 10),
+      "from",
+    );
     const startedAt = new Date(`${from}T00:00:00.000Z`);
     const endedAt = new Date(`${to}T23:59:59.999Z`);
-    if (startedAt > endedAt || endedAt.getTime() - startedAt.getTime() >= 366 * 86_400_000) {
-      throw new BadRequestException("Analytics window must be ordered and no longer than 366 days");
+    if (
+      startedAt > endedAt ||
+      endedAt.getTime() - startedAt.getTime() >= 366 * 86_400_000
+    ) {
+      throw new BadRequestException(
+        "Analytics window must be ordered and no longer than 366 days",
+      );
     }
 
     const classes = await this.prisma.classSection.findMany({
@@ -315,11 +336,21 @@ export class ReportsService {
     const classIds = classes.map((item) => item.id);
     const [sessions, attendance, devices, appCatalog] = await Promise.all([
       this.prisma.teacherSession.findMany({
-        include: { events: { where: { createdAt: { gte: startedAt, lte: endedAt } } } },
-        where: { tenantId, classId: { in: classIds }, startedAt: { gte: startedAt, lte: endedAt } },
+        include: {
+          events: { where: { createdAt: { gte: startedAt, lte: endedAt } } },
+        },
+        where: {
+          tenantId,
+          classId: { in: classIds },
+          startedAt: { gte: startedAt, lte: endedAt },
+        },
       }),
       this.prisma.attendanceRecord.findMany({
-        where: { tenantId, classId: { in: classIds }, attendanceDate: { gte: from, lte: to } },
+        where: {
+          tenantId,
+          classId: { in: classIds },
+          attendanceDate: { gte: from, lte: to },
+        },
       }),
       this.prisma.device.findMany({
         select: { classId: true, status: true, tags: true },
@@ -337,65 +368,431 @@ export class ReportsService {
     const appCategories = new Map(
       appCatalog.map((item) => [item.id, item.category ?? "APPROVED_RESOURCE"]),
     );
-    const launches = sessions.flatMap((session) =>
-      session.events
-        .filter((event) => ["RESOURCE_PUSHED", "EDUCATION_RESOURCE_PUSHED"].includes(event.type))
-        .map((event) => ({
-          category: this.eventCategory(event.details, appCategories),
-          classId: session.classId,
-          date: event.createdAt.toISOString().slice(0, 10),
-        })),
-    ).filter((event) => !input.category || event.category === input.category);
-    const participants = attendance.filter((row) => ["PRESENT", "LATE"].includes(row.status));
+    const launches = sessions
+      .flatMap((session) =>
+        session.events
+          .filter((event) =>
+            ["RESOURCE_PUSHED", "EDUCATION_RESOURCE_PUSHED"].includes(
+              event.type,
+            ),
+          )
+          .map((event) => ({
+            category: this.eventCategory(event.details, appCategories),
+            classId: session.classId,
+            date: event.createdAt.toISOString().slice(0, 10),
+          })),
+      )
+      .filter((event) => !input.category || event.category === input.category);
+    const participants = attendance.filter((row) =>
+      ["PRESENT", "LATE"].includes(row.status),
+    );
     const missed = attendance.filter((row) => row.status === "ABSENT");
     const offline = devices.filter((device) => device.status === "OFFLINE");
-    const buildBreakdown = (entries: Array<{ key: string; label: string; classIds: string[] }>): LearningUsageBreakdown[] =>
+    const buildBreakdown = (
+      entries: Array<{ key: string; label: string; classIds: string[] }>,
+    ): LearningUsageBreakdown[] =>
       entries.map((entry) => ({
         key: entry.key,
         label: entry.label,
-        sessions: sessions.filter((row) => entry.classIds.includes(row.classId)).length,
-        participants: participants.filter((row) => entry.classIds.includes(row.classId)).length,
-        missedSessions: missed.filter((row) => entry.classIds.includes(row.classId)).length,
-        approvedResourceLaunches: launches.filter((row) => entry.classIds.includes(row.classId)).length,
-        offlineDevices: offline.filter((row) => row.classId && entry.classIds.includes(row.classId)).length,
+        sessions: sessions.filter((row) => entry.classIds.includes(row.classId))
+          .length,
+        participants: participants.filter((row) =>
+          entry.classIds.includes(row.classId),
+        ).length,
+        missedSessions: missed.filter((row) =>
+          entry.classIds.includes(row.classId),
+        ).length,
+        approvedResourceLaunches: launches.filter((row) =>
+          entry.classIds.includes(row.classId),
+        ).length,
+        offlineDevices: offline.filter(
+          (row) => row.classId && entry.classIds.includes(row.classId),
+        ).length,
       }));
-    const gradeGroups = [...new Set(classes.map((item) => item.grade))].map((grade) => ({
-      key: grade,
-      label: grade,
-      classIds: classes.filter((item) => item.grade === grade).map((item) => item.id),
-    }));
-    const deviceGroups = [...new Set(devices.flatMap((device) => device.tags))].map((tag) => ({
+    const gradeGroups = [...new Set(classes.map((item) => item.grade))].map(
+      (grade) => ({
+        key: grade,
+        label: grade,
+        classIds: classes
+          .filter((item) => item.grade === grade)
+          .map((item) => item.id),
+      }),
+    );
+    const deviceGroups = [
+      ...new Set(devices.flatMap((device) => device.tags)),
+    ].map((tag) => ({
       key: tag,
       label: tag,
-      classIds: [...new Set(devices.filter((device) => device.tags.includes(tag) && device.classId).map((device) => device.classId!))],
+      classIds: [
+        ...new Set(
+          devices
+            .filter((device) => device.tags.includes(tag) && device.classId)
+            .map((device) => device.classId!),
+        ),
+      ],
     }));
-    const categories = [...new Set(launches.map((event) => event.category))].map((category) => ({
+    const categories = [
+      ...new Set(launches.map((event) => event.category)),
+    ].map((category) => ({
       key: category,
       label: category,
-      classIds: [...new Set(launches.filter((event) => event.category === category).map((event) => event.classId))],
+      classIds: [
+        ...new Set(
+          launches
+            .filter((event) => event.category === category)
+            .map((event) => event.classId),
+        ),
+      ],
     }));
     const trend: LearningUsageAnalyticsReport["trend"] = [];
-    for (const cursor = new Date(startedAt); cursor <= endedAt; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
+    for (
+      const cursor = new Date(startedAt);
+      cursor <= endedAt;
+      cursor.setUTCDate(cursor.getUTCDate() + 1)
+    ) {
       const date = cursor.toISOString().slice(0, 10);
       trend.push({
         date,
-        sessions: sessions.filter((row) => row.startedAt.toISOString().slice(0, 10) === date).length,
-        participants: participants.filter((row) => row.attendanceDate === date).length,
-        missedSessions: missed.filter((row) => row.attendanceDate === date).length,
-        approvedResourceLaunches: launches.filter((row) => row.date === date).length,
+        sessions: sessions.filter(
+          (row) => row.startedAt.toISOString().slice(0, 10) === date,
+        ).length,
+        participants: participants.filter((row) => row.attendanceDate === date)
+          .length,
+        missedSessions: missed.filter((row) => row.attendanceDate === date)
+          .length,
+        approvedResourceLaunches: launches.filter((row) => row.date === date)
+          .length,
       });
     }
     return {
       tenantId,
       generatedAt: new Date().toISOString(),
-      filters: { from, to, ...(input.classId ? { classId: input.classId } : {}), ...(input.grade ? { grade: input.grade } : {}), ...(input.deviceGroup ? { deviceGroup: input.deviceGroup } : {}), ...(input.category ? { category: input.category } : {}) },
-      totals: { sessions: sessions.length, participants: participants.length, missedSessions: missed.length, approvedResourceLaunches: launches.length, offlineDevices: offline.length },
-      byClass: buildBreakdown(classes.map((item) => ({ key: item.id, label: item.name, classIds: [item.id] }))),
+      filters: {
+        from,
+        to,
+        ...(input.classId ? { classId: input.classId } : {}),
+        ...(input.grade ? { grade: input.grade } : {}),
+        ...(input.deviceGroup ? { deviceGroup: input.deviceGroup } : {}),
+        ...(input.category ? { category: input.category } : {}),
+      },
+      totals: {
+        sessions: sessions.length,
+        participants: participants.length,
+        missedSessions: missed.length,
+        approvedResourceLaunches: launches.length,
+        offlineDevices: offline.length,
+      },
+      byClass: buildBreakdown(
+        classes.map((item) => ({
+          key: item.id,
+          label: item.name,
+          classIds: [item.id],
+        })),
+      ),
       byGrade: buildBreakdown(gradeGroups),
       byDeviceGroup: buildBreakdown(deviceGroups),
       byCategory: buildBreakdown(categories),
       trend,
     };
+  }
+
+  async getTenantEnterpriseAnalytics(
+    tenantId: string,
+    input: { from?: string; to?: string },
+  ): Promise<EnterpriseAnalyticsReport> {
+    const range = this.analyticsRange(input);
+    const tenant = await this.prisma.tenant.findUnique({
+      select: {
+        id: true,
+        name: true,
+        branches: { select: { id: true, name: true } },
+      },
+      where: { id: tenantId },
+    });
+    if (!tenant)
+      throw new NotFoundException(`Tenant ${tenantId} was not found`);
+    const [devices, attendance, sessions, tickets] = await Promise.all([
+      this.prisma.device.findMany({
+        select: { branchId: true, compliance: true },
+        where: { tenantId },
+      }),
+      this.prisma.attendanceRecord.findMany({
+        select: { status: true, classId: true },
+        where: { tenantId, attendanceDate: { gte: range.from, lte: range.to } },
+      }),
+      this.prisma.teacherSession.findMany({
+        select: { classId: true },
+        where: {
+          tenantId,
+          startedAt: { gte: range.startedAt, lte: range.endedAt },
+        },
+      }),
+      this.prisma.supportTicket.findMany({
+        select: { device: { select: { branchId: true } } },
+        where: {
+          tenantId,
+          status: { notIn: ["RESOLVED", "CLOSED", "CANCELED"] },
+        },
+      }),
+    ]);
+    const classes = await this.prisma.classSection.findMany({
+      select: { id: true, branchId: true },
+      where: { tenantId },
+    });
+    const classBranch = new Map(
+      classes.map((item) => [item.id, item.branchId]),
+    );
+    const metricsFor = (branchId?: string): EnterpriseAnalyticsMetrics => {
+      const scopedDevices = branchId
+        ? devices.filter((item) => item.branchId === branchId)
+        : devices;
+      const scopedAttendance = branchId
+        ? attendance.filter(
+            (item) => classBranch.get(item.classId) === branchId,
+          )
+        : attendance;
+      const scopedSessions = branchId
+        ? sessions.filter((item) => classBranch.get(item.classId) === branchId)
+        : sessions;
+      const scopedTickets = branchId
+        ? tickets.filter((item) => item.device?.branchId === branchId)
+        : tickets;
+      const compliantDevices = scopedDevices.filter(
+        (item) => item.compliance === "COMPLIANT",
+      ).length;
+      const presentAttendance = scopedAttendance.filter((item) =>
+        ["PRESENT", "LATE"].includes(item.status),
+      ).length;
+      return {
+        devices: scopedDevices.length,
+        compliantDevices,
+        complianceRate: this.rate(compliantDevices, scopedDevices.length),
+        attendanceRecords: scopedAttendance.length,
+        presentAttendance,
+        attendanceRate: this.rate(presentAttendance, scopedAttendance.length),
+        learningSessions: scopedSessions.length,
+        openSupportTickets: scopedTickets.length,
+      };
+    };
+    const node: EnterpriseAnalyticsNode = {
+      level: "TENANT",
+      id: tenant.id,
+      name: tenant.name,
+      metrics: metricsFor(),
+      children: tenant.branches.map((branch) => ({
+        level: "BRANCH",
+        id: branch.id,
+        name: branch.name,
+        metrics: metricsFor(branch.id),
+      })),
+    };
+    return {
+      scope: "TENANT",
+      scopeId: tenantId,
+      generatedAt: new Date().toISOString(),
+      from: range.from,
+      to: range.to,
+      metrics: node.metrics,
+      tenants: [node],
+    };
+  }
+
+  async getPartnerEnterpriseAnalytics(
+    partnerId: string,
+    actorId: string | undefined,
+    input: { from?: string; to?: string },
+  ): Promise<EnterpriseAnalyticsReport> {
+    const partner = await this.requirePartnerOperator(partnerId, actorId);
+    const customers = await this.prisma.resellerCustomer.findMany({
+      select: { tenantId: true },
+      where: { partnerId },
+    });
+    const reports = await Promise.all(
+      customers.map((item) =>
+        this.getTenantEnterpriseAnalytics(item.tenantId, input),
+      ),
+    );
+    const tenants = reports.flatMap((report) => report.tenants);
+    return {
+      scope: "PARTNER",
+      scopeId: partnerId,
+      generatedAt: new Date().toISOString(),
+      from: reports[0]?.from ?? this.analyticsRange(input).from,
+      to: reports[0]?.to ?? this.analyticsRange(input).to,
+      metrics: this.sumMetrics(tenants.map((item) => item.metrics)),
+      tenants,
+    };
+  }
+
+  listTenantExportSchedules(tenantId: string) {
+    return this.prisma.analyticsExportSchedule.findMany({
+      include: { runs: { orderBy: { startedAt: "desc" }, take: 10 } },
+      orderBy: { createdAt: "desc" },
+      where: { tenantId },
+    });
+  }
+
+  async createTenantExportSchedule(
+    tenantId: string,
+    input: CreateAnalyticsExportScheduleDto,
+    actorId?: string,
+  ) {
+    await this.ensureTenantExists(tenantId);
+    return this.createExportSchedule(
+      { tenantId, scope: "TENANT" },
+      input,
+      actorId,
+    );
+  }
+
+  async createPartnerExportSchedule(
+    partnerId: string,
+    input: CreateAnalyticsExportScheduleDto,
+    actorId?: string,
+  ) {
+    await this.requirePartnerOperator(partnerId, actorId);
+    return this.createExportSchedule(
+      { partnerId, scope: "PARTNER" },
+      input,
+      actorId,
+    );
+  }
+
+  async runTenantExport(
+    tenantId: string,
+    scheduleId: string,
+    actorId?: string,
+  ) {
+    const schedule = await this.prisma.analyticsExportSchedule.findFirst({
+      where: { id: scheduleId, tenantId },
+    });
+    if (!schedule)
+      throw new NotFoundException("Analytics export schedule was not found");
+    const report = await this.getTenantEnterpriseAnalytics(tenantId, {});
+    const payload =
+      schedule.format === "CSV"
+        ? this.enterpriseCsv(report)
+        : JSON.stringify(report);
+    const checksum = createHash("sha256").update(payload).digest("hex");
+    const completedAt = new Date();
+    const run = await this.prisma.$transaction(async (tx) => {
+      const value = await tx.analyticsExportRun.create({
+        data: {
+          scheduleId,
+          tenantId,
+          status: "DELIVERED",
+          rowCount: report.tenants.reduce(
+            (count, item) => count + 1 + (item.children?.length ?? 0),
+            0,
+          ),
+          checksum,
+          destination: schedule.destinationReference,
+          completedAt,
+        },
+      });
+      await tx.analyticsExportSchedule.update({
+        where: { id: scheduleId },
+        data: { nextRunAt: this.nextRun(completedAt, schedule.cadence) },
+      });
+      await tx.auditEvent.create({
+        data: {
+          tenantId,
+          actorId,
+          action: "analytics_export.deliver",
+          object: "AnalyticsExportSchedule",
+          objectId: scheduleId,
+          outcome: "SUCCESS",
+          reason: "Scheduled enterprise analytics delivery",
+          newValue: {
+            runId: value.id,
+            checksum,
+            destinationType: schedule.destinationType,
+            rowCount: value.rowCount,
+          },
+        },
+      });
+      return value;
+    });
+    return { ...run, payload };
+  }
+
+  async runPartnerExport(
+    partnerId: string,
+    scheduleId: string,
+    actorId?: string,
+  ) {
+    await this.requirePartnerOperator(partnerId, actorId);
+    const schedule = await this.prisma.analyticsExportSchedule.findFirst({
+      where: { id: scheduleId, partnerId },
+    });
+    if (!schedule)
+      throw new NotFoundException("Analytics export schedule was not found");
+    const report = await this.getPartnerEnterpriseAnalytics(
+      partnerId,
+      actorId,
+      {},
+    );
+    const payload =
+      schedule.format === "CSV"
+        ? this.enterpriseCsv(report)
+        : JSON.stringify(report);
+    const checksum = createHash("sha256").update(payload).digest("hex");
+    const completedAt = new Date();
+    const run = await this.prisma.$transaction(async (tx) => {
+      const value = await tx.analyticsExportRun.create({
+        data: {
+          scheduleId,
+          status: "DELIVERED",
+          rowCount: report.tenants.reduce(
+            (count, item) => count + 1 + (item.children?.length ?? 0),
+            0,
+          ),
+          checksum,
+          destination: schedule.destinationReference,
+          completedAt,
+        },
+      });
+      await tx.analyticsExportSchedule.update({
+        where: { id: scheduleId },
+        data: { nextRunAt: this.nextRun(completedAt, schedule.cadence) },
+      });
+      return value;
+    });
+    return { ...run, payload };
+  }
+
+  private createExportSchedule(
+    owner: { tenantId?: string; partnerId?: string; scope: string },
+    input: CreateAnalyticsExportScheduleDto,
+    actorId?: string,
+  ) {
+    const nextRunAt = new Date(input.nextRunAt);
+    if (nextRunAt.getTime() < Date.now() - 60_000)
+      throw new BadRequestException("nextRunAt cannot be in the past");
+    return this.prisma.analyticsExportSchedule.create({
+      data: {
+        ...owner,
+        name: input.name.trim(),
+        cadence: input.cadence,
+        format: input.format,
+        destinationType: input.destinationType,
+        destinationReference: input.destinationReference,
+        enabled: input.enabled ?? true,
+        nextRunAt,
+        createdBy: actorId,
+      },
+    });
+  }
+
+  private async requirePartnerOperator(partnerId: string, actorId?: string) {
+    const partner = await this.prisma.resellerPartner.findUnique({
+      where: { id: partnerId },
+    });
+    if (!partner || partner.status !== "ACTIVE")
+      throw new NotFoundException("Active reseller partner was not found");
+    if (!actorId || !partner.operatorIds.includes(actorId))
+      throw new NotFoundException("Active reseller partner was not found");
+    return partner;
   }
 
   private async ensureTenantExists(tenantId: string): Promise<void> {
@@ -432,8 +829,10 @@ export class ReportsService {
       studentId: device.studentId,
       tags: device.tags,
       complianceAssessment: assessAndroidCompliance({
-        compliance: device.compliance, health: device.health,
-        osVersion: device.androidVersion, status: device.status,
+        compliance: device.compliance,
+        health: device.health,
+        osVersion: device.androidVersion,
+        status: device.status,
       }),
     };
   }
@@ -538,7 +937,108 @@ export class ReportsService {
       : typeof details?.provider === "string"
         ? details.provider
         : typeof details?.resourceId === "string"
-          ? appCategories.get(details.resourceId) ?? "APPROVED_RESOURCE"
+          ? (appCategories.get(details.resourceId) ?? "APPROVED_RESOURCE")
           : "APPROVED_RESOURCE";
+  }
+
+  private analyticsRange(input: { from?: string; to?: string }) {
+    const to = this.reportDate(
+      input.to ?? new Date().toISOString().slice(0, 10),
+      "to",
+    );
+    const defaultFrom = new Date(`${to}T00:00:00.000Z`);
+    defaultFrom.setUTCDate(defaultFrom.getUTCDate() - 29);
+    const from = this.reportDate(
+      input.from ?? defaultFrom.toISOString().slice(0, 10),
+      "from",
+    );
+    const startedAt = new Date(`${from}T00:00:00.000Z`);
+    const endedAt = new Date(`${to}T23:59:59.999Z`);
+    if (
+      startedAt > endedAt ||
+      endedAt.getTime() - startedAt.getTime() >= 366 * 86_400_000
+    ) {
+      throw new BadRequestException(
+        "Analytics window must be ordered and no longer than 366 days",
+      );
+    }
+    return { from, to, startedAt, endedAt };
+  }
+
+  private rate(numerator: number, denominator: number): number {
+    return denominator === 0
+      ? 0
+      : Math.round((numerator / denominator) * 10_000) / 100;
+  }
+
+  private sumMetrics(
+    values: EnterpriseAnalyticsMetrics[],
+  ): EnterpriseAnalyticsMetrics {
+    const totals = values.reduce(
+      (sum, item) => ({
+        devices: sum.devices + item.devices,
+        compliantDevices: sum.compliantDevices + item.compliantDevices,
+        attendanceRecords: sum.attendanceRecords + item.attendanceRecords,
+        presentAttendance: sum.presentAttendance + item.presentAttendance,
+        learningSessions: sum.learningSessions + item.learningSessions,
+        openSupportTickets: sum.openSupportTickets + item.openSupportTickets,
+        complianceRate: 0,
+        attendanceRate: 0,
+      }),
+      {
+        devices: 0,
+        compliantDevices: 0,
+        complianceRate: 0,
+        attendanceRecords: 0,
+        presentAttendance: 0,
+        attendanceRate: 0,
+        learningSessions: 0,
+        openSupportTickets: 0,
+      },
+    );
+    totals.complianceRate = this.rate(totals.compliantDevices, totals.devices);
+    totals.attendanceRate = this.rate(
+      totals.presentAttendance,
+      totals.attendanceRecords,
+    );
+    return totals;
+  }
+
+  private enterpriseCsv(report: EnterpriseAnalyticsReport): string {
+    const header = [
+      "tenant_id",
+      "tenant_name",
+      "branch_id",
+      "branch_name",
+      "devices",
+      "compliance_rate",
+      "attendance_rate",
+      "learning_sessions",
+      "open_support_tickets",
+    ];
+    const rows = report.tenants.flatMap((tenant) =>
+      (tenant.children?.length ? tenant.children : [tenant]).map((node) => [
+        tenant.id,
+        tenant.name,
+        node.level === "BRANCH" ? node.id : "",
+        node.level === "BRANCH" ? node.name : "",
+        node.metrics.devices,
+        node.metrics.complianceRate,
+        node.metrics.attendanceRate,
+        node.metrics.learningSessions,
+        node.metrics.openSupportTickets,
+      ]),
+    );
+    return [header, ...rows]
+      .map((row) => row.map((cell) => this.csvCell(cell)).join(","))
+      .join("\n");
+  }
+
+  private nextRun(from: Date, cadence: string): Date {
+    const value = new Date(from);
+    if (cadence === "DAILY") value.setUTCDate(value.getUTCDate() + 1);
+    else if (cadence === "WEEKLY") value.setUTCDate(value.getUTCDate() + 7);
+    else value.setUTCMonth(value.getUTCMonth() + 1);
+    return value;
   }
 }

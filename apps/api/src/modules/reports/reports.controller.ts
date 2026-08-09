@@ -1,4 +1,14 @@
-import { Controller, Get, Header, Inject, Param, Query, Req } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  Inject,
+  Param,
+  Post,
+  Query,
+  Req,
+} from "@nestjs/common";
 import { ApiOkResponse, ApiTags } from "@nestjs/swagger";
 import type {
   AppDeploymentReport,
@@ -9,6 +19,7 @@ import type {
 import { RequirePermissions } from "../auth/decorators/require-permissions.decorator";
 import type { AuthenticatedRequest } from "../auth/types/authenticated-request";
 import { ReportsService } from "./reports.service";
+import { CreateAnalyticsExportScheduleDto } from "./enterprise-reports.dto";
 
 @ApiTags("reports")
 @Controller("tenants/:tenantId/reports")
@@ -79,5 +90,101 @@ export class ReportsController {
       grade,
       to,
     });
+  }
+
+  @Get("enterprise-analytics")
+  @RequirePermissions("report:export")
+  enterpriseAnalytics(
+    @Param("tenantId") tenantId: string,
+    @Query("from") from?: string,
+    @Query("to") to?: string,
+  ) {
+    return this.reportsService.getTenantEnterpriseAnalytics(tenantId, {
+      from,
+      to,
+    });
+  }
+
+  @Get("enterprise-exports")
+  @RequirePermissions("report:export")
+  exportSchedules(@Param("tenantId") tenantId: string) {
+    return this.reportsService.listTenantExportSchedules(tenantId);
+  }
+
+  @Post("enterprise-exports")
+  @RequirePermissions("report:export")
+  createExportSchedule(
+    @Param("tenantId") tenantId: string,
+    @Body() body: CreateAnalyticsExportScheduleDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.reportsService.createTenantExportSchedule(
+      tenantId,
+      body,
+      request.user?.subject,
+    );
+  }
+
+  @Post("enterprise-exports/:scheduleId/run")
+  @RequirePermissions("report:export")
+  runExport(
+    @Param("tenantId") tenantId: string,
+    @Param("scheduleId") scheduleId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.reportsService.runTenantExport(
+      tenantId,
+      scheduleId,
+      request.user?.subject,
+    );
+  }
+}
+
+@ApiTags("partner-analytics")
+@Controller("resellers/:partnerId/analytics")
+@RequirePermissions("tenant:update")
+export class PartnerReportsController {
+  constructor(
+    @Inject(ReportsService) private readonly reportsService: ReportsService,
+  ) {}
+
+  @Get()
+  analytics(
+    @Param("partnerId") partnerId: string,
+    @Query("from") from: string | undefined,
+    @Query("to") to: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.reportsService.getPartnerEnterpriseAnalytics(
+      partnerId,
+      request.user?.subject,
+      { from, to },
+    );
+  }
+
+  @Post("exports")
+  createExport(
+    @Param("partnerId") partnerId: string,
+    @Body() body: CreateAnalyticsExportScheduleDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.reportsService.createPartnerExportSchedule(
+      partnerId,
+      body,
+      request.user?.subject,
+    );
+  }
+
+  @Post("exports/:scheduleId/run")
+  runExport(
+    @Param("partnerId") partnerId: string,
+    @Param("scheduleId") scheduleId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.reportsService.runPartnerExport(
+      partnerId,
+      scheduleId,
+      request.user?.subject,
+    );
   }
 }

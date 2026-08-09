@@ -4,6 +4,116 @@ import { ReportsService } from "./reports.service";
 const now = new Date("2026-05-17T10:00:00.000Z");
 
 describe("ReportsService", () => {
+  it("rolls branch metrics into tenant enterprise analytics", async () => {
+    const service = new ReportsService({
+      tenant: {
+        findUnique: async () => ({
+          id: "tenant-1",
+          name: "Northview",
+          branches: [{ id: "branch-1", name: "Main" }],
+        }),
+      },
+      device: {
+        findMany: async () => [
+          { branchId: "branch-1", compliance: "COMPLIANT" },
+          { branchId: "branch-1", compliance: "NON_COMPLIANT" },
+        ],
+      },
+      attendanceRecord: {
+        findMany: async () => [
+          { classId: "class-1", status: "PRESENT" },
+          { classId: "class-1", status: "ABSENT" },
+        ],
+      },
+      teacherSession: { findMany: async () => [{ classId: "class-1" }] },
+      supportTicket: {
+        findMany: async () => [{ device: { branchId: "branch-1" } }],
+      },
+      classSection: {
+        findMany: async () => [{ id: "class-1", branchId: "branch-1" }],
+      },
+    } as never);
+
+    await expect(
+      service.getTenantEnterpriseAnalytics("tenant-1", {
+        from: "2026-05-01",
+        to: "2026-05-31",
+      }),
+    ).resolves.toMatchObject({
+      scope: "TENANT",
+      metrics: {
+        devices: 2,
+        complianceRate: 50,
+        attendanceRate: 50,
+        learningSessions: 1,
+        openSupportTickets: 1,
+      },
+      tenants: [{ children: [{ id: "branch-1", metrics: { devices: 2 } }] }],
+    });
+  });
+
+  it("rejects partner analytics for actors outside the operator portfolio", async () => {
+    const service = new ReportsService({
+      resellerPartner: {
+        findUnique: async () => ({
+          id: "partner-1",
+          status: "ACTIVE",
+          operatorIds: ["operator-1"],
+        }),
+      },
+    } as never);
+    await expect(
+      service.getPartnerEnterpriseAnalytics("partner-1", "outsider", {}),
+    ).rejects.toThrow("not found");
+  });
+
+  it("logs a checksummed tenant warehouse delivery", async () => {
+    const createRun = vi.fn(async ({ data }) => ({ id: "run-1", ...data }));
+    const audit = vi.fn();
+    const service = new ReportsService({
+      analyticsExportSchedule: {
+        findFirst: async () => ({
+          id: "schedule-1",
+          tenantId: "tenant-1",
+          format: "JSON",
+          cadence: "DAILY",
+          destinationReference: "ref:warehouse",
+          destinationType: "API_STORAGE",
+        }),
+      },
+      tenant: {
+        findUnique: async () => ({
+          id: "tenant-1",
+          name: "Northview",
+          branches: [],
+        }),
+      },
+      device: { findMany: async () => [] },
+      attendanceRecord: { findMany: async () => [] },
+      teacherSession: { findMany: async () => [] },
+      supportTicket: { findMany: async () => [] },
+      classSection: { findMany: async () => [] },
+      $transaction: async (callback: (tx: any) => Promise<unknown>) =>
+        callback({
+          analyticsExportRun: { create: createRun },
+          analyticsExportSchedule: { update: vi.fn() },
+          auditEvent: { create: audit },
+        }),
+    } as never);
+    const result = await service.runTenantExport(
+      "tenant-1",
+      "schedule-1",
+      "admin-1",
+    );
+    expect(result).toMatchObject({
+      id: "run-1",
+      status: "DELIVERED",
+      destination: "ref:warehouse",
+    });
+    expect(result.checksum).toMatch(/^[a-f0-9]{64}$/);
+    expect(audit).toHaveBeenCalled();
+  });
+
   it("builds tenant-scoped learning usage trends and breakdowns", async () => {
     const service = new ReportsService({
       appCatalogItem: {
@@ -11,30 +121,52 @@ describe("ReportsService", () => {
       },
       attendanceRecord: {
         findMany: async () => [
-          { attendanceDate: "2026-05-17", classId: "class-1", status: "PRESENT" },
-          { attendanceDate: "2026-05-17", classId: "class-1", status: "ABSENT" },
+          {
+            attendanceDate: "2026-05-17",
+            classId: "class-1",
+            status: "PRESENT",
+          },
+          {
+            attendanceDate: "2026-05-17",
+            classId: "class-1",
+            status: "ABSENT",
+          },
         ],
       },
       classSection: {
-        findMany: async () => [{ grade: "5", id: "class-1", name: "Grade 5 Blue" }],
+        findMany: async () => [
+          { grade: "5", id: "class-1", name: "Grade 5 Blue" },
+        ],
       },
       device: {
-        findMany: async () => [{ classId: "class-1", status: "OFFLINE", tags: ["pilot"] }],
+        findMany: async () => [
+          { classId: "class-1", status: "OFFLINE", tags: ["pilot"] },
+        ],
       },
       teacherSession: {
-        findMany: async () => [{
-          classId: "class-1",
-          startedAt: now,
-          events: [{ createdAt: now, details: { resourceId: "resource-1" }, type: "RESOURCE_PUSHED" }],
-        }],
+        findMany: async () => [
+          {
+            classId: "class-1",
+            startedAt: now,
+            events: [
+              {
+                createdAt: now,
+                details: { resourceId: "resource-1" },
+                type: "RESOURCE_PUSHED",
+              },
+            ],
+          },
+        ],
       },
       tenant: { findUnique: async () => ({ id: "tenant-1" }) },
     } as never);
 
-    await expect(service.getLearningUsageAnalytics("tenant-1", {
-      from: "2026-05-17",
-      to: "2026-05-17",
-    })).resolves.toMatchObject({
+    await expect(
+      service.getLearningUsageAnalytics("tenant-1", {
+        from: "2026-05-17",
+        to: "2026-05-17",
+      }),
+    ).resolves.toMatchObject({
       byCategory: [{ key: "MATH", approvedResourceLaunches: 1 }],
       byDeviceGroup: [{ key: "pilot", offlineDevices: 1 }],
       totals: {
@@ -52,10 +184,12 @@ describe("ReportsService", () => {
     const service = new ReportsService({
       tenant: { findUnique: async () => ({ id: "tenant-1" }) },
     } as never);
-    await expect(service.getLearningUsageAnalytics("tenant-1", {
-      from: "2024-01-01",
-      to: "2026-05-17",
-    })).rejects.toThrow("no longer than 366 days");
+    await expect(
+      service.getLearningUsageAnalytics("tenant-1", {
+        from: "2024-01-01",
+        to: "2026-05-17",
+      }),
+    ).rejects.toThrow("no longer than 366 days");
   });
 
   it("builds a device inventory report with status totals", async () => {

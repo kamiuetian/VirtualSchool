@@ -133,3 +133,32 @@ export type LearningUsageAnalyticsReport = ReportGeneratedMetadata & {
   byCategory: LearningUsageBreakdown[];
   trend: LearningUsageTrendPoint[];
 };
+
+export type EnterpriseAnalyticsMetrics = {
+  devices: number;
+  compliantDevices: number;
+  complianceRate: number;
+  attendanceRecords: number;
+  presentAttendance: number;
+  attendanceRate: number;
+  learningSessions: number;
+  openSupportTickets: number;
+};
+
+export type EnterpriseAnalyticsNode = {
+  level: "BRANCH" | "TENANT";
+  id: string;
+  name: string;
+  metrics: EnterpriseAnalyticsMetrics;
+  children?: EnterpriseAnalyticsNode[];
+};
+
+export type EnterpriseAnalyticsReport = {
+  scope: "TENANT" | "PARTNER";
+  scopeId: string;
+  generatedAt: string;
+  from: string;
+  to: string;
+  metrics: EnterpriseAnalyticsMetrics;
+  tenants: EnterpriseAnalyticsNode[];
+};
