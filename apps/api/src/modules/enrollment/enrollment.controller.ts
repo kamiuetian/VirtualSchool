@@ -1,10 +1,20 @@
-import { Body, Controller, Get, Inject, Param, Post, Query } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Inject,
+  Param,
+  Post,
+  Query,
+} from "@nestjs/common";
 import { ApiCreatedResponse, ApiOkResponse, ApiTags } from "@nestjs/swagger";
 import type {
   DeviceCheckInResult,
   DeviceHistory,
   DeviceSummary,
   EnrollmentBatchSummary,
+  ProcurementBatchSummary,
+  DeviceReplacementSummary,
   PlatformCapabilityCatalog,
 } from "@virtual-school/shared";
 import { RequirePermissions } from "../auth/decorators/require-permissions.decorator";
@@ -13,6 +23,13 @@ import { CreateEnrollmentBatchDto } from "./dto/create-enrollment-batch.dto";
 import { DeviceCheckInDto } from "./dto/device-check-in.dto";
 import { DeviceLifecycleDto } from "./dto/device-lifecycle.dto";
 import { ListDevicesDto } from "./dto/list-devices.dto";
+import {
+  AdvanceProcurementBatchDto,
+  CreateProcurementBatchDto,
+  LinkProcurementDeviceDto,
+  RecordRmaDto,
+  ReplaceDeviceDto,
+} from "./dto/procurement.dto";
 import { EnrollmentService } from "./enrollment.service";
 
 @ApiTags("enrollment")
@@ -42,6 +59,79 @@ export class EnrollmentController {
     @Body() body: CreateEnrollmentBatchDto,
   ): Promise<EnrollmentBatchSummary> {
     return this.enrollmentService.createEnrollmentBatch(tenantId, body);
+  }
+
+  @Get("procurement-batches")
+  @RequirePermissions("device:read")
+  listProcurementBatches(
+    @Param("tenantId") tenantId: string,
+  ): Promise<ProcurementBatchSummary[]> {
+    return this.enrollmentService.listProcurementBatches(tenantId);
+  }
+
+  @Post("procurement-batches")
+  @RequirePermissions("device:enroll")
+  createProcurementBatch(
+    @Param("tenantId") tenantId: string,
+    @Body() body: CreateProcurementBatchDto,
+  ): Promise<ProcurementBatchSummary> {
+    return this.enrollmentService.createProcurementBatch(tenantId, body);
+  }
+
+  @Post("procurement-batches/:batchId/advance")
+  @RequirePermissions("device:enroll")
+  advanceProcurementBatch(
+    @Param("tenantId") tenantId: string,
+    @Param("batchId") batchId: string,
+    @Body() body: AdvanceProcurementBatchDto,
+  ): Promise<ProcurementBatchSummary> {
+    return this.enrollmentService.advanceProcurementBatch(
+      tenantId,
+      batchId,
+      body,
+    );
+  }
+
+  @Post("procurement-batches/:batchId/items/:itemId/link")
+  @RequirePermissions("device:enroll")
+  linkProcurementDevice(
+    @Param("tenantId") tenantId: string,
+    @Param("batchId") batchId: string,
+    @Param("itemId") itemId: string,
+    @Body() body: LinkProcurementDeviceDto,
+  ): Promise<ProcurementBatchSummary> {
+    return this.enrollmentService.linkProcurementDevice(
+      tenantId,
+      batchId,
+      itemId,
+      body,
+    );
+  }
+
+  @Post("procurement-batches/:batchId/items/:itemId/rma")
+  @RequirePermissions("device:enroll")
+  recordProcurementRma(
+    @Param("tenantId") tenantId: string,
+    @Param("batchId") batchId: string,
+    @Param("itemId") itemId: string,
+    @Body() body: RecordRmaDto,
+  ): Promise<ProcurementBatchSummary> {
+    return this.enrollmentService.recordProcurementRma(
+      tenantId,
+      batchId,
+      itemId,
+      body,
+    );
+  }
+
+  @Post("devices/:deviceId/replacement")
+  @RequirePermissions("device:enroll")
+  replaceDevice(
+    @Param("tenantId") tenantId: string,
+    @Param("deviceId") deviceId: string,
+    @Body() body: ReplaceDeviceDto,
+  ): Promise<DeviceReplacementSummary> {
+    return this.enrollmentService.replaceDevice(tenantId, deviceId, body);
   }
 
   @Get("devices")

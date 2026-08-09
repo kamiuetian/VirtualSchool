@@ -49,7 +49,11 @@ export type DeviceEnrollmentType =
   | "BYOD_SESSION"
   | "UNKNOWN";
 export type CapabilitySupport = "SUPPORTED" | "PARTIAL" | "UNSUPPORTED";
-export type OsLifecycleStatus = "SUPPORTED" | "UPDATE_RECOMMENDED" | "UNSUPPORTED" | "UNKNOWN";
+export type OsLifecycleStatus =
+  | "SUPPORTED"
+  | "UPDATE_RECOMMENDED"
+  | "UNSUPPORTED"
+  | "UNKNOWN";
 
 export type DeviceComplianceAssessment = {
   score: number;
@@ -149,7 +153,7 @@ export type DeviceAssignmentHistory = {
 
 export type DeviceLifecycleHistory = {
   id: string;
-  type: "RETIRED" | "UNENROLLED";
+  type: "RETIRED" | "UNENROLLED" | "REPLACED";
   reason: string;
   actorId?: string | null;
   createdAt: string;
@@ -158,6 +162,51 @@ export type DeviceLifecycleHistory = {
 export type DeviceHistory = {
   assignments: DeviceAssignmentHistory[];
   lifecycle: DeviceLifecycleHistory[];
+};
+
+export type ProcurementStatus =
+  | "PURCHASED"
+  | "RECEIVED"
+  | "ENROLLING"
+  | "READY"
+  | "SHIPPED"
+  | "ASSIGNED"
+  | "CLOSED";
+export type ProcurementItemStatus =
+  | ProcurementStatus
+  | "RMA_REQUESTED"
+  | "RMA_SHIPPED"
+  | "REPLACED";
+export type ProcurementBatchSummary = {
+  id: string;
+  tenantId: string;
+  reference: string;
+  vendor: string;
+  purchaseDate: string;
+  expectedDevices: number;
+  status: ProcurementStatus;
+  shippingCarrier?: string | null;
+  trackingNumber?: string | null;
+  destination?: string | null;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  items: Array<{
+    id: string;
+    deviceId?: string | null;
+    serialNumber: string;
+    status: ProcurementItemStatus;
+    rmaNumber?: string | null;
+    rmaReason?: string | null;
+  }>;
+};
+export type DeviceReplacementSummary = {
+  id: string;
+  originalDeviceId: string;
+  replacementDeviceId: string;
+  reason: string;
+  rmaNumber?: string | null;
+  createdAt: string;
 };
 
 export type RemoteCommandSummary = {

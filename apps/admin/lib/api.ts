@@ -63,6 +63,7 @@ import type {
   AccessReviewSummary,
   AccessRoleTemplateSummary,
   IntegrationMarketplaceItem,
+  ProcurementBatchSummary,
 } from "@virtual-school/shared";
 import {
   requirePortalRouteAccess,
@@ -729,6 +730,15 @@ export async function getDeviceOperationsData(
     diagnostics: diagnostics.data ?? [],
     history: history.data ?? { assignments: [], lifecycle: [] },
   };
+}
+
+export async function getProcurementBatches(
+  tenantId: string,
+): Promise<{ batches: ProcurementBatchSummary[]; connectionIssue: boolean }> {
+  const result = await apiGet<ProcurementBatchSummary[]>(
+    `/tenants/${tenantId}/procurement-batches`,
+  );
+  return { batches: result.data ?? [], connectionIssue: result.failed };
 }
 
 export async function getDeviceCapabilities(tenantId: string): Promise<{

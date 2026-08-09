@@ -798,6 +798,58 @@ export async function assignDeviceAction(formData: FormData): Promise<void> {
   revalidateAll();
 }
 
+export async function createProcurementBatchAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("device:enroll");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation("POST", `/tenants/${tenantId}/procurement-batches`, {
+    reference: required(formData, "reference"),
+    vendor: required(formData, "vendor"),
+    purchaseDate: required(formData, "purchaseDate"),
+    expectedDevices: Number(required(formData, "expectedDevices")),
+    serialNumbers: lines(formData, "serialNumbers"),
+    notes: text(formData, "notes"),
+  });
+  revalidatePath("/devices");
+}
+
+export async function advanceProcurementBatchAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("device:enroll");
+  const tenantId = required(formData, "tenantId");
+  const batchId = required(formData, "batchId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/procurement-batches/${batchId}/advance`,
+    {
+      status: required(formData, "status"),
+      reason: required(formData, "reason"),
+      shippingCarrier: text(formData, "shippingCarrier"),
+      trackingNumber: text(formData, "trackingNumber"),
+      destination: text(formData, "destination"),
+    },
+  );
+  revalidatePath("/devices");
+}
+
+export async function replaceDeviceAction(formData: FormData): Promise<void> {
+  await requireActionPermission("device:enroll");
+  const tenantId = required(formData, "tenantId");
+  const deviceId = required(formData, "deviceId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/devices/${deviceId}/replacement`,
+    {
+      replacementDeviceId: required(formData, "replacementDeviceId"),
+      reason: required(formData, "reason"),
+      rmaNumber: text(formData, "rmaNumber"),
+    },
+  );
+  revalidatePath("/devices");
+}
+
 export async function changeDeviceLifecycleAction(
   formData: FormData,
 ): Promise<void> {

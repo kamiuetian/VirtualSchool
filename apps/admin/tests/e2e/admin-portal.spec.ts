@@ -78,6 +78,12 @@ test.describe("admin portal regression", () => {
 
     await page.goto("/devices");
     await expect(
+      page.getByRole("heading", { name: "Procurement and replacement" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Create batch" }),
+    ).toBeVisible();
+    await expect(
       page.getByRole("heading", { name: "Command Center" }),
     ).toBeVisible();
     await expect(

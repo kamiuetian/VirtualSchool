@@ -104,6 +104,10 @@ model Tenant {
   rosterImports                   RosterImport[]
   devices                         Device[]
   enrollmentBatches               EnrollmentBatch[]
+  procurementBatches              ProcurementBatch[]
+  procurementItems                ProcurementDevice[]
+  deviceCustodyEvents             DeviceCustodyEvent[]
+  deviceReplacements              DeviceReplacement[]
   appCatalogItems                 AppCatalogItem[]
   policies                        Policy[]
   policyAssignments               PolicyAssignment[]
@@ -1331,6 +1335,10 @@ model Device {
   chromeOsState            ChromeOsDeviceState?
   appleState               AppleDeviceState?
   intuneState              IntuneDeviceState?
+  procurementItem          ProcurementDevice?
+  custodyEvents            DeviceCustodyEvent[]
+  replacementsAsOriginal   DeviceReplacement[] @relation("ReplacementOriginal")
+  replacementsAsReplacement DeviceReplacement[] @relation("ReplacementNew")
 
   @@unique([tenantId, serialNumber])
   @@index([tenantId, status])
@@ -1439,6 +1447,81 @@ model DeviceLifecycleEvent {
   device    Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, deviceId, createdAt])
+}
+
+model ProcurementBatch {
+  id              String              @id @default(uuid())
+  tenantId        String
+  reference       String
+  vendor          String
+  purchaseDate    DateTime
+  expectedDevices Int
+  status          String              @default("PURCHASED")
+  shippingCarrier String?
+  trackingNumber  String?
+  destination     String?
+  notes           String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  tenant          Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  items           ProcurementDevice[]
+
+  @@unique([tenantId, reference])
+  @@index([tenantId, status, createdAt])
+}
+
+model ProcurementDevice {
+  id             String            @id @default(uuid())
+  tenantId       String
+  batchId        String
+  deviceId       String?           @unique
+  serialNumber   String
+  status         String            @default("PURCHASED")
+  rmaNumber      String?
+  rmaReason      String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  tenant         Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  batch          ProcurementBatch  @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  device         Device?           @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, serialNumber])
+  @@index([tenantId, batchId, status])
+}
+
+model DeviceCustodyEvent {
+  id          String   @id @default(uuid())
+  tenantId    String
+  deviceId    String
+  type        String
+  fromHolder  String?
+  toHolder    String?
+  location    String?
+  reason      String
+  reference   String?
+  actorId     String?
+  createdAt   DateTime @default(now())
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  device      Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, deviceId, createdAt])
+}
+
+model DeviceReplacement {
+  id                  String   @id @default(uuid())
+  tenantId            String
+  originalDeviceId    String
+  replacementDeviceId String
+  reason              String
+  rmaNumber           String?
+  actorId             String?
+  createdAt           DateTime @default(now())
+  tenant              Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  originalDevice      Device   @relation("ReplacementOriginal", fields: [originalDeviceId], references: [id], onDelete: Restrict)
+  replacementDevice   Device   @relation("ReplacementNew", fields: [replacementDeviceId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, originalDeviceId, createdAt])
+  @@index([tenantId, replacementDeviceId, createdAt])
 }
 
 model SupportNote {

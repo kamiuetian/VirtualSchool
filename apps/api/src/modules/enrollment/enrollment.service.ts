@@ -10,6 +10,8 @@ import type {
   DeviceHistory,
   DeviceSummary,
   EnrollmentBatchSummary,
+  ProcurementBatchSummary,
+  DeviceReplacementSummary,
   PlatformCapabilityCatalog,
 } from "@virtual-school/shared";
 import { randomBytes } from "node:crypto";
@@ -23,7 +25,18 @@ import type { AssignDeviceDto } from "./dto/assign-device.dto";
 import type { CreateEnrollmentBatchDto } from "./dto/create-enrollment-batch.dto";
 import type { DeviceCheckInDto } from "./dto/device-check-in.dto";
 import type { ListDevicesDto } from "./dto/list-devices.dto";
-import { androidControlSummary, assessAndroidCompliance, platformCapabilityCatalog } from "./device-capability.catalog";
+import type {
+  AdvanceProcurementBatchDto,
+  CreateProcurementBatchDto,
+  LinkProcurementDeviceDto,
+  RecordRmaDto,
+  ReplaceDeviceDto,
+} from "./dto/procurement.dto";
+import {
+  androidControlSummary,
+  assessAndroidCompliance,
+  platformCapabilityCatalog,
+} from "./device-capability.catalog";
 
 @Injectable()
 export class EnrollmentService {
@@ -94,7 +107,418 @@ export class EnrollmentService {
     return this.toEnrollmentBatchSummary(batch);
   }
 
-  async listDevices(tenantId: string, filters: ListDevicesDto = {}): Promise<DeviceSummary[]> {
+  async listProcurementBatches(
+    tenantId: string,
+  ): Promise<ProcurementBatchSummary[]> {
+    await this.ensureTenantExists(tenantId);
+    const batches = await this.prisma.procurementBatch.findMany({
+      include: { items: { orderBy: { createdAt: "asc" } } },
+      orderBy: { createdAt: "desc" },
+      where: { tenantId },
+    });
+    return batches.map((batch) => this.toProcurementBatchSummary(batch));
+  }
+
+  async createProcurementBatch(
+    tenantId: string,
+    input: CreateProcurementBatchDto,
+  ): Promise<ProcurementBatchSummary> {
+    await this.ensureTenantExists(tenantId);
+    const serialNumbers = [
+      ...new Set(
+        (input.serialNumbers ?? [])
+          .map((value) => value.trim())
+          .filter(Boolean),
+      ),
+    ];
+    if (serialNumbers.length > input.expectedDevices)
+      throw new BadRequestException(
+        "Serial number count exceeds expected devices",
+      );
+    const created = await this.prisma.$transaction(async (tx) => {
+      const batch = await tx.procurementBatch.create({
+        data: {
+          tenantId,
+          reference: input.reference.trim(),
+          vendor: input.vendor.trim(),
+          purchaseDate: new Date(input.purchaseDate),
+          expectedDevices: input.expectedDevices,
+          notes: input.notes,
+          items: serialNumbers.length
+            ? {
+                create: serialNumbers.map((serialNumber) => ({
+                  tenantId,
+                  serialNumber,
+                })),
+              }
+            : undefined,
+        },
+        include: { items: true },
+      });
+      await tx.auditEvent.create({
+        data: {
+          action: "procurement_batch.create",
+          object: "ProcurementBatch",
+          objectId: batch.id,
+          outcome: "SUCCESS",
+          tenantId,
+          newValue: {
+            reference: batch.reference,
+            vendor: batch.vendor,
+            expectedDevices: batch.expectedDevices,
+            serialNumbers,
+          },
+        },
+      });
+      return batch;
+    });
+    return this.toProcurementBatchSummary(created);
+  }
+
+  async advanceProcurementBatch(
+    tenantId: string,
+    batchId: string,
+    input: AdvanceProcurementBatchDto,
+  ): Promise<ProcurementBatchSummary> {
+    const batch = await this.prisma.procurementBatch.findFirst({
+      where: { id: batchId, tenantId },
+    });
+    if (!batch) throw new NotFoundException("Procurement batch was not found");
+    const order = [
+      "PURCHASED",
+      "RECEIVED",
+      "ENROLLING",
+      "READY",
+      "SHIPPED",
+      "ASSIGNED",
+      "CLOSED",
+    ];
+    if (order.indexOf(input.status) !== order.indexOf(batch.status) + 1)
+      throw new BadRequestException(
+        `Batch must advance from ${batch.status} to ${order[order.indexOf(batch.status) + 1] ?? "no further state"}`,
+      );
+    if (
+      input.status === "SHIPPED" &&
+      (!input.shippingCarrier || !input.trackingNumber || !input.destination)
+    )
+      throw new BadRequestException(
+        "Shipment carrier, tracking number, and destination are required",
+      );
+    const saved = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.procurementBatch.update({
+        where: { id: batchId },
+        data: {
+          status: input.status,
+          shippingCarrier: input.shippingCarrier,
+          trackingNumber: input.trackingNumber,
+          destination: input.destination,
+        },
+        include: { items: { orderBy: { createdAt: "asc" } } },
+      });
+      await tx.procurementDevice.updateMany({
+        where: { batchId, tenantId, status: batch.status },
+        data: { status: input.status },
+      });
+      await tx.auditEvent.create({
+        data: {
+          action: "procurement_batch.advance",
+          object: "ProcurementBatch",
+          objectId: batchId,
+          outcome: "SUCCESS",
+          tenantId,
+          reason: input.reason,
+          oldValue: { status: batch.status },
+          newValue: {
+            status: input.status,
+            trackingNumber: input.trackingNumber,
+            destination: input.destination,
+          },
+        },
+      });
+      return updated;
+    });
+    return this.toProcurementBatchSummary(saved);
+  }
+
+  async linkProcurementDevice(
+    tenantId: string,
+    batchId: string,
+    itemId: string,
+    input: LinkProcurementDeviceDto,
+  ): Promise<ProcurementBatchSummary> {
+    const [item, device] = await Promise.all([
+      this.prisma.procurementDevice.findFirst({
+        where: { id: itemId, batchId, tenantId },
+      }),
+      this.prisma.device.findFirst({ where: { id: input.deviceId, tenantId } }),
+    ]);
+    if (!item || !device)
+      throw new NotFoundException(
+        "Procurement item or tenant device was not found",
+      );
+    if (item.serialNumber !== device.serialNumber)
+      throw new BadRequestException(
+        "Procurement and enrolled device serial numbers do not match",
+      );
+    await this.prisma.$transaction(async (tx) => {
+      await tx.procurementDevice.update({
+        where: { id: itemId },
+        data: { deviceId: device.id, status: "ENROLLING" },
+      });
+      await tx.deviceCustodyEvent.create({
+        data: {
+          tenantId,
+          deviceId: device.id,
+          type: "ENROLLED",
+          fromHolder: item.batchId,
+          toHolder: "TENANT_INVENTORY",
+          reason: input.reason,
+          reference: item.id,
+        },
+      });
+      await tx.auditEvent.create({
+        data: {
+          action: "procurement_device.link",
+          object: "ProcurementDevice",
+          objectId: item.id,
+          outcome: "SUCCESS",
+          tenantId,
+          reason: input.reason,
+          newValue: { deviceId: device.id, serialNumber: device.serialNumber },
+        },
+      });
+    });
+    return (await this.listProcurementBatches(tenantId)).find(
+      (value) => value.id === batchId,
+    )!;
+  }
+
+  async recordProcurementRma(
+    tenantId: string,
+    batchId: string,
+    itemId: string,
+    input: RecordRmaDto,
+  ): Promise<ProcurementBatchSummary> {
+    const item = await this.prisma.procurementDevice.findFirst({
+      where: { id: itemId, batchId, tenantId },
+    });
+    if (!item) throw new NotFoundException("Procurement item was not found");
+    await this.prisma.$transaction(async (tx) => {
+      await tx.procurementDevice.update({
+        where: { id: itemId },
+        data: {
+          status: input.status,
+          rmaNumber: input.rmaNumber,
+          rmaReason: input.reason,
+        },
+      });
+      if (item.deviceId)
+        await tx.deviceCustodyEvent.create({
+          data: {
+            tenantId,
+            deviceId: item.deviceId,
+            type: input.status,
+            fromHolder:
+              input.status === "RMA_SHIPPED" ? "TENANT_INVENTORY" : undefined,
+            toHolder: input.status === "RMA_SHIPPED" ? "VENDOR" : undefined,
+            reason: input.reason,
+            reference: input.rmaNumber,
+          },
+        });
+      await tx.auditEvent.create({
+        data: {
+          action: "procurement_device.rma",
+          object: "ProcurementDevice",
+          objectId: itemId,
+          outcome: "SUCCESS",
+          tenantId,
+          reason: input.reason,
+          oldValue: { status: item.status },
+          newValue: { status: input.status, rmaNumber: input.rmaNumber },
+        },
+      });
+    });
+    return (await this.listProcurementBatches(tenantId)).find(
+      (value) => value.id === batchId,
+    )!;
+  }
+
+  async replaceDevice(
+    tenantId: string,
+    originalDeviceId: string,
+    input: ReplaceDeviceDto,
+  ): Promise<DeviceReplacementSummary> {
+    if (originalDeviceId === input.replacementDeviceId)
+      throw new BadRequestException("A device cannot replace itself");
+    const [original, replacement] = await Promise.all([
+      this.findDevice(tenantId, originalDeviceId),
+      this.findDevice(tenantId, input.replacementDeviceId),
+    ]);
+    if (original.status === "RETIRED" || replacement.status === "RETIRED")
+      throw new BadRequestException(
+        "Retired devices cannot participate in replacement",
+      );
+    if (replacement.studentId || replacement.classId)
+      throw new BadRequestException("Replacement device must be unassigned");
+    const result = await this.prisma.$transaction(async (tx) => {
+      const now = new Date();
+      await tx.deviceAssignment.updateMany({
+        where: { tenantId, deviceId: original.id, endedAt: null },
+        data: { endedAt: now },
+      });
+      await tx.device.update({
+        where: { id: original.id },
+        data: {
+          status: "RETIRED",
+          studentId: null,
+          classId: null,
+          branchId: null,
+          policyVersion: null,
+        },
+      });
+      await tx.device.update({
+        where: { id: replacement.id },
+        data: {
+          studentId: original.studentId,
+          classId: original.classId,
+          branchId: original.branchId,
+          status: original.status,
+          tags: original.tags,
+        },
+      });
+      if (original.studentId || original.classId || original.branchId)
+        await tx.deviceAssignment.create({
+          data: {
+            tenantId,
+            deviceId: replacement.id,
+            studentId: original.studentId,
+            classId: original.classId,
+            branchId: original.branchId,
+            reason: `Replacement for ${original.serialNumber}: ${input.reason}`,
+          },
+        });
+      const created = await tx.deviceReplacement.create({
+        data: {
+          tenantId,
+          originalDeviceId: original.id,
+          replacementDeviceId: replacement.id,
+          reason: input.reason,
+          rmaNumber: input.rmaNumber,
+        },
+      });
+      await tx.deviceLifecycleEvent.create({
+        data: {
+          tenantId,
+          deviceId: original.id,
+          type: "REPLACED",
+          reason: input.reason,
+          oldValue: { status: original.status, studentId: original.studentId },
+          newValue: { status: "RETIRED", replacementDeviceId: replacement.id },
+        },
+      });
+      await tx.deviceCustodyEvent.create({
+        data: {
+          tenantId,
+          deviceId: original.id,
+          type: "REPLACED_OUT",
+          fromHolder:
+            original.studentId ?? original.branchId ?? "TENANT_INVENTORY",
+          toHolder: input.rmaNumber ? "RMA" : "TENANT_INVENTORY",
+          reason: input.reason,
+          reference: input.rmaNumber ?? created.id,
+        },
+      });
+      await tx.deviceCustodyEvent.create({
+        data: {
+          tenantId,
+          deviceId: replacement.id,
+          type: "REPLACED_IN",
+          fromHolder: "TENANT_INVENTORY",
+          toHolder:
+            original.studentId ?? original.branchId ?? "TENANT_INVENTORY",
+          reason: input.reason,
+          reference: created.id,
+        },
+      });
+      const supportBody = `Device ${original.serialNumber} was replaced by ${replacement.serialNumber}. ${input.reason}${input.rmaNumber ? ` RMA: ${input.rmaNumber}.` : ""}`;
+      await tx.supportNote.create({
+        data: {
+          tenantId,
+          deviceId: original.id,
+          category: "HARDWARE",
+          severity: "S2",
+          body: supportBody,
+          status: "RESOLVED",
+          resolution: "Replacement issued",
+        },
+      });
+      await tx.supportNote.create({
+        data: {
+          tenantId,
+          deviceId: replacement.id,
+          category: "HARDWARE",
+          severity: "S3",
+          body: supportBody,
+        },
+      });
+      await tx.auditEvent.create({
+        data: {
+          action: "device.replace",
+          object: "DeviceReplacement",
+          objectId: created.id,
+          outcome: "SUCCESS",
+          tenantId,
+          reason: input.reason,
+          oldValue: { deviceId: original.id, studentId: original.studentId },
+          newValue: {
+            deviceId: replacement.id,
+            studentId: original.studentId,
+            rmaNumber: input.rmaNumber,
+          },
+        },
+      });
+      return created;
+    });
+    return {
+      id: result.id,
+      originalDeviceId: result.originalDeviceId,
+      replacementDeviceId: result.replacementDeviceId,
+      reason: result.reason,
+      rmaNumber: result.rmaNumber,
+      createdAt: result.createdAt.toISOString(),
+    };
+  }
+
+  private toProcurementBatchSummary(batch: any): ProcurementBatchSummary {
+    return {
+      id: batch.id,
+      tenantId: batch.tenantId,
+      reference: batch.reference,
+      vendor: batch.vendor,
+      purchaseDate: batch.purchaseDate.toISOString(),
+      expectedDevices: batch.expectedDevices,
+      status: batch.status,
+      shippingCarrier: batch.shippingCarrier,
+      trackingNumber: batch.trackingNumber,
+      destination: batch.destination,
+      notes: batch.notes,
+      createdAt: batch.createdAt.toISOString(),
+      updatedAt: batch.updatedAt.toISOString(),
+      items: (batch.items ?? []).map((item: any) => ({
+        id: item.id,
+        deviceId: item.deviceId,
+        serialNumber: item.serialNumber,
+        status: item.status,
+        rmaNumber: item.rmaNumber,
+        rmaReason: item.rmaReason,
+      })),
+    };
+  }
+
+  async listDevices(
+    tenantId: string,
+    filters: ListDevicesDto = {},
+  ): Promise<DeviceSummary[]> {
     await this.ensureTenantExists(tenantId);
 
     const devices = await this.prisma.device.findMany({
@@ -106,13 +530,17 @@ export class EnrollmentService {
 
     return devices
       .map((device) => this.toDeviceSummary(device))
-      .filter((device) =>
-        (!filters.platform || device.platform === filters.platform) &&
-        (!filters.provider || device.provider === filters.provider) &&
-        (!filters.compliance || device.compliance === filters.compliance) &&
-        (!filters.enrollmentType || device.enrollmentType === filters.enrollmentType) &&
-        (!filters.ownershipType || device.ownershipType === filters.ownershipType) &&
-        (!filters.osLifecycle || device.complianceAssessment.osLifecycle === filters.osLifecycle),
+      .filter(
+        (device) =>
+          (!filters.platform || device.platform === filters.platform) &&
+          (!filters.provider || device.provider === filters.provider) &&
+          (!filters.compliance || device.compliance === filters.compliance) &&
+          (!filters.enrollmentType ||
+            device.enrollmentType === filters.enrollmentType) &&
+          (!filters.ownershipType ||
+            device.ownershipType === filters.ownershipType) &&
+          (!filters.osLifecycle ||
+            device.complianceAssessment.osLifecycle === filters.osLifecycle),
       );
   }
 
@@ -377,7 +805,7 @@ export class EnrollmentService {
         createdAt: item.createdAt.toISOString(),
         id: item.id,
         reason: item.reason,
-        type: item.type as "RETIRED" | "UNENROLLED",
+        type: item.type as "RETIRED" | "UNENROLLED" | "REPLACED",
       })),
     };
   }
@@ -608,8 +1036,10 @@ export class EnrollmentService {
       tenantId: device.tenantId,
       ...controls,
       complianceAssessment: assessAndroidCompliance({
-        compliance: device.compliance, health: device.health,
-        osVersion: device.androidVersion, status: device.status,
+        compliance: device.compliance,
+        health: device.health,
+        osVersion: device.androidVersion,
+        status: device.status,
       }),
     };
   }

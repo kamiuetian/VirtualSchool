@@ -318,6 +318,7 @@ const routes = [
       }),
   ],
   ["GET", `/tenants/${tenantId}/devices`, () => json([device])],
+  ["GET", `/tenants/${tenantId}/procurement-batches`, () => json([])],
   [
     "GET",
     `/tenants/${tenantId}/communications/announcements?includeArchived=true`,
