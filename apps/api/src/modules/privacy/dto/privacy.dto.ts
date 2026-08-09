@@ -2,6 +2,7 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsDateString,
   IsEmail,
   IsIn,
   IsNotEmpty,
@@ -48,4 +49,23 @@ export class UpdateSecurityPrivacyProfileDto {
   @IsString({ each: true })
   @Length(5, 240, { each: true })
   childSafetyGuardrails!: string[];
+}
+
+export class CreateComplianceEvidencePackDto {
+  @IsString() @Length(3, 120) name!: string;
+  @IsDateString() windowFrom!: string;
+  @IsDateString() windowTo!: string;
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(5)
+  @IsIn(["AUDIT_LOGS", "ACCESS_REVIEWS", "RETENTION", "CONTROLS", "POLICIES"], {
+    each: true,
+  })
+  sections!: (
+    | "AUDIT_LOGS"
+    | "ACCESS_REVIEWS"
+    | "RETENTION"
+    | "CONTROLS"
+    | "POLICIES"
+  )[];
 }

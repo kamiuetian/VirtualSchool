@@ -5,7 +5,9 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { createHash } from "node:crypto";
 import type {
+  ComplianceEvidencePackSummary,
   PrivacyAcceptanceSummary,
   PrivacyNoticeSummary,
   PrivacySubjectType,
@@ -17,6 +19,7 @@ import type { Prisma } from "../../generated/prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import type {
   AcceptPrivacyNoticeDto,
+  CreateComplianceEvidencePackDto,
   PublishPrivacyNoticeDto,
   UpdateSecurityPrivacyProfileDto,
 } from "./dto/privacy.dto";
@@ -24,6 +27,134 @@ import type {
 @Injectable()
 export class PrivacyService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+
+  async listEvidencePacks(
+    tenantId: string,
+  ): Promise<ComplianceEvidencePackSummary[]> {
+    const packs = await this.prisma.complianceEvidencePack.findMany({
+      where: { tenantId },
+      orderBy: { createdAt: "desc" },
+    });
+    return packs.map((pack) => this.evidencePackSummary(pack));
+  }
+
+  async createEvidencePack(
+    tenantId: string,
+    input: CreateComplianceEvidencePackDto,
+    actorId?: string,
+  ): Promise<ComplianceEvidencePackSummary> {
+    const windowFrom = new Date(input.windowFrom);
+    const windowTo = new Date(input.windowTo);
+    if (windowFrom >= windowTo)
+      throw new BadRequestException(
+        "Evidence window start must precede its end",
+      );
+    if (windowTo.getTime() - windowFrom.getTime() > 366 * 86_400_000)
+      throw new BadRequestException("Evidence windows cannot exceed 366 days");
+    if (windowTo.getTime() > Date.now() + 60_000)
+      throw new BadRequestException(
+        "Evidence windows cannot end in the future",
+      );
+    const sections = [...new Set(input.sections)];
+    const range = { gte: windowFrom, lte: windowTo };
+    const artifact: Record<string, unknown> = {
+      schemaVersion: 1,
+      tenantId,
+      name: input.name,
+      window: { from: windowFrom.toISOString(), to: windowTo.toISOString() },
+      generatedAt: new Date().toISOString(),
+      generatedBy: actorId ?? null,
+      sections,
+    };
+    if (sections.includes("AUDIT_LOGS"))
+      artifact.auditLogs = await this.prisma.auditEvent.findMany({
+        where: { tenantId, createdAt: range },
+        orderBy: { createdAt: "asc" },
+      });
+    if (sections.includes("ACCESS_REVIEWS"))
+      artifact.accessReviews = await this.prisma.accessReview.findMany({
+        where: {
+          tenantId,
+          createdAt: { lte: windowTo },
+          updatedAt: { gte: windowFrom },
+        },
+        include: { items: true },
+        orderBy: { createdAt: "asc" },
+      });
+    if (sections.includes("RETENTION"))
+      artifact.retentionSettings =
+        await this.prisma.retentionSettings.findUnique({ where: { tenantId } });
+    if (sections.includes("CONTROLS"))
+      artifact.controlsSummary = await this.securityCenter(tenantId);
+    if (sections.includes("POLICIES"))
+      artifact.policyExports = await this.prisma.policy.findMany({
+        where: { tenantId },
+        include: { versions: { orderBy: { version: "asc" } } },
+        orderBy: { name: "asc" },
+      });
+    const immutableArtifact = JSON.parse(
+      JSON.stringify(artifact),
+    ) as Prisma.InputJsonValue;
+    const checksum = createHash("sha256")
+      .update(JSON.stringify(immutableArtifact))
+      .digest("hex");
+    const saved = await this.prisma.$transaction(async (tx) => {
+      const tenant = await tx.tenant.findUnique({
+        where: { id: tenantId },
+        select: { id: true },
+      });
+      if (!tenant) throw new NotFoundException("Tenant was not found");
+      const pack = await tx.complianceEvidencePack.create({
+        data: {
+          tenantId,
+          name: input.name,
+          windowFrom,
+          windowTo,
+          sections,
+          artifact: immutableArtifact,
+          checksum,
+          createdBy: actorId,
+        },
+      });
+      await tx.auditEvent.create({
+        data: {
+          tenantId,
+          actorId,
+          action: "compliance_evidence_pack.create",
+          object: "ComplianceEvidencePack",
+          objectId: pack.id,
+          outcome: "CREATED",
+          newValue: {
+            name: input.name,
+            windowFrom,
+            windowTo,
+            sections,
+            checksum,
+          },
+        },
+      });
+      return pack;
+    });
+    return this.evidencePackSummary(saved);
+  }
+
+  async downloadEvidencePack(
+    tenantId: string,
+    packId: string,
+  ): Promise<unknown> {
+    const pack = await this.prisma.complianceEvidencePack.findFirst({
+      where: { id: packId, tenantId },
+    });
+    if (!pack)
+      throw new NotFoundException(
+        "Evidence pack was not found for this tenant",
+      );
+    return {
+      checksumAlgorithm: "SHA-256",
+      checksum: pack.checksum,
+      artifact: pack.artifact,
+    };
+  }
 
   async securityCenter(tenantId: string): Promise<SecurityPrivacyOverview> {
     const now = new Date();
@@ -382,5 +513,19 @@ export class PrivacyService {
           childSafetyGuardrails: [],
           updatedAt: null,
         };
+  }
+  private evidencePackSummary(value: any): ComplianceEvidencePackSummary {
+    return {
+      id: value.id,
+      tenantId: value.tenantId,
+      name: value.name,
+      windowFrom: value.windowFrom.toISOString(),
+      windowTo: value.windowTo.toISOString(),
+      sections: value.sections,
+      checksum: value.checksum,
+      createdBy: value.createdBy,
+      createdAt: value.createdAt.toISOString(),
+      downloadPath: `/api/v1/tenants/${value.tenantId}/privacy/evidence-packs/${value.id}/download`,
+    };
   }
 }

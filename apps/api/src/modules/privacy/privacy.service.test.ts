@@ -223,4 +223,89 @@ describe("PrivacyService", () => {
       subjectId: "auth0|student-1",
     });
   });
+
+  it("creates a hashed immutable evidence snapshot from tenant-scoped sources", async () => {
+    let persistedArtifact: unknown;
+    const createAudit = vi.fn();
+    const service = new PrivacyService({
+      auditEvent: {
+        findMany: vi.fn(async ({ where }: any) => [
+          {
+            id: "audit-1",
+            tenantId: where.tenantId,
+            createdAt: new Date("2026-08-01T00:00:00Z"),
+          },
+        ]),
+      },
+      accessReview: { findMany: vi.fn(async () => []) },
+      complianceEvidencePack: {},
+      $transaction: async (callback: (tx: any) => Promise<unknown>) =>
+        callback({
+          tenant: { findUnique: async () => ({ id: "tenant-1" }) },
+          complianceEvidencePack: {
+            create: async ({ data }: any) => {
+              persistedArtifact = data.artifact;
+              return {
+                ...data,
+                id: "pack-1",
+                createdAt: new Date("2026-08-09T00:00:00Z"),
+              };
+            },
+          },
+          auditEvent: { create: createAudit },
+        }),
+    } as never);
+    const result = await service.createEvidencePack(
+      "tenant-1",
+      {
+        name: "Quarterly evidence",
+        windowFrom: "2026-08-01T00:00:00Z",
+        windowTo: "2026-08-09T00:00:00Z",
+        sections: ["AUDIT_LOGS", "ACCESS_REVIEWS"],
+      },
+      "auditor-1",
+    );
+    expect(result).toMatchObject({
+      id: "pack-1",
+      tenantId: "tenant-1",
+      sections: ["AUDIT_LOGS", "ACCESS_REVIEWS"],
+    });
+    expect(result.checksum).toMatch(/^[a-f0-9]{64}$/);
+    expect(persistedArtifact).toMatchObject({
+      tenantId: "tenant-1",
+      auditLogs: [{ tenantId: "tenant-1" }],
+    });
+    expect(createAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "compliance_evidence_pack.create",
+          objectId: "pack-1",
+        }),
+      }),
+    );
+  });
+
+  it("rejects unbounded evidence windows and cross-tenant downloads", async () => {
+    const service = new PrivacyService({
+      complianceEvidencePack: { findFirst: vi.fn(async () => null) },
+    } as never);
+    await expect(
+      service.createEvidencePack(
+        "tenant-1",
+        {
+          name: "Too broad",
+          windowFrom: "2024-01-01T00:00:00Z",
+          windowTo: "2026-01-01T00:00:00Z",
+          sections: ["AUDIT_LOGS"],
+        },
+        "auditor-1",
+      ),
+    ).rejects.toThrow("cannot exceed 366 days");
+    await expect(
+      service.downloadEvidencePack("tenant-2", "pack-1"),
+    ).rejects.toThrow("not found for this tenant");
+    expect(
+      (service as any).prisma.complianceEvidencePack.findFirst,
+    ).toHaveBeenCalledWith({ where: { id: "pack-1", tenantId: "tenant-2" } });
+  });
 });

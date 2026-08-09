@@ -242,6 +242,16 @@ test.describe("admin portal regression", () => {
     await expect(
       page.getByRole("button", { name: "Accept this version" }),
     ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Immutable evidence packs" }),
+    ).toBeVisible();
+    await expect(page.getByText("2026 access review evidence")).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Download JSON" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Generate evidence pack" }),
+    ).toBeVisible();
   });
 
   test("downloads CSV exports through portal routes", async ({ page }) => {

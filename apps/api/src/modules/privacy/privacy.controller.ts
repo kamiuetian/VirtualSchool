@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Inject,
   Param,
   Post,
@@ -14,6 +15,7 @@ import { RequirePermissions } from "../auth/decorators/require-permissions.decor
 import type { AuthenticatedRequest } from "../auth/types/authenticated-request";
 import {
   AcceptPrivacyNoticeDto,
+  CreateComplianceEvidencePackDto,
   PublishPrivacyNoticeDto,
   RevokePrivacyAcceptanceDto,
   UpdateSecurityPrivacyProfileDto,
@@ -26,6 +28,31 @@ export class PrivacyController {
   constructor(
     @Inject(PrivacyService) private readonly service: PrivacyService,
   ) {}
+  @Get("evidence-packs") @RequirePermissions("audit:read") listEvidencePacks(
+    @Param("tenantId") tenantId: string,
+  ) {
+    return this.service.listEvidencePacks(tenantId);
+  }
+  @Post("evidence-packs") @RequirePermissions("audit:read") createEvidencePack(
+    @Param("tenantId") tenantId: string,
+    @Body() body: CreateComplianceEvidencePackDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.service.createEvidencePack(tenantId, body, req.user?.subject);
+  }
+  @Get("evidence-packs/:packId/download")
+  @RequirePermissions("audit:read")
+  @Header("Content-Type", "application/json; charset=utf-8")
+  @Header(
+    "Content-Disposition",
+    'attachment; filename="compliance-evidence-pack.json"',
+  )
+  downloadEvidencePack(
+    @Param("tenantId") tenantId: string,
+    @Param("packId") packId: string,
+  ) {
+    return this.service.downloadEvidencePack(tenantId, packId);
+  }
   @Get("security-center") @RequirePermissions("audit:read") overview(
     @Param("tenantId") tenantId: string,
   ) {

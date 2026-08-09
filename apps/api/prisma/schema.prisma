@@ -118,6 +118,7 @@ model Tenant {
   retentionRuns                   DataRetentionRun[]
   billingSubscription             BillingSubscription?
   auditEvents                     AuditEvent[]
+  complianceEvidencePacks         ComplianceEvidencePack[]
   blockedDomainEvents             BlockedDomainEvent[]
   assignmentHistory               DeviceAssignment[]
   lifecycleEvents                 DeviceLifecycleEvent[]
@@ -1903,6 +1904,22 @@ model AuditEvent {
 
   @@index([tenantId, createdAt])
   @@index([action, createdAt])
+}
+
+model ComplianceEvidencePack {
+  id          String   @id @default(uuid())
+  tenantId    String
+  name        String
+  windowFrom  DateTime
+  windowTo    DateTime
+  sections    Json
+  artifact    Json
+  checksum    String
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, createdAt])
 }
 
 model MachineCredential {

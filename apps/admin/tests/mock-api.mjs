@@ -394,6 +394,26 @@ const routes = [
   ["GET", `/tenants/${tenantId}/privacy/acceptances`, () => json([])],
   [
     "GET",
+    `/tenants/${tenantId}/privacy/evidence-packs`,
+    () =>
+      json([
+        {
+          id: "evidence-pack-1",
+          tenantId,
+          name: "2026 access review evidence",
+          windowFrom: "2026-01-01T00:00:00.000Z",
+          windowTo: now,
+          sections: ["AUDIT_LOGS", "ACCESS_REVIEWS", "CONTROLS"],
+          checksum:
+            "8f0f7f904c5b38a9d00de53f925e4da238d0bf9c589824333086bceba020ef15",
+          createdBy: "admin-1",
+          createdAt: now,
+          downloadPath: `/api/v1/tenants/${tenantId}/privacy/evidence-packs/evidence-pack-1/download`,
+        },
+      ]),
+  ],
+  [
+    "GET",
     `/tenants/${tenantId}/privacy/security-center`,
     () =>
       json({

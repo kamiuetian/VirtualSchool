@@ -9,6 +9,7 @@ import {
 } from "../../components/ui";
 import {
   acceptPrivacyNoticeAction,
+  createComplianceEvidencePackAction,
   publishPrivacyNoticeAction,
   revokePrivacyAcceptanceAction,
   updateSecurityPrivacyProfileAction,
@@ -190,6 +191,90 @@ export default async function PrivacyPage() {
               body="The consolidated governance view requires privacy-officer access."
             />
           )}
+        </PageSection>
+        <PageSection kicker="Compliance" title="Immutable evidence packs">
+          {tenant && overview ? (
+            <div className="form-grid">
+              <ActionPanel title="Generate a time-bounded pack">
+                <form
+                  action={createComplianceEvidencePackAction}
+                  className="stacked-form"
+                >
+                  <input name="tenantId" type="hidden" value={tenant.id} />
+                  <Field label="Pack name">
+                    <input
+                      name="name"
+                      required
+                      placeholder="Annual access controls review"
+                    />
+                  </Field>
+                  <div className="form-row">
+                    <Field label="Window start">
+                      <input name="windowFrom" type="datetime-local" required />
+                    </Field>
+                    <Field label="Window end">
+                      <input name="windowTo" type="datetime-local" required />
+                    </Field>
+                  </div>
+                  <Field label="Evidence sections">
+                    <div className="checkbox-list">
+                      {[
+                        ["AUDIT_LOGS", "Audit logs"],
+                        ["ACCESS_REVIEWS", "Access reviews"],
+                        ["RETENTION", "Retention settings"],
+                        ["CONTROLS", "Controls summary"],
+                        ["POLICIES", "Policy exports"],
+                      ].map(([value, label]) => (
+                        <label key={value}>
+                          <input
+                            name="sections"
+                            type="checkbox"
+                            value={value}
+                          />{" "}
+                          {label}
+                        </label>
+                      ))}
+                    </div>
+                  </Field>
+                  <SubmitButton>Generate evidence pack</SubmitButton>
+                  <small>
+                    Windows are limited to 366 days. Generated snapshots cannot
+                    be edited or replaced.
+                  </small>
+                </form>
+              </ActionPanel>
+              <ActionPanel title="Generated packs">
+                {data.complianceEvidencePacks.length ? (
+                  <div className="list-panel">
+                    {data.complianceEvidencePacks.map((pack) => (
+                      <div className="list-row" key={pack.id}>
+                        <div>
+                          <strong>{pack.name}</strong>
+                          <span>
+                            {new Date(pack.windowFrom).toLocaleDateString()} –{" "}
+                            {new Date(pack.windowTo).toLocaleDateString()} ·{" "}
+                            {pack.sections.join(", ")}
+                          </span>
+                          <small>SHA-256 {pack.checksum}</small>
+                        </div>
+                        <a
+                          className="small-button primary"
+                          href={`/privacy/evidence-pack.json?tenantId=${encodeURIComponent(tenant.id)}&packId=${encodeURIComponent(pack.id)}`}
+                        >
+                          Download JSON
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState
+                    title="No evidence packs"
+                    body="Generate a bounded snapshot for an audit or customer evidence request."
+                  />
+                )}
+              </ActionPanel>
+            </div>
+          ) : null}
         </PageSection>
         <PageSection kicker="Governance" title="Privacy notices and consent">
           {tenant && canManage ? (

@@ -1594,6 +1594,26 @@ export async function updateSecurityPrivacyProfileAction(
   revalidateAll();
 }
 
+export async function createComplianceEvidencePackAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("audit:read");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/privacy/evidence-packs`,
+    {
+      name: required(formData, "name"),
+      windowFrom: new Date(required(formData, "windowFrom")).toISOString(),
+      windowTo: new Date(required(formData, "windowTo")).toISOString(),
+      sections: formData
+        .getAll("sections")
+        .filter((item): item is string => typeof item === "string"),
+    },
+  );
+  revalidateAll();
+}
+
 export async function acceptPrivacyNoticeAction(
   formData: FormData,
 ): Promise<void> {

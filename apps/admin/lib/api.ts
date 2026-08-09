@@ -5,6 +5,7 @@ import type {
   BillingUsageSummary,
   BlockedDomainAggregate,
   ClassSectionSummary,
+  ComplianceEvidencePackSummary,
   DeviceAlertSummary,
   DeviceDiagnosticSummary,
   DeviceHistory,
@@ -100,6 +101,7 @@ export type AdminData = {
   privacyNotices: PrivacyNoticeSummary[];
   privacyAcceptances: PrivacyAcceptanceSummary[];
   securityPrivacyOverview: SecurityPrivacyOverview | null;
+  complianceEvidencePacks: ComplianceEvidencePackSummary[];
   billingUsage: BillingUsageSummary | null;
   session: AdminPortalSession;
   connectionIssue: boolean;
@@ -149,6 +151,7 @@ export async function getAdminData(
       privacyNotices: [],
       privacyAcceptances: [],
       securityPrivacyOverview: null,
+      complianceEvidencePacks: [],
       session,
     };
   }
@@ -181,6 +184,7 @@ export async function getAdminData(
     privacyNotices,
     privacyAcceptances,
     securityPrivacyOverview,
+    complianceEvidencePacks,
   ] = await Promise.all([
     apiGet<OnboardingChecklist>(`${tenantPath}/onboarding-checklist`),
     can("device:read")
@@ -268,6 +272,11 @@ export async function getAdminData(
     can("audit:read")
       ? apiGet<SecurityPrivacyOverview>(`${tenantPath}/privacy/security-center`)
       : skipped<SecurityPrivacyOverview>(),
+    can("audit:read")
+      ? apiGet<ComplianceEvidencePackSummary[]>(
+          `${tenantPath}/privacy/evidence-packs`,
+        )
+      : skipped([]),
   ]);
 
   return {
@@ -304,6 +313,7 @@ export async function getAdminData(
       privacyNotices,
       privacyAcceptances,
       securityPrivacyOverview,
+      complianceEvidencePacks,
     ].some((result) => result.failed),
     deviceInventory: deviceInventory.data ?? null,
     devices: devices.data ?? [],
@@ -328,6 +338,7 @@ export async function getAdminData(
     privacyNotices: privacyNotices.data ?? [],
     privacyAcceptances: privacyAcceptances.data ?? [],
     securityPrivacyOverview: securityPrivacyOverview.data ?? null,
+    complianceEvidencePacks: complianceEvidencePacks.data ?? [],
     session,
   };
 }

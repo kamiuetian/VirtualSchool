@@ -55,3 +55,23 @@ export type SecurityPrivacyOverview = {
   privacyNoticeCount: number;
   auditExportPath: string;
 };
+
+export type ComplianceEvidenceSection =
+  | "AUDIT_LOGS"
+  | "ACCESS_REVIEWS"
+  | "RETENTION"
+  | "CONTROLS"
+  | "POLICIES";
+
+export type ComplianceEvidencePackSummary = {
+  id: string;
+  tenantId: string;
+  name: string;
+  windowFrom: string;
+  windowTo: string;
+  sections: ComplianceEvidenceSection[];
+  checksum: string;
+  createdBy: string | null;
+  createdAt: string;
+  downloadPath: string;
+};
