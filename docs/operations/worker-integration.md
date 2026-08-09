@@ -65,14 +65,15 @@ The provider webhook receives JSON containing `to`, `from`, `subject`, `text`, `
 
 Tenant administrators configure HTTPS endpoints, subscribed event types, a bounded attempt count, and an opaque signing-secret reference on the Integrations page. Supported Phase 2 event types are `device.offline`, `mode.changed`, `policy.failed`, `exam.started`, `support_ticket.created`, and `lost_device.reported`. Disabling an endpoint stops capture and delivery without deleting its log. Rotating a secret changes the reference and increments the signature version while preserving prior delivery evidence.
 
-The worker converts the corresponding durable audit events into a privacy-limited outbox event. Each endpoint receives a JSON envelope containing `id`, `occurredAt`, `tenantId`, `type`, `object`, and `data`. It signs the exact UTF-8 request body with HMAC-SHA256 over `<timestamp>.<body>` and sends these headers:
+The worker converts the corresponding durable audit events into a privacy-limited outbox event. Each endpoint receives a versioned JSON envelope containing `apiVersion`, stable event `id`, `delivery` attempt metadata, `occurredAt`, the backward-compatible `tenantId`, structured `tenant` and `object` metadata, `type`, and `data`. It signs the exact UTF-8 request body with HMAC-SHA256 over `<timestamp>.<body>` and sends these headers:
 
 - `X-VirtualSchool-Event-Id`: stable event UUID for idempotency.
+- `X-VirtualSchool-Delivery-Id`: stable endpoint-delivery UUID for attempt correlation.
 - `X-VirtualSchool-Timestamp`: Unix time in seconds.
 - `X-VirtualSchool-Signature`: `v1=<lowercase hex HMAC>`.
 - `X-VirtualSchool-Signature-Version`: endpoint secret version.
 
-Receivers should reject timestamps outside a five-minute tolerance, deduplicate event IDs, and compare the expected signature in constant time. Return any 2xx status to acknowledge delivery. HTTP 408, 429, 5xx, and network failures retry with exponential delay up to the configured maximum; other 4xx responses and missing runtime secrets fail permanently. Delivery status, response code, failure reason, attempt count, and audit evidence remain tenant-scoped.
+Receivers should reject timestamps outside a five-minute tolerance, deduplicate event IDs, and compare the expected signature in constant time. Return any 2xx status to acknowledge delivery. HTTP 408, 429, 5xx, and network failures retry with exponential delay up to the configured maximum; other 4xx responses and missing runtime secrets fail permanently. Delivery inspection includes attempt timing, response status, failure reason, signature timestamp, and event metadata. An administrator may requeue only a failed delivery against an enabled endpoint, must supply a reason, and creates immutable audit evidence; a successful or pending delivery cannot be replayed through this control.
 
 ## Retention Safety
 

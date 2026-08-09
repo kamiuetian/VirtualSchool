@@ -36,7 +36,12 @@ export class WebhookDeliveryService {
     let failed = 0;
     for (const delivery of deliveries) {
       if (delivery.attemptCount >= delivery.endpoint.maxAttempts) continue;
-      const result = await this.send(delivery.endpoint, delivery.event);
+      const result = await this.send(
+        delivery.endpoint,
+        delivery.event,
+        delivery.id,
+        delivery.attemptCount + 1,
+      );
       const attemptCount = delivery.attemptCount + 1;
       const terminal =
         !result.retryable || attemptCount >= delivery.endpoint.maxAttempts;
@@ -139,7 +144,12 @@ export class WebhookDeliveryService {
     return created;
   }
 
-  private async send(endpoint: any, event: any) {
+  private async send(
+    endpoint: any,
+    event: any,
+    deliveryId: string,
+    attempt: number,
+  ) {
     const secret = this.secrets()[endpoint.secretReference];
     const timestamp = String(Math.floor(Date.now() / 1000));
     if (!secret)
@@ -151,9 +161,12 @@ export class WebhookDeliveryService {
         timestamp,
       };
     const body = JSON.stringify({
+      apiVersion: "2026-08-01",
       id: event.id,
+      delivery: { id: deliveryId, attempt },
       occurredAt: event.occurredAt.toISOString(),
       tenantId: event.tenantId,
+      tenant: { id: event.tenantId },
       type: event.type,
       object: { id: event.objectId, type: event.objectType },
       data: event.payload,
@@ -171,6 +184,7 @@ export class WebhookDeliveryService {
         headers: {
           "Content-Type": "application/json",
           "X-VirtualSchool-Event-Id": event.id,
+          "X-VirtualSchool-Delivery-Id": deliveryId,
           "X-VirtualSchool-Signature": `v1=${signature}`,
           "X-VirtualSchool-Signature-Version": String(endpoint.secretVersion),
           "X-VirtualSchool-Timestamp": timestamp,

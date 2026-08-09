@@ -1708,6 +1708,19 @@ export async function setWebhookEnabledAction(formData: FormData) {
   revalidateAll();
 }
 
+export async function retryWebhookDeliveryAction(formData: FormData) {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  const endpointId = required(formData, "endpointId");
+  const deliveryId = required(formData, "deliveryId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/integrations/webhooks/${endpointId}/deliveries/${deliveryId}/retry`,
+    { reason: required(formData, "reason") },
+  );
+  revalidateAll();
+}
+
 export async function mapClassroomCourseAction(formData: FormData) {
   await requireActionPermission("tenant:update");
   const tenantId = required(formData, "tenantId");

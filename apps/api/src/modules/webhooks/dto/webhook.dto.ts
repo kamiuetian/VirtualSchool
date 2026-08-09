@@ -33,3 +33,7 @@ export class RotateWebhookSecretDto {
 export class SetWebhookEnabledDto {
   @IsBoolean() enabled!: boolean;
 }
+
+export class RetryWebhookDeliveryDto {
+  @IsString() @Length(3, 300) reason!: string;
+}

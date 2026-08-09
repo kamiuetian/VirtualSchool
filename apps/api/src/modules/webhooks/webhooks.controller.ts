@@ -13,6 +13,7 @@ import { RequirePermissions } from "../auth/decorators/require-permissions.decor
 import type { AuthenticatedRequest } from "../auth/types/authenticated-request";
 import {
   ConfigureWebhookEndpointDto,
+  RetryWebhookDeliveryDto,
   RotateWebhookSecretDto,
   SetWebhookEnabledDto,
 } from "./dto/webhook.dto";
@@ -57,6 +58,22 @@ export class WebhooksController {
       tenantId,
       endpointId,
       body.enabled,
+      req.user?.subject,
+    );
+  }
+
+  @Post(":endpointId/deliveries/:deliveryId/retry") retryDelivery(
+    @Param("tenantId") tenantId: string,
+    @Param("endpointId") endpointId: string,
+    @Param("deliveryId") deliveryId: string,
+    @Body() body: RetryWebhookDeliveryDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.service.retryDelivery(
+      tenantId,
+      endpointId,
+      deliveryId,
+      body.reason,
       req.user?.subject,
     );
   }

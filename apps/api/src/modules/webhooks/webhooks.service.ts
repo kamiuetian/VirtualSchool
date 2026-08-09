@@ -1,4 +1,9 @@
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import type {
   EducationWebhookEventType,
   WebhookEndpointSummary,
@@ -137,6 +142,56 @@ export class WebhooksService {
     });
   }
 
+  async retryDelivery(
+    tenantId: string,
+    endpointId: string,
+    deliveryId: string,
+    reason: string,
+    actorId?: string,
+  ) {
+    const retryReason = reason.trim();
+    if (retryReason.length < 3)
+      throw new BadRequestException("A retry reason is required");
+    const endpoint = await this.requireEndpoint(tenantId, endpointId);
+    if (!endpoint.enabled)
+      throw new BadRequestException(
+        "Enable the webhook endpoint before retrying delivery",
+      );
+    const delivery = await this.prisma.webhookDelivery.findFirst({
+      where: { id: deliveryId, endpointId, tenantId },
+    });
+    if (!delivery) throw new NotFoundException("Webhook delivery not found");
+    if (delivery.status !== "FAILED")
+      throw new BadRequestException(
+        "Only failed webhook deliveries can be retried",
+      );
+    return this.prisma.$transaction(async (tx) => {
+      const saved = await tx.webhookDelivery.update({
+        data: {
+          status: "PENDING",
+          attemptCount: 0,
+          nextAttemptAt: new Date(),
+          failureReason: null,
+          responseStatus: null,
+        },
+        where: { id: deliveryId },
+      });
+      await tx.auditEvent.create({
+        data: {
+          tenantId,
+          actorId,
+          action: "webhook.delivery.retry",
+          object: "WebhookDelivery",
+          objectId: deliveryId,
+          outcome: "SUCCESS",
+          reason: retryReason,
+          newValue: { endpointId, eventId: saved.eventId },
+        },
+      });
+      return saved;
+    });
+  }
+
   private requireHttps(value: string) {
     const url = new URL(value);
     if (url.protocol !== "https:")
@@ -180,6 +235,9 @@ export class WebhooksService {
         failureReason: delivery.failureReason,
         createdAt: delivery.createdAt.toISOString(),
         deliveredAt: delivery.deliveredAt?.toISOString() ?? null,
+        lastAttemptAt: delivery.lastAttemptAt?.toISOString() ?? null,
+        nextAttemptAt: delivery.nextAttemptAt.toISOString(),
+        signatureTimestamp: delivery.signatureTimestamp,
       })),
     };
   }

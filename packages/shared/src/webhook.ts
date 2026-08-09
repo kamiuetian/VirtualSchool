@@ -20,6 +20,9 @@ export type WebhookDeliverySummary = {
   failureReason: string | null;
   createdAt: string;
   deliveredAt: string | null;
+  lastAttemptAt: string | null;
+  nextAttemptAt: string;
+  signatureTimestamp: string | null;
 };
 
 export type WebhookEndpointSummary = {

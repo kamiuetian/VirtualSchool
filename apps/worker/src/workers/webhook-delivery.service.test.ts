@@ -85,8 +85,18 @@ describe("WebhookDeliveryService", () => {
       .update(`${headers["X-VirtualSchool-Timestamp"]}.${init.body}`)
       .digest("hex");
     expect(headers["X-VirtualSchool-Event-Id"]).toBe("event-1");
+    expect(headers["X-VirtualSchool-Delivery-Id"]).toBe("delivery-1");
     expect(headers["X-VirtualSchool-Signature"]).toBe(`v1=${expected}`);
     expect(headers["X-VirtualSchool-Signature-Version"]).toBe("2");
+    expect(JSON.parse(String(init.body))).toMatchObject({
+      apiVersion: "2026-08-01",
+      id: "event-1",
+      delivery: { id: "delivery-1", attempt: 1 },
+      tenantId: "tenant-1",
+      tenant: { id: "tenant-1" },
+      object: { id: "device-1", type: "Device" },
+      type: "lost_device.reported",
+    });
     expect(update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ status: "DELIVERED", attemptCount: 1 }),

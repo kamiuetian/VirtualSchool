@@ -23,6 +23,7 @@ import {
   retrySisAction,
   configureWebhookAction,
   rotateWebhookSecretAction,
+  retryWebhookDeliveryAction,
   setWebhookEnabledAction,
   authorizeGoogleWorkspaceAction,
   mapGoogleWorkspaceOuAction,
@@ -592,13 +593,52 @@ export default async function IntegrationsPage() {
                           </button>
                         </form>
                         {endpoint.deliveries.slice(0, 5).map((delivery) => (
-                          <small key={delivery.id}>
-                            {delivery.eventType} · {delivery.status} ·{" "}
-                            {delivery.attemptCount} attempt(s)
-                            {delivery.failureReason
-                              ? ` · ${delivery.failureReason}`
-                              : ""}
-                          </small>
+                          <div key={delivery.id}>
+                            <small>
+                              {delivery.eventType} · {delivery.status} ·{" "}
+                              {delivery.attemptCount} attempt(s) · event{" "}
+                              {delivery.eventId}
+                              {delivery.responseStatus
+                                ? ` · HTTP ${delivery.responseStatus}`
+                                : ""}
+                              {delivery.failureReason
+                                ? ` · ${delivery.failureReason}`
+                                : ""}
+                            </small>
+                            {delivery.status === "FAILED" &&
+                            endpoint.enabled ? (
+                              <form
+                                action={retryWebhookDeliveryAction}
+                                className="form-row"
+                              >
+                                <input
+                                  name="tenantId"
+                                  type="hidden"
+                                  value={tenant.id}
+                                />
+                                <input
+                                  name="endpointId"
+                                  type="hidden"
+                                  value={endpoint.id}
+                                />
+                                <input
+                                  name="deliveryId"
+                                  type="hidden"
+                                  value={delivery.id}
+                                />
+                                <input
+                                  aria-label={`Retry reason for ${delivery.eventId}`}
+                                  name="reason"
+                                  minLength={3}
+                                  placeholder="Reason for redelivery"
+                                  required
+                                />
+                                <button className="small-button">
+                                  Retry failed delivery
+                                </button>
+                              </form>
+                            ) : null}
+                          </div>
                         ))}
                       </div>
                     ))}
