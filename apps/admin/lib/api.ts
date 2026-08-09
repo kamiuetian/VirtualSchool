@@ -23,6 +23,7 @@ import type {
   PrivacyNoticeSummary,
   SecurityPrivacyOverview,
   SecurityIncidentSummary,
+  ServiceStatusOverview,
   RetentionSettingsSummary,
   RemoteCommandSummary,
   RosterImportSummary,
@@ -106,6 +107,7 @@ export type AdminData = {
   complianceEvidencePacks: ComplianceEvidencePackSummary[];
   dataSubjectRequests: DataSubjectRequestSummary[];
   securityIncidents: SecurityIncidentSummary[];
+  serviceStatus: ServiceStatusOverview | null;
   billingUsage: BillingUsageSummary | null;
   session: AdminPortalSession;
   connectionIssue: boolean;
@@ -158,6 +160,7 @@ export async function getAdminData(
       complianceEvidencePacks: [],
       dataSubjectRequests: [],
       securityIncidents: [],
+      serviceStatus: null,
       session,
     };
   }
@@ -193,6 +196,7 @@ export async function getAdminData(
     complianceEvidencePacks,
     dataSubjectRequests,
     securityIncidents,
+    serviceStatus,
   ] = await Promise.all([
     apiGet<OnboardingChecklist>(`${tenantPath}/onboarding-checklist`),
     can("device:read")
@@ -295,6 +299,9 @@ export async function getAdminData(
           `${tenantPath}/privacy/security-incidents`,
         )
       : skipped([]),
+    can("audit:read")
+      ? apiGet<ServiceStatusOverview>(`${tenantPath}/privacy/service-status`)
+      : skipped<ServiceStatusOverview>(),
   ]);
 
   return {
@@ -334,6 +341,7 @@ export async function getAdminData(
       complianceEvidencePacks,
       dataSubjectRequests,
       securityIncidents,
+      serviceStatus,
     ].some((result) => result.failed),
     deviceInventory: deviceInventory.data ?? null,
     devices: devices.data ?? [],
@@ -361,6 +369,7 @@ export async function getAdminData(
     complianceEvidencePacks: complianceEvidencePacks.data ?? [],
     dataSubjectRequests: dataSubjectRequests.data ?? [],
     securityIncidents: securityIncidents.data ?? [],
+    serviceStatus: serviceStatus.data ?? null,
     session,
   };
 }

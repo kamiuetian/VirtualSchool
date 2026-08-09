@@ -5,11 +5,13 @@ import {
   IsDateString,
   IsEmail,
   IsIn,
+  IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
   Length,
   MaxLength,
+  Min,
   ValidateNested,
 } from "class-validator";
 import { Type } from "class-transformer";
@@ -139,4 +141,50 @@ export class AddSecurityIncidentUpdateDto {
 
 export class CloseSecurityIncidentDto {
   @IsString() @Length(20, 2000) closureSummary!: string;
+}
+
+export class PublishServiceIncidentDto {
+  @IsString() @Length(5, 160) title!: string;
+  @IsIn(["INVESTIGATING", "IDENTIFIED", "MONITORING", "RESOLVED"])
+  status!: string;
+  @IsIn(["MINOR", "MAJOR", "CRITICAL"]) severity!: string;
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  @Length(2, 80, { each: true })
+  affectedModules!: string[];
+  @IsString() @Length(20, 2000) summary!: string;
+  @IsDateString() startedAt!: string;
+  @IsOptional() @IsDateString() resolvedAt?: string;
+}
+
+export class PublishMaintenanceWindowDto {
+  @IsString() @Length(5, 160) title!: string;
+  @IsIn(["SCHEDULED", "IN_PROGRESS", "COMPLETED", "CANCELED"])
+  status!: string;
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  @Length(2, 80, { each: true })
+  affectedModules!: string[];
+  @IsString() @Length(20, 2000) summary!: string;
+  @IsDateString() startsAt!: string;
+  @IsDateString() endsAt!: string;
+}
+
+export class PublishDisasterRecoveryEvidenceDto {
+  @IsString() @Length(5, 160) title!: string;
+  @IsInt() @Min(0) rpoMinutes!: number;
+  @IsInt() @Min(0) rtoMinutes!: number;
+  @IsDateString() exerciseDate!: string;
+  @IsIn(["PASSED", "PASSED_WITH_ACTIONS", "FAILED"]) outcome!: string;
+  @IsString() @Length(8, 2048) evidenceUrl!: string;
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  @Length(1, 80, { each: true })
+  eligiblePlans!: string[];
 }

@@ -26,6 +26,9 @@ import {
   CreateSecurityIncidentDto,
   AddSecurityIncidentUpdateDto,
   CloseSecurityIncidentDto,
+  PublishServiceIncidentDto,
+  PublishMaintenanceWindowDto,
+  PublishDisasterRecoveryEvidenceDto,
 } from "./dto/privacy.dto";
 import { PrivacyService } from "./privacy.service";
 
@@ -35,6 +38,46 @@ export class PrivacyController {
   constructor(
     @Inject(PrivacyService) private readonly service: PrivacyService,
   ) {}
+  @Get("service-status")
+  @RequirePermissions("audit:read")
+  serviceStatus(@Param("tenantId") tenantId: string) {
+    return this.service.serviceStatus(tenantId);
+  }
+  @Post("service-status/incidents")
+  @RequirePermissions("tenant:update")
+  publishServiceIncident(
+    @Param("tenantId") tenantId: string,
+    @Body() body: PublishServiceIncidentDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.service.publishServiceIncident(
+      tenantId,
+      body,
+      req.user?.subject,
+    );
+  }
+  @Post("service-status/maintenance")
+  @RequirePermissions("tenant:update")
+  publishMaintenance(
+    @Param("tenantId") tenantId: string,
+    @Body() body: PublishMaintenanceWindowDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.service.publishMaintenance(tenantId, body, req.user?.subject);
+  }
+  @Post("service-status/disaster-recovery")
+  @RequirePermissions("tenant:update")
+  publishDisasterRecovery(
+    @Param("tenantId") tenantId: string,
+    @Body() body: PublishDisasterRecoveryEvidenceDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.service.publishDisasterRecovery(
+      tenantId,
+      body,
+      req.user?.subject,
+    );
+  }
   @Get("security-incidents")
   @RequirePermissions("audit:read")
   listSecurityIncidents(@Param("tenantId") tenantId: string) {

@@ -392,10 +392,28 @@ const routes = [
       ]),
   ],
   ["GET", `/tenants/${tenantId}/privacy/acceptances`, () => json([])],
+  ["GET", `/tenants/${tenantId}/privacy/security-incidents`, () => json([])],
   [
     "GET",
-    `/tenants/${tenantId}/privacy/security-incidents`,
-    () => json([]),
+    `/tenants/${tenantId}/privacy/service-status`,
+    () =>
+      json({
+        tenantId,
+        currentStatus: "OPERATIONAL",
+        incidents: [],
+        maintenance: [],
+        disasterRecovery: [
+          {
+            id: "dr-1",
+            title: "Annual recovery exercise",
+            rpoMinutes: 60,
+            rtoMinutes: 240,
+            exerciseDate: "2026-07-01T00:00:00.000Z",
+            outcome: "PASSED",
+            evidenceUrl: "https://evidence.example.edu/dr-2026",
+          },
+        ],
+      }),
   ],
   [
     "GET",

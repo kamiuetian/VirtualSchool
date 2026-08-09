@@ -2,6 +2,130 @@ import { describe, expect, it, vi } from "vitest";
 import { PrivacyService } from "./privacy.service";
 
 describe("PrivacyService", () => {
+  it("returns tenant status history and only DR evidence eligible for its plan", async () => {
+    const drFind = vi.fn(async () => [
+      {
+        id: "dr-1",
+        title: "Annual restore",
+        rpoMinutes: 60,
+        rtoMinutes: 240,
+        exerciseDate: new Date("2026-07-01T00:00:00Z"),
+        outcome: "PASSED",
+        evidenceUrl: "https://evidence.test/dr",
+        eligiblePlans: ["enterprise"],
+        tenantId: "tenant-1",
+        publishedBy: null,
+        createdAt: new Date(),
+      },
+    ]);
+    const service = new PrivacyService({
+      tenant: {
+        findUnique: async () => ({ id: "tenant-1", planKey: "enterprise" }),
+      },
+      serviceStatusIncident: {
+        findMany: async () => [
+          {
+            id: "incident-1",
+            title: "API latency",
+            status: "INVESTIGATING",
+            severity: "MAJOR",
+            affectedModules: ["API"],
+            summary: "Elevated request latency is under investigation.",
+            startedAt: new Date("2026-08-09T10:00:00Z"),
+            resolvedAt: null,
+          },
+        ],
+      },
+      serviceMaintenanceWindow: { findMany: async () => [] },
+      disasterRecoveryEvidence: { findMany: drFind },
+    } as never);
+    await expect(service.serviceStatus("tenant-1")).resolves.toMatchObject({
+      currentStatus: "DEGRADED",
+      disasterRecovery: [{ id: "dr-1", rpoMinutes: 60 }],
+    });
+    expect(drFind).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { tenantId: "tenant-1", eligiblePlans: { has: "enterprise" } },
+      }),
+    );
+  });
+
+  it("validates status timelines and audits publications", async () => {
+    const audit = vi.fn();
+    const createIncident = vi.fn(async ({ data }) => ({
+      id: "status-1",
+      ...data,
+    }));
+    const service = new PrivacyService({
+      $transaction: async (callback: any) =>
+        callback({
+          tenant: { findUnique: async () => ({ id: "tenant-1" }) },
+          serviceStatusIncident: { create: createIncident },
+          auditEvent: { create: audit },
+        }),
+    } as never);
+    await expect(
+      service.publishServiceIncident(
+        "tenant-1",
+        {
+          title: "Resolved API interruption",
+          status: "RESOLVED",
+          severity: "MINOR",
+          affectedModules: ["API"],
+          summary: "The API interruption has been fully resolved.",
+          startedAt: "2026-08-09T10:00:00Z",
+        },
+        "admin-1",
+      ),
+    ).rejects.toThrow("require a resolution time");
+    await service.publishServiceIncident(
+      "tenant-1",
+      {
+        title: "API latency investigation",
+        status: "INVESTIGATING",
+        severity: "MAJOR",
+        affectedModules: ["API"],
+        summary: "Elevated request latency is under investigation.",
+        startedAt: "2026-08-09T10:00:00Z",
+      },
+      "admin-1",
+    );
+    expect(audit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          tenantId: "tenant-1",
+          action: "service_status.incident.publish",
+          outcome: "PUBLISHED",
+        }),
+      }),
+    );
+  });
+
+  it("rejects invalid maintenance windows and non-HTTPS DR evidence", async () => {
+    const service = new PrivacyService({} as never);
+    await expect(
+      service.publishMaintenance("tenant-1", {
+        title: "Database maintenance",
+        status: "SCHEDULED",
+        affectedModules: ["API"],
+        summary: "Planned database maintenance and verification.",
+        startsAt: "2026-08-10T10:00:00Z",
+        endsAt: "2026-08-10T09:00:00Z",
+      }),
+    ).rejects.toThrow("must follow");
+    await expect(
+      service.publishDisasterRecovery("tenant-1", {
+        title: "Annual restore exercise",
+        rpoMinutes: 60,
+        rtoMinutes: 240,
+        exerciseDate: "2026-07-01",
+        outcome: "PASSED",
+        evidenceUrl: "http://evidence.test/dr",
+        eligiblePlans: ["enterprise"],
+      }),
+    ).rejects.toThrow("HTTPS");
+  });
+
   it("builds the security center only from the requested tenant", async () => {
     const userCount = vi.fn(async ({ where }: any) =>
       where.status === "SUSPENDED" ? 1 : 3,

@@ -134,3 +134,36 @@ export type SecurityIncidentSummary = {
   timeline: SecurityIncidentUpdateSummary[];
   exportPath: string;
 };
+
+export type ServiceStatusOverview = {
+  tenantId: string;
+  currentStatus: "OPERATIONAL" | "DEGRADED" | "MAJOR_OUTAGE";
+  incidents: Array<{
+    id: string;
+    title: string;
+    status: string;
+    severity: string;
+    affectedModules: string[];
+    summary: string;
+    startedAt: string;
+    resolvedAt: string | null;
+  }>;
+  maintenance: Array<{
+    id: string;
+    title: string;
+    status: string;
+    affectedModules: string[];
+    summary: string;
+    startsAt: string;
+    endsAt: string;
+  }>;
+  disasterRecovery: Array<{
+    id: string;
+    title: string;
+    rpoMinutes: number;
+    rtoMinutes: number;
+    exerciseDate: string;
+    outcome: string;
+    evidenceUrl: string;
+  }>;
+};

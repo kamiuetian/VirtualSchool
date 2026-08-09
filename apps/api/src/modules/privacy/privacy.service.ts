@@ -16,6 +16,7 @@ import type {
   SecurityPrivacyOverview,
   SecurityPrivacyProfileSummary,
   SecurityIncidentSummary,
+  ServiceStatusOverview,
 } from "@virtual-school/shared";
 import type { Prisma } from "../../generated/prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
@@ -29,11 +30,165 @@ import type {
   UpdateSecurityPrivacyProfileDto,
   CreateSecurityIncidentDto,
   AddSecurityIncidentUpdateDto,
+  PublishServiceIncidentDto,
+  PublishMaintenanceWindowDto,
+  PublishDisasterRecoveryEvidenceDto,
 } from "./dto/privacy.dto";
 
 @Injectable()
 export class PrivacyService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+
+  async serviceStatus(tenantId: string): Promise<ServiceStatusOverview> {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { id: true, planKey: true },
+    });
+    if (!tenant) throw new NotFoundException("Tenant was not found");
+    const [incidents, maintenance, disasterRecovery] = await Promise.all([
+      this.prisma.serviceStatusIncident.findMany({
+        where: { tenantId },
+        orderBy: { startedAt: "desc" },
+      }),
+      this.prisma.serviceMaintenanceWindow.findMany({
+        where: { tenantId },
+        orderBy: { startsAt: "desc" },
+      }),
+      this.prisma.disasterRecoveryEvidence.findMany({
+        where: { tenantId, eligiblePlans: { has: tenant.planKey } },
+        orderBy: { exerciseDate: "desc" },
+      }),
+    ]);
+    const active = incidents.filter((item) => item.status !== "RESOLVED");
+    const currentStatus = active.some((item) => item.severity === "CRITICAL")
+      ? "MAJOR_OUTAGE"
+      : active.length
+        ? "DEGRADED"
+        : "OPERATIONAL";
+    return {
+      tenantId,
+      currentStatus,
+      incidents: incidents.map((item) => ({
+        ...item,
+        startedAt: item.startedAt.toISOString(),
+        resolvedAt: item.resolvedAt?.toISOString() ?? null,
+      })),
+      maintenance: maintenance.map((item) => ({
+        ...item,
+        startsAt: item.startsAt.toISOString(),
+        endsAt: item.endsAt.toISOString(),
+      })),
+      disasterRecovery: disasterRecovery.map((item) => ({
+        ...item,
+        exerciseDate: item.exerciseDate.toISOString(),
+      })),
+    };
+  }
+
+  async publishServiceIncident(
+    tenantId: string,
+    input: PublishServiceIncidentDto,
+    actorId?: string,
+  ) {
+    const startedAt = new Date(input.startedAt);
+    const resolvedAt = input.resolvedAt ? new Date(input.resolvedAt) : null;
+    if (input.status === "RESOLVED" && !resolvedAt)
+      throw new BadRequestException(
+        "Resolved incidents require a resolution time",
+      );
+    if (resolvedAt && resolvedAt < startedAt)
+      throw new BadRequestException(
+        "Resolution time must follow the incident start",
+      );
+    return this.auditedServicePublication(
+      tenantId,
+      actorId,
+      "service_status.incident.publish",
+      "ServiceStatusIncident",
+      (tx) =>
+        tx.serviceStatusIncident.create({
+          data: {
+            ...input,
+            startedAt,
+            resolvedAt,
+            tenantId,
+            publishedBy: actorId,
+          },
+        }),
+    );
+  }
+
+  async publishMaintenance(
+    tenantId: string,
+    input: PublishMaintenanceWindowDto,
+    actorId?: string,
+  ) {
+    const startsAt = new Date(input.startsAt);
+    const endsAt = new Date(input.endsAt);
+    if (endsAt <= startsAt)
+      throw new BadRequestException("Maintenance end must follow its start");
+    return this.auditedServicePublication(
+      tenantId,
+      actorId,
+      "service_status.maintenance.publish",
+      "ServiceMaintenanceWindow",
+      (tx) =>
+        tx.serviceMaintenanceWindow.create({
+          data: { ...input, startsAt, endsAt, tenantId, publishedBy: actorId },
+        }),
+    );
+  }
+
+  async publishDisasterRecovery(
+    tenantId: string,
+    input: PublishDisasterRecoveryEvidenceDto,
+    actorId?: string,
+  ) {
+    this.validateEvidenceReferences([input.evidenceUrl]);
+    return this.auditedServicePublication(
+      tenantId,
+      actorId,
+      "service_status.dr.publish",
+      "DisasterRecoveryEvidence",
+      (tx) =>
+        tx.disasterRecoveryEvidence.create({
+          data: {
+            ...input,
+            exerciseDate: new Date(input.exerciseDate),
+            tenantId,
+            publishedBy: actorId,
+          },
+        }),
+    );
+  }
+
+  private async auditedServicePublication(
+    tenantId: string,
+    actorId: string | undefined,
+    action: string,
+    object: string,
+    create: (tx: any) => Promise<any>,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const tenant = await tx.tenant.findUnique({
+        where: { id: tenantId },
+        select: { id: true },
+      });
+      if (!tenant) throw new NotFoundException("Tenant was not found");
+      const saved = await create(tx);
+      await tx.auditEvent.create({
+        data: {
+          tenantId,
+          actorId,
+          action,
+          object,
+          objectId: saved.id,
+          outcome: "PUBLISHED",
+        },
+      });
+      return saved;
+    });
+  }
 
   async listSecurityIncidents(
     tenantId: string,

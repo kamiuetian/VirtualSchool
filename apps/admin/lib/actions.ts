@@ -1659,6 +1659,69 @@ export async function createSecurityIncidentAction(
   revalidateAll();
 }
 
+export async function publishServiceIncidentAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  const resolvedAt = text(formData, "resolvedAt");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/privacy/service-status/incidents`,
+    {
+      title: required(formData, "title"),
+      status: required(formData, "status"),
+      severity: required(formData, "severity"),
+      affectedModules: lines(formData, "affectedModules"),
+      summary: required(formData, "summary"),
+      startedAt: new Date(required(formData, "startedAt")).toISOString(),
+      ...(resolvedAt ? { resolvedAt: new Date(resolvedAt).toISOString() } : {}),
+    },
+  );
+  revalidateAll();
+}
+
+export async function publishMaintenanceAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/privacy/service-status/maintenance`,
+    {
+      title: required(formData, "title"),
+      status: required(formData, "status"),
+      affectedModules: lines(formData, "affectedModules"),
+      summary: required(formData, "summary"),
+      startsAt: new Date(required(formData, "startsAt")).toISOString(),
+      endsAt: new Date(required(formData, "endsAt")).toISOString(),
+    },
+  );
+  revalidateAll();
+}
+
+export async function publishDisasterRecoveryAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/privacy/service-status/disaster-recovery`,
+    {
+      title: required(formData, "title"),
+      rpoMinutes: Number(required(formData, "rpoMinutes")),
+      rtoMinutes: Number(required(formData, "rtoMinutes")),
+      exerciseDate: new Date(required(formData, "exerciseDate")).toISOString(),
+      outcome: required(formData, "outcome"),
+      evidenceUrl: required(formData, "evidenceUrl"),
+      eligiblePlans: lines(formData, "eligiblePlans"),
+    },
+  );
+  revalidateAll();
+}
+
 export async function addSecurityIncidentUpdateAction(
   formData: FormData,
 ): Promise<void> {
@@ -2302,6 +2365,13 @@ function normalizeCsvHeader(header: string): string {
 function csvValues(formData: FormData, key: string): string[] {
   return text(formData, key)
     .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function lines(formData: FormData, key: string): string[] {
+  return text(formData, key)
+    .split(/\r?\n/)
     .map((value) => value.trim())
     .filter(Boolean);
 }

@@ -234,6 +234,15 @@ test.describe("admin portal regression", () => {
       page.getByRole("heading", { name: "Security and privacy center" }),
     ).toBeVisible();
     await expect(
+      page.getByRole("heading", {
+        name: "Service status and recovery evidence",
+      }),
+    ).toBeVisible();
+    await expect(page.getByText("Annual recovery exercise")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Publish DR evidence" }),
+    ).toBeVisible();
+    await expect(
       page.getByText("No covert monitoring of children"),
     ).toBeVisible();
     await expect(

@@ -14,6 +14,9 @@ import {
   createSecurityIncidentAction,
   addSecurityIncidentUpdateAction,
   closeSecurityIncidentAction,
+  publishServiceIncidentAction,
+  publishMaintenanceAction,
+  publishDisasterRecoveryAction,
   decideDataSubjectRequestAction,
   publishPrivacyNoticeAction,
   revokePrivacyAcceptanceAction,
@@ -194,6 +197,223 @@ export default async function PrivacyPage() {
             <EmptyState
               title="Security center unavailable"
               body="The consolidated governance view requires privacy-officer access."
+            />
+          )}
+        </PageSection>
+        <PageSection
+          kicker="Customer assurance"
+          title="Service status and recovery evidence"
+        >
+          {tenant && data.serviceStatus ? (
+            <>
+              <div className="metric-grid">
+                <div className="metric-card">
+                  <span>Current service</span>
+                  <strong>
+                    {data.serviceStatus.currentStatus.replaceAll("_", " ")}
+                  </strong>
+                  <small>
+                    {
+                      data.serviceStatus.incidents.filter(
+                        (item) => item.status !== "RESOLVED",
+                      ).length
+                    }{" "}
+                    active incidents
+                  </small>
+                </div>
+                <div className="metric-card">
+                  <span>Maintenance</span>
+                  <strong>{data.serviceStatus.maintenance.length}</strong>
+                  <small>published current and historical windows</small>
+                </div>
+                <div className="metric-card">
+                  <span>DR evidence</span>
+                  <strong>{data.serviceStatus.disasterRecovery.length}</strong>
+                  <small>visible for {tenant.planKey}</small>
+                </div>
+              </div>
+              <div className="form-grid">
+                <ActionPanel title="Customer-visible history">
+                  <div className="list-panel">
+                    {[
+                      ...data.serviceStatus.incidents.map((item) => ({
+                        id: item.id,
+                        title: item.title,
+                        detail: `${item.status} · ${item.severity} · ${item.affectedModules.join(", ")}`,
+                        summary: item.summary,
+                      })),
+                      ...data.serviceStatus.maintenance.map((item) => ({
+                        id: item.id,
+                        title: item.title,
+                        detail: `${item.status} · ${new Date(item.startsAt).toLocaleString()} – ${new Date(item.endsAt).toLocaleString()}`,
+                        summary: item.summary,
+                      })),
+                    ].map((item) => (
+                      <div className="list-row" key={item.id}>
+                        <div>
+                          <strong>{item.title}</strong>
+                          <span>{item.detail}</span>
+                          <small>{item.summary}</small>
+                        </div>
+                      </div>
+                    ))}
+                    {!data.serviceStatus.incidents.length &&
+                    !data.serviceStatus.maintenance.length ? (
+                      <EmptyState
+                        title="All systems operational"
+                        body="No service incidents or maintenance windows have been published."
+                      />
+                    ) : null}
+                    {data.serviceStatus.disasterRecovery.map((item) => (
+                      <div className="list-row" key={item.id}>
+                        <div>
+                          <strong>{item.title}</strong>
+                          <span>
+                            RPO {item.rpoMinutes} min · RTO {item.rtoMinutes}{" "}
+                            min · {item.outcome}
+                          </span>
+                          <small>
+                            Exercise{" "}
+                            {new Date(item.exerciseDate).toLocaleDateString()}
+                          </small>
+                        </div>
+                        <a
+                          className="small-button primary"
+                          href={item.evidenceUrl}
+                        >
+                          Evidence
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                </ActionPanel>
+                {canManage ? (
+                  <ActionPanel title="Publish service assurance evidence">
+                    <form
+                      action={publishServiceIncidentAction}
+                      className="stacked-form"
+                    >
+                      <input name="tenantId" type="hidden" value={tenant.id} />
+                      <Field label="Incident title">
+                        <input name="title" required minLength={5} />
+                      </Field>
+                      <div className="form-row">
+                        <Field label="Status">
+                          <select name="status">
+                            <option>INVESTIGATING</option>
+                            <option>IDENTIFIED</option>
+                            <option>MONITORING</option>
+                            <option>RESOLVED</option>
+                          </select>
+                        </Field>
+                        <Field label="Severity">
+                          <select name="severity">
+                            <option>MINOR</option>
+                            <option>MAJOR</option>
+                            <option>CRITICAL</option>
+                          </select>
+                        </Field>
+                      </div>
+                      <Field label="Affected modules (one per line)">
+                        <textarea name="affectedModules" required />
+                      </Field>
+                      <Field label="Customer summary">
+                        <textarea name="summary" required minLength={20} />
+                      </Field>
+                      <Field label="Started">
+                        <input
+                          name="startedAt"
+                          type="datetime-local"
+                          required
+                        />
+                      </Field>
+                      <SubmitButton>Publish incident</SubmitButton>
+                    </form>
+                    <form
+                      action={publishMaintenanceAction}
+                      className="stacked-form"
+                    >
+                      <input name="tenantId" type="hidden" value={tenant.id} />
+                      <Field label="Maintenance title">
+                        <input name="title" required minLength={5} />
+                      </Field>
+                      <input name="status" type="hidden" value="SCHEDULED" />
+                      <Field label="Affected modules (one per line)">
+                        <textarea name="affectedModules" required />
+                      </Field>
+                      <Field label="Customer summary">
+                        <textarea name="summary" required minLength={20} />
+                      </Field>
+                      <div className="form-row">
+                        <Field label="Starts">
+                          <input
+                            name="startsAt"
+                            type="datetime-local"
+                            required
+                          />
+                        </Field>
+                        <Field label="Ends">
+                          <input name="endsAt" type="datetime-local" required />
+                        </Field>
+                      </div>
+                      <SubmitButton>Schedule maintenance</SubmitButton>
+                    </form>
+                    <form
+                      action={publishDisasterRecoveryAction}
+                      className="stacked-form"
+                    >
+                      <input name="tenantId" type="hidden" value={tenant.id} />
+                      <Field label="DR exercise title">
+                        <input name="title" required minLength={5} />
+                      </Field>
+                      <div className="form-row">
+                        <Field label="RPO minutes">
+                          <input
+                            name="rpoMinutes"
+                            type="number"
+                            min="0"
+                            required
+                          />
+                        </Field>
+                        <Field label="RTO minutes">
+                          <input
+                            name="rtoMinutes"
+                            type="number"
+                            min="0"
+                            required
+                          />
+                        </Field>
+                      </div>
+                      <Field label="Exercise date">
+                        <input name="exerciseDate" type="date" required />
+                      </Field>
+                      <Field label="Outcome">
+                        <select name="outcome">
+                          <option>PASSED</option>
+                          <option>PASSED_WITH_ACTIONS</option>
+                          <option>FAILED</option>
+                        </select>
+                      </Field>
+                      <Field label="HTTPS evidence URL">
+                        <input name="evidenceUrl" type="url" required />
+                      </Field>
+                      <Field label="Eligible plan keys (one per line)">
+                        <textarea
+                          name="eligiblePlans"
+                          defaultValue={tenant.planKey}
+                          required
+                        />
+                      </Field>
+                      <SubmitButton>Publish DR evidence</SubmitButton>
+                    </form>
+                  </ActionPanel>
+                ) : null}
+              </div>
+            </>
+          ) : (
+            <EmptyState
+              title="Service status unavailable"
+              body="Customer assurance evidence requires audit access."
             />
           )}
         </PageSection>

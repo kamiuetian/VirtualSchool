@@ -122,6 +122,9 @@ model Tenant {
   dataSubjectRequests             DataSubjectRequest[]
   dataLegalHolds                  DataLegalHold[]
   securityIncidents               SecurityIncident[]
+  serviceIncidents                ServiceStatusIncident[]
+  maintenanceWindows              ServiceMaintenanceWindow[]
+  disasterRecoveryEvidence        DisasterRecoveryEvidence[]
   blockedDomainEvents             BlockedDomainEvent[]
   assignmentHistory               DeviceAssignment[]
   lifecycleEvents                 DeviceLifecycleEvent[]
@@ -1998,6 +2001,58 @@ model SecurityIncidentUpdate {
   incident   SecurityIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
 
   @@index([incidentId, createdAt])
+}
+
+model ServiceStatusIncident {
+  id              String    @id @default(uuid())
+  tenantId        String
+  title           String
+  status          String
+  severity        String
+  affectedModules String[]
+  summary         String
+  startedAt       DateTime
+  resolvedAt      DateTime?
+  publishedBy     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, status, startedAt])
+}
+
+model ServiceMaintenanceWindow {
+  id              String   @id @default(uuid())
+  tenantId        String
+  title           String
+  status          String
+  affectedModules String[]
+  summary         String
+  startsAt        DateTime
+  endsAt          DateTime
+  publishedBy     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, startsAt, endsAt])
+}
+
+model DisasterRecoveryEvidence {
+  id            String   @id @default(uuid())
+  tenantId      String
+  title         String
+  rpoMinutes    Int
+  rtoMinutes    Int
+  exerciseDate  DateTime
+  outcome       String
+  evidenceUrl   String
+  eligiblePlans String[]
+  publishedBy   String?
+  createdAt     DateTime @default(now())
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, exerciseDate])
 }
 
 model MachineCredential {
