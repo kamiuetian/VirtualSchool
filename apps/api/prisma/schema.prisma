@@ -144,6 +144,7 @@ model Tenant {
   sisSyncRuns                     SisSyncRun[]
   webhookEndpoints                WebhookEndpoint[]
   webhookEvents                   WebhookEvent[]
+  machineCredentials              MachineCredential[]
   byodStudySessions               ByodStudySession[]
   byodParticipants                ByodSessionParticipant[]
   contentLibraryItems             ContentLibraryItem[]
@@ -1758,6 +1759,42 @@ model AuditEvent {
 
   @@index([tenantId, createdAt])
   @@index([action, createdAt])
+}
+
+model MachineCredential {
+  id                 String               @id @default(uuid())
+  tenantId           String
+  name               String
+  kind               String
+  clientId           String               @unique
+  secretHash         String
+  previousSecretHash String?
+  previousValidUntil DateTime?
+  scopes             String[]
+  rateLimitPerMinute Int                  @default(120)
+  status             String               @default("ACTIVE")
+  createdBy          String?
+  lastUsedAt         DateTime?
+  rotatedAt          DateTime?
+  revokedAt          DateTime?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  tenant             Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  accessTokens       MachineAccessToken[]
+
+  @@index([tenantId, status])
+}
+
+model MachineAccessToken {
+  id           String            @id @default(uuid())
+  credentialId String
+  tokenHash    String            @unique
+  expiresAt    DateTime
+  lastUsedAt   DateTime?
+  createdAt    DateTime          @default(now())
+  credential   MachineCredential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+
+  @@index([credentialId, expiresAt])
 }
 
 model HighRiskApprovalConfig {

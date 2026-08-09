@@ -36,6 +36,7 @@ import { AppleMdmModule } from "./apple-mdm/apple-mdm.module";
 import { IntuneModule } from "./intune/intune.module";
 import { EnterpriseIdentityModule } from "./enterprise-identity/enterprise-identity.module";
 import { AccessGovernanceModule } from "./access-governance/access-governance.module";
+import { PartnerApiModule } from "./partner-api/partner-api.module";
 
 @Module({
   imports: [
@@ -76,6 +77,7 @@ import { AccessGovernanceModule } from "./access-governance/access-governance.mo
     IntuneModule,
     EnterpriseIdentityModule,
     AccessGovernanceModule,
+    PartnerApiModule,
   ],
 })
 export class AppModule {}

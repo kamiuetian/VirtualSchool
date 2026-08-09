@@ -58,9 +58,12 @@ async function bootstrap(): Promise<void> {
   if (apiDocsEnabled()) {
     const config = new DocumentBuilder()
       .setTitle("Virtual School MDM API")
-      .setDescription("Phase 1 Android Managed Learning Device Platform API")
-      .setVersion("0.1.0")
+      .setDescription(
+        "Virtual School tenant and partner API. Machine clients may use OAuth client credentials or X-API-Key.",
+      )
+      .setVersion("1.0.0")
       .addBearerAuth()
+      .addApiKey({ type: "apiKey", in: "header", name: "X-API-Key" }, "api-key")
       .build();
 
     SwaggerModule.setup(

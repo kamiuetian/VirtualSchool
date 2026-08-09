@@ -1,4 +1,10 @@
-import { Injectable, Optional, UnauthorizedException } from "@nestjs/common";
+import { createHash, timingSafeEqual } from "node:crypto";
+import {
+  HttpException,
+  Injectable,
+  Optional,
+  UnauthorizedException,
+} from "@nestjs/common";
 import type { Role } from "@virtual-school/shared";
 import type { JWTPayload } from "jose";
 import { PrismaService } from "../prisma/prisma.service";
@@ -16,6 +22,10 @@ type AuthConfig = {
 export class AuthService {
   private readonly config: AuthConfig;
   private jwks?: unknown;
+  private readonly machineUsage = new Map<
+    string,
+    { count: number; window: number }
+  >();
 
   constructor(@Optional() private readonly prisma?: PrismaService) {
     const mode = (process.env.AUTH_MODE ?? "development").toLowerCase();
@@ -48,11 +58,15 @@ export class AuthService {
   async authenticate(
     headers: Record<string, string | string[] | undefined>,
   ): Promise<AuthenticatedUser> {
+    const authorization = this.headerValue(headers.authorization);
+    const apiKey = this.headerValue(headers["x-api-key"]);
+    if (apiKey || authorization?.startsWith("Bearer vst_")) {
+      return this.authenticateMachine(apiKey ?? authorization!.slice(7));
+    }
     if (this.config.mode === "development") {
       return this.enforceStoredUserState(this.authenticateDevelopment(headers));
     }
 
-    const authorization = this.headerValue(headers.authorization);
     const token = authorization?.startsWith("Bearer ")
       ? authorization.slice("Bearer ".length)
       : undefined;
@@ -73,6 +87,94 @@ export class AuthService {
     );
 
     return this.enforceStoredUserState(this.userFromJwtPayload(payload));
+  }
+
+  private async authenticateMachine(value: string): Promise<AuthenticatedUser> {
+    if (!this.prisma)
+      throw new UnauthorizedException("Machine authentication is unavailable");
+    const tokenHash = this.hash(value);
+    let credential;
+    if (value.startsWith("vsk_")) {
+      const separator = value.indexOf(".");
+      const clientId = separator > 4 ? value.slice(4, separator) : "";
+      credential = clientId
+        ? await this.prisma.machineCredential.findUnique({
+            where: { clientId },
+          })
+        : null;
+      const validCurrent =
+        credential && this.safeEqual(tokenHash, credential.secretHash);
+      const validPrevious =
+        credential?.previousSecretHash &&
+        credential.previousValidUntil &&
+        credential.previousValidUntil > new Date() &&
+        this.safeEqual(tokenHash, credential.previousSecretHash);
+      if (!validCurrent && !validPrevious) credential = null;
+    } else {
+      const accessToken = await this.prisma.machineAccessToken.findUnique({
+        where: { tokenHash },
+        include: { credential: true },
+      });
+      if (accessToken && accessToken.expiresAt > new Date()) {
+        credential = accessToken.credential;
+        void this.prisma.machineAccessToken.update({
+          where: { id: accessToken.id },
+          data: { lastUsedAt: new Date() },
+        });
+      }
+    }
+    if (!credential || credential.status !== "ACTIVE") {
+      throw new UnauthorizedException(
+        "Machine credential is invalid or revoked",
+      );
+    }
+    this.enforceMachineRateLimit(credential.id, credential.rateLimitPerMinute);
+    void this.prisma.machineCredential.update({
+      where: { id: credential.id },
+      data: { lastUsedAt: new Date() },
+    });
+    return {
+      authMode: "machine",
+      credentialId: credential.id,
+      permissions: this.permissionsForScopes(credential.scopes),
+      role: "PLATFORM_SUPER_ADMIN",
+      scopes: credential.scopes,
+      subject: `machine:${credential.id}`,
+      tenantIds: [credential.tenantId],
+    };
+  }
+
+  private permissionsForScopes(scopes: string[]): string[] {
+    const mapping: Record<string, string[]> = {
+      "tenant.read": ["tenant:read"],
+      "roster.read": ["tenant:read"],
+      "roster.write": ["tenant:read", "roster:manage"],
+      "devices.read": ["tenant:read", "device:read"],
+      "reports.read": ["tenant:read", "report:export"],
+      "audit.read": ["tenant:read", "audit:read"],
+    };
+    return [...new Set(scopes.flatMap((scope) => mapping[scope] ?? []))];
+  }
+
+  private enforceMachineRateLimit(id: string, limit: number): void {
+    const window = Math.floor(Date.now() / 60_000);
+    const usage = this.machineUsage.get(id);
+    const next =
+      !usage || usage.window !== window
+        ? { count: 1, window }
+        : { count: usage.count + 1, window };
+    this.machineUsage.set(id, next);
+    if (next.count > limit)
+      throw new HttpException("Machine credential rate limit exceeded", 429);
+  }
+
+  private hash(value: string): string {
+    return createHash("sha256").update(value).digest("hex");
+  }
+  private safeEqual(left: string, right: string): boolean {
+    const a = Buffer.from(left);
+    const b = Buffer.from(right);
+    return a.length === b.length && timingSafeEqual(a, b);
   }
 
   private async getJwks(): Promise<unknown> {

@@ -7,7 +7,9 @@ export type AuthenticatedUser = {
   tenantIds: string[];
   role: Role;
   permissions: string[];
-  authMode: "auth0" | "development";
+  authMode: "auth0" | "development" | "machine";
+  credentialId?: string;
+  scopes?: string[];
   tokenIssuedAt?: Date;
   accessScope?: {
     type: "TENANT" | "REGION" | "BRANCH";

@@ -1,6 +1,7 @@
 import { UnauthorizedException } from "@nestjs/common";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AuthService } from "./auth.service";
+import { createHash } from "node:crypto";
 import type { AuthenticatedUser } from "./types/authenticated-request";
 
 describe("AuthService", () => {
@@ -81,6 +82,60 @@ describe("AuthService", () => {
         }),
       ),
     ).rejects.toThrow("User session has been revoked");
+  });
+
+  it("authenticates a tenant-scoped API key with only mapped scopes", async () => {
+    const key = "vsk_client123456789012345678.secret-value";
+    const service = new AuthService({
+      machineCredential: {
+        findUnique: vi
+          .fn()
+          .mockResolvedValue({
+            id: "machine-1",
+            tenantId: "tenant-1",
+            status: "ACTIVE",
+            secretHash: createHash("sha256").update(key).digest("hex"),
+            previousSecretHash: null,
+            previousValidUntil: null,
+            scopes: ["devices.read"],
+            rateLimitPerMinute: 20,
+          }),
+        update: vi.fn().mockResolvedValue({}),
+      },
+    } as never);
+    await expect(
+      service.authenticate({ "x-api-key": key }),
+    ).resolves.toMatchObject({
+      authMode: "machine",
+      tenantIds: ["tenant-1"],
+      scopes: ["devices.read"],
+      permissions: expect.arrayContaining(["device:read"]),
+    });
+  });
+
+  it("enforces the configured per-credential request limit", async () => {
+    const key = "vsk_client123456789012345678.secret-value";
+    const service = new AuthService({
+      machineCredential: {
+        findUnique: vi
+          .fn()
+          .mockResolvedValue({
+            id: "limited-machine",
+            tenantId: "tenant-1",
+            status: "ACTIVE",
+            secretHash: createHash("sha256").update(key).digest("hex"),
+            previousSecretHash: null,
+            previousValidUntil: null,
+            scopes: ["tenant.read"],
+            rateLimitPerMinute: 1,
+          }),
+        update: vi.fn().mockResolvedValue({}),
+      },
+    } as never);
+    await service.authenticate({ "x-api-key": key });
+    await expect(
+      service.authenticate({ "x-api-key": key }),
+    ).rejects.toMatchObject({ status: 429 });
   });
 });
 

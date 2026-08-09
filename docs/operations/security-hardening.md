@@ -10,6 +10,7 @@ This document captures the Phase 1 server-side hardening controls that must stay
 - `helmet` security headers are enabled for every API request. HSTS is enabled when `NODE_ENV=production`.
 - Request body parsing is bounded by `API_REQUEST_BODY_LIMIT`, defaulting to `1mb`.
 - API rate limiting is enabled by default with `API_RATE_LIMIT_MAX` requests per `API_RATE_LIMIT_WINDOW_MS` per client IP, method, and path.
+- Partner machine credentials add tenant scope, granular scopes, and a per-credential requests-per-minute limit. See [Tenant and partner REST API](partner-api.md).
 - `API_TRUST_PROXY=true` is expected behind AWS ALB so the API reads the correct client IP from proxy headers.
 
 ## Identity Session Enforcement
