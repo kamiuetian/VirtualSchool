@@ -169,6 +169,39 @@ model Tenant {
   accessReviews                   AccessReview[]
   marketplaceSubmissions          IntegrationSubmission[]
   marketplaceInstallations        IntegrationInstallation[]
+  resellerCustomer                ResellerCustomer?
+}
+
+model ResellerPartner {
+  id               String             @id @default(uuid())
+  name             String
+  status           String             @default("ACTIVE")
+  operatorIds      String[]
+  maxCustomers     Int
+  allowedPlanKeys  String[]
+  approvalRequired Boolean            @default(true)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  customers        ResellerCustomer[]
+
+  @@index([status])
+}
+
+model ResellerCustomer {
+  id              String          @id @default(uuid())
+  partnerId       String
+  tenantId        String          @unique
+  externalRef     String?
+  onboardingState String          @default("PROVISIONED")
+  renewalAt       DateTime?
+  provisionedBy   String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  partner         ResellerPartner @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([partnerId, externalRef])
+  @@index([partnerId, renewalAt])
 }
 
 model IntegrationSubmission {

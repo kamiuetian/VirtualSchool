@@ -38,6 +38,7 @@ import { EnterpriseIdentityModule } from "./enterprise-identity/enterprise-ident
 import { AccessGovernanceModule } from "./access-governance/access-governance.module";
 import { PartnerApiModule } from "./partner-api/partner-api.module";
 import { MarketplaceModule } from "./marketplace/marketplace.module";
+import { ResellerModule } from "./reseller/reseller.module";
 
 @Module({
   imports: [
@@ -80,6 +81,7 @@ import { MarketplaceModule } from "./marketplace/marketplace.module";
     AccessGovernanceModule,
     PartnerApiModule,
     MarketplaceModule,
+    ResellerModule,
   ],
 })
 export class AppModule {}
