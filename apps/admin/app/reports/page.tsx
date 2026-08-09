@@ -13,11 +13,13 @@ import {
   getAdminData,
   getAttendanceData,
   getLearningUsageAnalytics,
+  getQuarterlyBusinessReviews,
 } from "../../lib/api";
 import {
   captureAttendanceAction,
   correctAttendanceAction,
   updateAttendanceSettingsAction,
+  generateQuarterlyBusinessReviewAction,
 } from "../../lib/actions";
 import { formatCount, formatDateTime, humanize } from "../../lib/format";
 
@@ -62,6 +64,10 @@ export default async function ReportsPage({
         category: params?.category,
       })
     : { report: null, connectionIssue: false };
+  const qbr = data.selectedTenant
+    ? await getQuarterlyBusinessReviews(data.selectedTenant.id)
+    : { packs: [], connectionIssue: false };
+  const currentQuarter = `${new Date().getUTCFullYear()}-Q${Math.floor(new Date().getUTCMonth() / 3) + 1}`;
   const canManageAttendance = roleAllows(data.session.role, "class:manage");
   const deviceTotals = data.deviceInventory?.totals;
   const policyTotals = data.policyDeploymentReport?.totals;
@@ -114,6 +120,46 @@ export default async function ReportsPage({
               )}
             />
           </section>
+        </PageSection>
+
+        <PageSection
+          kicker="Customer success"
+          title="Quarterly Business Review Packs"
+        >
+          {data.selectedTenant ? (
+            <ActionPanel title="Generate an immutable review snapshot">
+              <form action={generateQuarterlyBusinessReviewAction} className="inline-form">
+                <input name="tenantId" type="hidden" value={data.selectedTenant.id} />
+                <Field label="Quarter">
+                  <input
+                    defaultValue={currentQuarter}
+                    name="quarter"
+                    pattern="[0-9]{4}-Q[1-4]"
+                    placeholder="2026-Q2"
+                    required
+                  />
+                </Field>
+                <SubmitButton>Generate QBR pack</SubmitButton>
+              </form>
+            </ActionPanel>
+          ) : null}
+          {qbr.packs.length ? (
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>Quarter</th><th>Period</th><th>Generated</th><th>Integrity</th></tr></thead>
+                <tbody>{qbr.packs.map((pack) => (
+                  <tr key={pack.id}>
+                    <td>{pack.quarter}</td>
+                    <td>{pack.periodStart.slice(0, 10)} to {pack.periodEnd.slice(0, 10)}</td>
+                    <td>{formatDateTime(pack.generatedAt)}</td>
+                    <td><code>{pack.checksum.slice(0, 12)}</code></td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          ) : (
+            <EmptyState title="No QBR packs yet" body="Generate a quarter to capture adoption, health, policy, support, mode usage, trends, and evidence-backed recommendations." />
+          )}
         </PageSection>
 
         <PageSection

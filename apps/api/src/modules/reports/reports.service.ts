@@ -16,6 +16,8 @@ import type {
   EnterpriseAnalyticsMetrics,
   EnterpriseAnalyticsNode,
   EnterpriseAnalyticsReport,
+  QuarterlyBusinessReviewPack,
+  QuarterlyBusinessReviewMetric,
 } from "@virtual-school/shared";
 import { createHash } from "node:crypto";
 import {
@@ -761,6 +763,220 @@ export class ReportsService {
     return { ...run, payload };
   }
 
+  listQuarterlyBusinessReviews(tenantId: string) {
+    return this.prisma.quarterlyBusinessReviewPack.findMany({
+      orderBy: { generatedAt: "desc" },
+      select: {
+        id: true,
+        quarter: true,
+        periodStart: true,
+        periodEnd: true,
+        checksum: true,
+        generatedBy: true,
+        generatedAt: true,
+      },
+      where: { tenantId },
+    });
+  }
+
+  async getQuarterlyBusinessReview(
+    tenantId: string,
+    packId: string,
+  ): Promise<QuarterlyBusinessReviewPack> {
+    const value = await this.prisma.quarterlyBusinessReviewPack.findFirst({
+      where: { id: packId, tenantId },
+    });
+    if (!value)
+      throw new NotFoundException("Quarterly business review pack was not found");
+    return {
+      ...(value.snapshot as unknown as Omit<
+        QuarterlyBusinessReviewPack,
+        "id" | "checksum" | "generatedAt" | "generatedBy"
+      >),
+      id: value.id,
+      checksum: value.checksum,
+      generatedAt: value.generatedAt.toISOString(),
+      generatedBy: value.generatedBy,
+    };
+  }
+
+  async generateQuarterlyBusinessReview(
+    tenantId: string,
+    quarter: string,
+    actorId?: string,
+  ): Promise<QuarterlyBusinessReviewPack> {
+    const tenant = await this.prisma.tenant.findUnique({
+      select: { id: true, name: true },
+      where: { id: tenantId },
+    });
+    if (!tenant) throw new NotFoundException(`Tenant ${tenantId} was not found`);
+    const current = this.quarterRange(quarter);
+    const previousEnd = new Date(current.startedAt.getTime() - 1);
+    const previousStart = new Date(Date.UTC(
+      previousEnd.getUTCFullYear(),
+      previousEnd.getUTCMonth() - 2,
+      1,
+    ));
+    const collect = async (startedAt: Date, endedAt: Date) => {
+      const [students, devices, activeDevices, compliantDevices, commands, tickets, sessions] =
+        await Promise.all([
+          this.prisma.student.count({
+            where: { tenantId, status: "ACTIVE", createdAt: { lte: endedAt } },
+          }),
+          this.prisma.device.count({
+            where: { tenantId, status: { not: "RETIRED" }, createdAt: { lte: endedAt } },
+          }),
+          this.prisma.device.count({
+            where: {
+              tenantId,
+              status: { in: ["ONLINE", "LOCKED", "NON_COMPLIANT"] },
+              createdAt: { lte: endedAt },
+            },
+          }),
+          this.prisma.device.count({
+            where: { tenantId, compliance: "COMPLIANT", status: { not: "RETIRED" }, createdAt: { lte: endedAt } },
+          }),
+          this.prisma.remoteCommand.findMany({
+            select: { status: true },
+            where: { tenantId, type: "POLICY_REFRESH", createdAt: { gte: startedAt, lte: endedAt } },
+          }),
+          this.prisma.supportTicket.findMany({
+            select: { resolvedAt: true },
+            where: { tenantId, createdAt: { gte: startedAt, lte: endedAt } },
+          }),
+          this.prisma.teacherSession.findMany({
+            select: { id: true, events: { select: { type: true } } },
+            where: { tenantId, startedAt: { gte: startedAt, lte: endedAt } },
+          }),
+        ]);
+      const successful = commands.filter((item) =>
+        ["DELIVERED", "COMPLETED"].includes(item.status),
+      ).length;
+      return {
+        students,
+        devices,
+        activeDeviceRate: this.rate(activeDevices, devices),
+        complianceRate: this.rate(compliantDevices, devices),
+        policyDeliverySuccessRate: this.rate(successful, commands.length),
+        supportTicketsOpened: tickets.length,
+        supportResolutionRate: this.rate(
+          tickets.filter((item) => item.resolvedAt !== null).length,
+          tickets.length,
+        ),
+        sessions,
+      };
+    };
+    const [now, prior] = await Promise.all([
+      collect(current.startedAt, current.endedAt),
+      collect(previousStart, previousEnd),
+    ]);
+    const metric = (value: number, previous: number): QuarterlyBusinessReviewMetric => ({
+      current: value,
+      previous,
+      change: Math.round((value - previous) * 100) / 100,
+    });
+    const metrics = {
+      enrolledStudents: metric(now.students, prior.students),
+      managedDevices: metric(now.devices, prior.devices),
+      activeDeviceRate: metric(now.activeDeviceRate, prior.activeDeviceRate),
+      complianceRate: metric(now.complianceRate, prior.complianceRate),
+      policyDeliverySuccessRate: metric(now.policyDeliverySuccessRate, prior.policyDeliverySuccessRate),
+      supportTicketsOpened: metric(now.supportTicketsOpened, prior.supportTicketsOpened),
+      supportResolutionRate: metric(now.supportResolutionRate, prior.supportResolutionRate),
+      learningSessions: metric(now.sessions.length, prior.sessions.length),
+    };
+    const modeCounts = new Map<string, number>();
+    for (const session of now.sessions) {
+      const special = session.events.find((event) =>
+        ["FOCUS_SCREEN_SHOWN", "EXAM_STARTED", "TEMPORARY_URL_APPROVED"].includes(event.type),
+      );
+      const mode = special?.type === "FOCUS_SCREEN_SHOWN"
+        ? "FOCUS"
+        : special?.type === "EXAM_STARTED"
+          ? "EXAM"
+          : special?.type === "TEMPORARY_URL_APPROVED"
+            ? "GUIDED_WEB"
+            : "CLASS";
+      modeCounts.set(mode, (modeCounts.get(mode) ?? 0) + 1);
+    }
+    const modeUsage = [...modeCounts.entries()]
+      .map(([mode, sessions]) => ({ mode, sessions, share: this.rate(sessions, now.sessions.length) }))
+      .sort((a, b) => b.sessions - a.sessions || a.mode.localeCompare(b.mode));
+    const recommendations: QuarterlyBusinessReviewPack["recommendations"] = [];
+    if (now.complianceRate < 95)
+      recommendations.push({
+        priority: now.complianceRate < 80 ? "HIGH" : "MEDIUM",
+        title: "Improve managed-device compliance",
+        rationale: "The quarter closed below the 95% compliance target.",
+        evidence: [`${Math.round(now.devices * now.complianceRate / 100)} of ${now.devices} managed devices were compliant`, `Quarter-end compliance rate: ${now.complianceRate}%`],
+      });
+    if (now.policyDeliverySuccessRate < 98)
+      recommendations.push({
+        priority: now.policyDeliverySuccessRate < 90 ? "HIGH" : "MEDIUM",
+        title: "Investigate policy delivery failures",
+        rationale: "Policy delivery success was below the 98% operating target.",
+        evidence: [`Quarterly policy delivery success rate: ${now.policyDeliverySuccessRate}%`],
+      });
+    if (now.supportTicketsOpened > prior.supportTicketsOpened)
+      recommendations.push({
+        priority: "MEDIUM",
+        title: "Review rising support demand",
+        rationale: "More support tickets were opened than in the preceding quarter.",
+        evidence: [`${now.supportTicketsOpened} opened this quarter versus ${prior.supportTicketsOpened} previously`, `Resolution rate: ${now.supportResolutionRate}%`],
+      });
+    if (recommendations.length === 0)
+      recommendations.push({
+        priority: "LOW",
+        title: "Sustain current operating health",
+        rationale: "Core compliance, policy delivery, and support indicators meet their review thresholds.",
+        evidence: [`Compliance: ${now.complianceRate}%`, `Policy delivery: ${now.policyDeliverySuccessRate}%`, `Support resolution: ${now.supportResolutionRate}%`],
+      });
+    const snapshot = {
+      tenantId,
+      tenantName: tenant.name,
+      quarter,
+      from: current.startedAt.toISOString().slice(0, 10),
+      to: current.endedAt.toISOString().slice(0, 10),
+      metrics,
+      modeUsage,
+      recommendations,
+    };
+    const checksum = createHash("sha256").update(JSON.stringify(snapshot)).digest("hex");
+    const value = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.quarterlyBusinessReviewPack.create({
+        data: {
+          tenantId,
+          quarter,
+          periodStart: current.startedAt,
+          periodEnd: current.endedAt,
+          snapshot: snapshot as unknown as Prisma.InputJsonValue,
+          checksum,
+          generatedBy: actorId,
+        },
+      });
+      await tx.auditEvent.create({
+        data: {
+          tenantId,
+          actorId,
+          action: "quarterly_business_review.generate",
+          object: "QuarterlyBusinessReviewPack",
+          objectId: created.id,
+          outcome: "SUCCESS",
+          reason: `Generated ${quarter} customer-success review`,
+          newValue: { quarter, checksum },
+        },
+      });
+      return created;
+    });
+    return {
+      ...snapshot,
+      id: value.id,
+      checksum,
+      generatedAt: value.generatedAt.toISOString(),
+      generatedBy: value.generatedBy,
+    };
+  }
+
   private createExportSchedule(
     owner: { tenantId?: string; partnerId?: string; scope: string },
     input: CreateAnalyticsExportScheduleDto,
@@ -782,6 +998,19 @@ export class ReportsService {
         createdBy: actorId,
       },
     });
+  }
+
+  private quarterRange(quarter: string) {
+    const match = /^(\d{4})-Q([1-4])$/.exec(quarter);
+    if (!match) throw new BadRequestException("quarter must use YYYY-Q1 through YYYY-Q4");
+    const year = Number(match[1]);
+    if (year < 2020 || year > 2100)
+      throw new BadRequestException("quarter year must be between 2020 and 2100");
+    const month = (Number(match[2]) - 1) * 3;
+    return {
+      startedAt: new Date(Date.UTC(year, month, 1)),
+      endedAt: new Date(Date.UTC(year, month + 3, 1) - 1),
+    };
   }
 
   private async requirePartnerOperator(partnerId: string, actorId?: string) {

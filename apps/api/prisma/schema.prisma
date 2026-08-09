@@ -189,27 +189,28 @@ model Tenant {
   implementationProject           ImplementationProject?
   analyticsExportSchedules        AnalyticsExportSchedule[]
   analyticsExportRuns             AnalyticsExportRun[]
+  quarterlyBusinessReviewPacks    QuarterlyBusinessReviewPack[]
 }
 
 model ResellerPartner {
-  id                     String                  @id @default(uuid())
-  name                   String
-  status                 String                  @default("ACTIVE")
-  operatorIds            String[]
-  maxCustomers           Int
-  allowedPlanKeys        String[]
-  approvalRequired       Boolean                 @default(true)
-  approvedDomains        String[]                @default([])
-  logoUrl                String?
-  primaryColor           String?
-  accentColor            String?
-  emailSenderName        String?
-  emailSenderEmail       String?
-  brandingUpdatedBy      String?
-  createdAt              DateTime                @default(now())
-  updatedAt              DateTime                @updatedAt
-  customers              ResellerCustomer[]
-  implementationProjects ImplementationProject[]
+  id                       String                    @id @default(uuid())
+  name                     String
+  status                   String                    @default("ACTIVE")
+  operatorIds              String[]
+  maxCustomers             Int
+  allowedPlanKeys          String[]
+  approvalRequired         Boolean                   @default(true)
+  approvedDomains          String[]                  @default([])
+  logoUrl                  String?
+  primaryColor             String?
+  accentColor              String?
+  emailSenderName          String?
+  emailSenderEmail         String?
+  brandingUpdatedBy        String?
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  customers                ResellerCustomer[]
+  implementationProjects   ImplementationProject[]
   analyticsExportSchedules AnalyticsExportSchedule[]
 
   @@index([status])
@@ -220,19 +221,19 @@ model AnalyticsExportSchedule {
   tenantId             String?
   partnerId            String?
   name                 String
-  scope                 String
-  cadence               String
-  format                String
-  destinationType       String
+  scope                String
+  cadence              String
+  format               String
+  destinationType      String
   destinationReference String
-  enabled               Boolean              @default(true)
-  nextRunAt             DateTime
-  createdBy             String?
-  createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
-  tenant                Tenant?               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  partner               ResellerPartner?      @relation(fields: [partnerId], references: [id], onDelete: Cascade)
-  runs                   AnalyticsExportRun[]
+  enabled              Boolean              @default(true)
+  nextRunAt            DateTime
+  createdBy            String?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  tenant               Tenant?              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  partner              ResellerPartner?     @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  runs                 AnalyticsExportRun[]
 
   @@index([enabled, nextRunAt])
   @@index([tenantId, createdAt])
@@ -240,21 +241,37 @@ model AnalyticsExportSchedule {
 }
 
 model AnalyticsExportRun {
-  id           String                  @id @default(uuid())
-  scheduleId   String
-  tenantId     String?
-  status       String
-  rowCount     Int
-  checksum     String
+  id          String                  @id @default(uuid())
+  scheduleId  String
+  tenantId    String?
+  status      String
+  rowCount    Int
+  checksum    String
   destination String
-  error        String?
-  startedAt    DateTime                @default(now())
-  completedAt  DateTime?
-  schedule     AnalyticsExportSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
-  tenant       Tenant?                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  error       String?
+  startedAt   DateTime                @default(now())
+  completedAt DateTime?
+  schedule    AnalyticsExportSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  tenant      Tenant?                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([scheduleId, startedAt])
   @@index([tenantId, startedAt])
+}
+
+model QuarterlyBusinessReviewPack {
+  id          String   @id @default(uuid())
+  tenantId    String
+  quarter     String
+  periodStart DateTime
+  periodEnd   DateTime
+  snapshot    Json
+  checksum    String
+  generatedBy String?
+  generatedAt DateTime @default(now())
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, generatedAt])
+  @@index([tenantId, quarter])
 }
 
 model ResellerCustomer {
@@ -1341,51 +1358,51 @@ model RosterImport {
 }
 
 model Device {
-  id                       String                    @id @default(uuid())
-  tenantId                 String
-  branchId                 String?
-  studentId                String?
-  classId                  String?
-  serialNumber             String
-  manufacturer             String?
-  model                    String?
-  androidVersion           String?
-  enrollmentId             String?
-  mdmConnector             String                    @default("ANDROID_MANAGEMENT_API")
-  connectorDeviceName      String?
-  status                   DeviceStatus              @default(PENDING)
-  lastCheckInAt            DateTime?
-  policyVersion            Int?
-  enrollmentBatchId        String?
-  ownershipType            String                    @default("SCHOOL_OWNED")
-  health                   String                    @default("UNKNOWN")
-  compliance               String                    @default("UNKNOWN")
-  tags                     String[]                  @default([])
-  createdAt                DateTime                  @default(now())
-  updatedAt                DateTime                  @updatedAt
-  tenant                   Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branch                   Branch?                   @relation(fields: [branchId], references: [id])
-  student                  Student?                  @relation(fields: [studentId], references: [id])
-  class                    ClassSection?             @relation(fields: [classId], references: [id])
-  enrollmentBatch          EnrollmentBatch?          @relation(fields: [enrollmentBatchId], references: [id])
-  commands                 RemoteCommand[]
-  diagnostics              DeviceDiagnostic[]
-  alerts                   DeviceAlert[]
-  blockedDomainEvents      BlockedDomainEvent[]
-  supportNotes             SupportNote[]
-  supportTickets           SupportTicket[]
-  remoteAssistanceSessions RemoteAssistanceSession[]
-  guardianSupportRequests  GuardianSupportRequest[]
-  assignmentHistory        DeviceAssignment[]
-  lifecycleEvents          DeviceLifecycleEvent[]
-  teacherSessionEvents     TeacherSessionEvent[]
-  chromeOsState            ChromeOsDeviceState?
-  appleState               AppleDeviceState?
-  intuneState              IntuneDeviceState?
-  procurementItem          ProcurementDevice?
-  custodyEvents            DeviceCustodyEvent[]
-  replacementsAsOriginal   DeviceReplacement[] @relation("ReplacementOriginal")
-  replacementsAsReplacement DeviceReplacement[] @relation("ReplacementNew")
+  id                        String                    @id @default(uuid())
+  tenantId                  String
+  branchId                  String?
+  studentId                 String?
+  classId                   String?
+  serialNumber              String
+  manufacturer              String?
+  model                     String?
+  androidVersion            String?
+  enrollmentId              String?
+  mdmConnector              String                    @default("ANDROID_MANAGEMENT_API")
+  connectorDeviceName       String?
+  status                    DeviceStatus              @default(PENDING)
+  lastCheckInAt             DateTime?
+  policyVersion             Int?
+  enrollmentBatchId         String?
+  ownershipType             String                    @default("SCHOOL_OWNED")
+  health                    String                    @default("UNKNOWN")
+  compliance                String                    @default("UNKNOWN")
+  tags                      String[]                  @default([])
+  createdAt                 DateTime                  @default(now())
+  updatedAt                 DateTime                  @updatedAt
+  tenant                    Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch                    Branch?                   @relation(fields: [branchId], references: [id])
+  student                   Student?                  @relation(fields: [studentId], references: [id])
+  class                     ClassSection?             @relation(fields: [classId], references: [id])
+  enrollmentBatch           EnrollmentBatch?          @relation(fields: [enrollmentBatchId], references: [id])
+  commands                  RemoteCommand[]
+  diagnostics               DeviceDiagnostic[]
+  alerts                    DeviceAlert[]
+  blockedDomainEvents       BlockedDomainEvent[]
+  supportNotes              SupportNote[]
+  supportTickets            SupportTicket[]
+  remoteAssistanceSessions  RemoteAssistanceSession[]
+  guardianSupportRequests   GuardianSupportRequest[]
+  assignmentHistory         DeviceAssignment[]
+  lifecycleEvents           DeviceLifecycleEvent[]
+  teacherSessionEvents      TeacherSessionEvent[]
+  chromeOsState             ChromeOsDeviceState?
+  appleState                AppleDeviceState?
+  intuneState               IntuneDeviceState?
+  procurementItem           ProcurementDevice?
+  custodyEvents             DeviceCustodyEvent[]
+  replacementsAsOriginal    DeviceReplacement[]       @relation("ReplacementOriginal")
+  replacementsAsReplacement DeviceReplacement[]       @relation("ReplacementNew")
 
   @@unique([tenantId, serialNumber])
   @@index([tenantId, status])
@@ -1518,38 +1535,38 @@ model ProcurementBatch {
 }
 
 model ProcurementDevice {
-  id             String            @id @default(uuid())
-  tenantId       String
-  batchId        String
-  deviceId       String?           @unique
-  serialNumber   String
-  status         String            @default("PURCHASED")
-  rmaNumber      String?
-  rmaReason      String?
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-  tenant         Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  batch          ProcurementBatch  @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  device         Device?           @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  id           String           @id @default(uuid())
+  tenantId     String
+  batchId      String
+  deviceId     String?          @unique
+  serialNumber String
+  status       String           @default("PURCHASED")
+  rmaNumber    String?
+  rmaReason    String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  batch        ProcurementBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  device       Device?          @relation(fields: [deviceId], references: [id], onDelete: SetNull)
 
   @@unique([tenantId, serialNumber])
   @@index([tenantId, batchId, status])
 }
 
 model DeviceCustodyEvent {
-  id          String   @id @default(uuid())
-  tenantId    String
-  deviceId    String
-  type        String
-  fromHolder  String?
-  toHolder    String?
-  location    String?
-  reason      String
-  reference   String?
-  actorId     String?
-  createdAt   DateTime @default(now())
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  device      Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  id         String   @id @default(uuid())
+  tenantId   String
+  deviceId   String
+  type       String
+  fromHolder String?
+  toHolder   String?
+  location   String?
+  reason     String
+  reference  String?
+  actorId    String?
+  createdAt  DateTime @default(now())
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  device     Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, deviceId, createdAt])
 }
@@ -2045,42 +2062,42 @@ model AuditEvent {
 }
 
 model PolicyRecommendation {
-  id          String   @id @default(uuid())
-  tenantId    String
-  policyId    String?
-  kind        String
-  title       String
-  explanation String
-  evidence    Json
+  id             String    @id @default(uuid())
+  tenantId       String
+  policyId       String?
+  kind           String
+  title          String
+  explanation    String
+  evidence       Json
   proposedChange Json
-  status      String   @default("PENDING")
-  generatedAt DateTime @default(now())
-  decidedAt   DateTime?
-  decidedBy   String?
+  status         String    @default("PENDING")
+  generatedAt    DateTime  @default(now())
+  decidedAt      DateTime?
+  decidedBy      String?
   decisionReason String?
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, status, generatedAt])
   @@index([tenantId, policyId])
 }
 
 model SecurityAnomalyAlert {
-  id          String   @id @default(uuid())
-  tenantId    String
-  fingerprint String
-  category    String
-  severity    String
-  title       String
-  explanation String
-  evidence    Json
-  status      String   @default("OPEN")
-  detectedAt  DateTime @default(now())
+  id             String    @id @default(uuid())
+  tenantId       String
+  fingerprint    String
+  category       String
+  severity       String
+  title          String
+  explanation    String
+  evidence       Json
+  status         String    @default("OPEN")
+  detectedAt     DateTime  @default(now())
   acknowledgedAt DateTime?
   acknowledgedBy String?
-  resolvedAt  DateTime?
-  resolvedBy  String?
+  resolvedAt     DateTime?
+  resolvedBy     String?
   resolutionNote String?
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, fingerprint])
   @@index([tenantId, status, severity, detectedAt])

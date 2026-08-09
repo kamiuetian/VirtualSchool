@@ -4,6 +4,77 @@ import { ReportsService } from "./reports.service";
 const now = new Date("2026-05-17T10:00:00.000Z");
 
 describe("ReportsService", () => {
+  it("generates an immutable tenant-scoped quarterly business review with evidence", async () => {
+    const createPack = vi.fn(async ({ data }) => ({
+      id: "qbr-1",
+      ...data,
+      generatedAt: now,
+    }));
+    const audit = vi.fn();
+    const countByCall = [100, 80, 76, 72, 90, 70, 63, 60];
+    const service = new ReportsService({
+      tenant: { findUnique: async () => ({ id: "tenant-1", name: "Northview" }) },
+      student: { count: async () => countByCall.shift() },
+      device: { count: async () => countByCall.shift() },
+      remoteCommand: {
+        findMany: async () => [{ status: "COMPLETED" }, { status: "FAILED" }],
+      },
+      supportTicket: {
+        findMany: async () => [{ resolvedAt: now }, { resolvedAt: null }],
+      },
+      teacherSession: {
+        findMany: async () => [
+          { id: "session-1", events: [{ type: "FOCUS_SCREEN_SHOWN" }] },
+        ],
+      },
+      $transaction: async (callback: (tx: any) => Promise<unknown>) =>
+        callback({
+          quarterlyBusinessReviewPack: { create: createPack },
+          auditEvent: { create: audit },
+        }),
+    } as never);
+
+    const result = await service.generateQuarterlyBusinessReview(
+      "tenant-1",
+      "2026-Q2",
+      "success-1",
+    );
+
+    expect(result).toMatchObject({
+      id: "qbr-1",
+      tenantId: "tenant-1",
+      quarter: "2026-Q2",
+      from: "2026-04-01",
+      to: "2026-06-30",
+      modeUsage: [{ mode: "FOCUS", sessions: 1, share: 100 }],
+      metrics: { policyDeliverySuccessRate: { current: 50 } },
+      recommendations: expect.arrayContaining([
+        expect.objectContaining({ title: "Investigate policy delivery failures" }),
+      ]),
+    });
+    expect(result.checksum).toMatch(/^[a-f0-9]{64}$/);
+    expect(createPack).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ tenantId: "tenant-1" }) }),
+    );
+    expect(audit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "quarterly_business_review.generate",
+          actorId: "success-1",
+        }),
+      }),
+    );
+  });
+
+  it("does not return a quarterly business review from another tenant", async () => {
+    const service = new ReportsService({
+      quarterlyBusinessReviewPack: { findFirst: async () => null },
+    } as never);
+    await expect(
+      service.getQuarterlyBusinessReview("tenant-1", "other-tenant-pack"),
+    ).rejects.toThrow("not found");
+  });
+
   it("rolls branch metrics into tenant enterprise analytics", async () => {
     const service = new ReportsService({
       tenant: {

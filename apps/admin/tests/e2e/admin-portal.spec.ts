@@ -290,6 +290,13 @@ test.describe("admin portal regression", () => {
     await expect(
       page.getByRole("cell", { name: "Grade 4 Blue" }),
     ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Quarterly Business Review Packs" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Generate QBR pack" }),
+    ).toBeVisible();
+    await expect(page.getByRole("cell", { name: "2026-Q2" })).toBeVisible();
 
     const inventoryDownload = page.waitForEvent("download");
     await page.getByRole("link", { name: "Download inventory CSV" }).click();

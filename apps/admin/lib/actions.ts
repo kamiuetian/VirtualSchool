@@ -242,6 +242,19 @@ export async function updateAttendanceSettingsAction(
   revalidatePath("/reports");
 }
 
+export async function generateQuarterlyBusinessReviewAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("report:export");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/reports/quarterly-business-reviews`,
+    { quarter: required(formData, "quarter") },
+  );
+  revalidatePath("/reports");
+}
+
 export async function captureAttendanceAction(
   formData: FormData,
 ): Promise<void> {

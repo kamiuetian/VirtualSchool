@@ -557,6 +557,25 @@ export async function getLearningUsageAnalytics(
   return { report: result.data, connectionIssue: result.failed };
 }
 
+export type QuarterlyBusinessReviewSummary = {
+  id: string;
+  quarter: string;
+  periodStart: string;
+  periodEnd: string;
+  checksum: string;
+  generatedBy?: string | null;
+  generatedAt: string;
+};
+
+export async function getQuarterlyBusinessReviews(
+  tenantId: string,
+): Promise<{ packs: QuarterlyBusinessReviewSummary[]; connectionIssue: boolean }> {
+  const result = await apiGet<QuarterlyBusinessReviewSummary[]>(
+    `/tenants/${tenantId}/reports/quarterly-business-reviews`,
+  );
+  return { packs: result.data ?? [], connectionIssue: result.failed };
+}
+
 export async function getSisOperations(tenantId: string): Promise<{
   operations: SisOperationsSummary | null;
   connectionIssue: boolean;

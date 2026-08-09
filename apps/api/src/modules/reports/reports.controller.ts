@@ -19,7 +19,7 @@ import type {
 import { RequirePermissions } from "../auth/decorators/require-permissions.decorator";
 import type { AuthenticatedRequest } from "../auth/types/authenticated-request";
 import { ReportsService } from "./reports.service";
-import { CreateAnalyticsExportScheduleDto } from "./enterprise-reports.dto";
+import { CreateAnalyticsExportScheduleDto, GenerateQuarterlyBusinessReviewDto } from "./enterprise-reports.dto";
 
 @ApiTags("reports")
 @Controller("tenants/:tenantId/reports")
@@ -135,6 +135,35 @@ export class ReportsController {
     return this.reportsService.runTenantExport(
       tenantId,
       scheduleId,
+      request.user?.subject,
+    );
+  }
+
+  @Get("quarterly-business-reviews")
+  @RequirePermissions("report:export")
+  listQuarterlyBusinessReviews(@Param("tenantId") tenantId: string) {
+    return this.reportsService.listQuarterlyBusinessReviews(tenantId);
+  }
+
+  @Get("quarterly-business-reviews/:packId")
+  @RequirePermissions("report:export")
+  getQuarterlyBusinessReview(
+    @Param("tenantId") tenantId: string,
+    @Param("packId") packId: string,
+  ) {
+    return this.reportsService.getQuarterlyBusinessReview(tenantId, packId);
+  }
+
+  @Post("quarterly-business-reviews")
+  @RequirePermissions("report:export")
+  generateQuarterlyBusinessReview(
+    @Param("tenantId") tenantId: string,
+    @Body() body: GenerateQuarterlyBusinessReviewDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.reportsService.generateQuarterlyBusinessReview(
+      tenantId,
+      body.quarter,
       request.user?.subject,
     );
   }

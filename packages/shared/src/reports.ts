@@ -162,3 +162,38 @@ export type EnterpriseAnalyticsReport = {
   metrics: EnterpriseAnalyticsMetrics;
   tenants: EnterpriseAnalyticsNode[];
 };
+
+export type QuarterlyBusinessReviewMetric = {
+  current: number;
+  previous: number;
+  change: number;
+};
+
+export type QuarterlyBusinessReviewPack = {
+  id: string;
+  tenantId: string;
+  tenantName: string;
+  quarter: string;
+  from: string;
+  to: string;
+  generatedAt: string;
+  generatedBy?: string | null;
+  checksum: string;
+  metrics: {
+    enrolledStudents: QuarterlyBusinessReviewMetric;
+    managedDevices: QuarterlyBusinessReviewMetric;
+    activeDeviceRate: QuarterlyBusinessReviewMetric;
+    complianceRate: QuarterlyBusinessReviewMetric;
+    policyDeliverySuccessRate: QuarterlyBusinessReviewMetric;
+    supportTicketsOpened: QuarterlyBusinessReviewMetric;
+    supportResolutionRate: QuarterlyBusinessReviewMetric;
+    learningSessions: QuarterlyBusinessReviewMetric;
+  };
+  modeUsage: Array<{ mode: string; sessions: number; share: number }>;
+  recommendations: Array<{
+    priority: "HIGH" | "MEDIUM" | "LOW";
+    title: string;
+    rationale: string;
+    evidence: string[];
+  }>;
+};

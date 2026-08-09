@@ -21,3 +21,9 @@ export class CreateAnalyticsExportScheduleDto {
   @IsDateString() nextRunAt!: string;
   @IsOptional() @IsBoolean() enabled?: boolean;
 }
+
+export class GenerateQuarterlyBusinessReviewDto {
+  @IsString()
+  @Matches(/^\d{4}-Q[1-4]$/, { message: "quarter must use YYYY-Q1 through YYYY-Q4" })
+  quarter!: string;
+}

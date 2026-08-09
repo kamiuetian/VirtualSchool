@@ -770,6 +770,22 @@ const routes = [
         ],
       }),
   ],
+  [
+    "GET",
+    `/tenants/${tenantId}/reports/quarterly-business-reviews`,
+    () =>
+      json([
+        {
+          id: "qbr-2026-q2",
+          quarter: "2026-Q2",
+          periodStart: "2026-04-01T00:00:00.000Z",
+          periodEnd: "2026-06-30T23:59:59.999Z",
+          checksum: "92cdd4131a4c982e3943c0877951d257d27819fca615bf3c82e445a0d46773b9",
+          generatedBy: "admin-1",
+          generatedAt: now,
+        },
+      ]),
+  ],
   ["GET", `/tenants/${tenantId}/classes`, () => json(classes)],
   ["GET", `/tenants/${tenantId}/calendar-exceptions`, () => json([])],
   ["GET", `/tenants/${tenantId}/users`, () => json(users)],
