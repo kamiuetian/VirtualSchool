@@ -13,12 +13,15 @@ import type {
   BranchSummary,
   OnboardingChecklist,
   TenantSummary,
+  DataResidencyOption,
+  RegionalGovernanceSummary,
 } from "@virtual-school/shared";
 import { RequirePermissions } from "../auth/decorators/require-permissions.decorator";
 import type { AuthenticatedRequest } from "../auth/types/authenticated-request";
 import { CreateBranchDto } from "./dto/create-branch.dto";
 import { CreateTenantDto } from "./dto/create-tenant.dto";
 import { UpdateTenantProfileDto } from "./dto/update-tenant-profile.dto";
+import { UpdateDataGovernanceDto } from "./dto/update-data-governance.dto";
 import { TenantsService } from "./tenants.service";
 
 @ApiTags("tenants")
@@ -42,6 +45,34 @@ export class TenantsController {
   @ApiOkResponse({ description: "Tenant details" })
   getById(@Param("tenantId") tenantId: string): Promise<TenantSummary> {
     return this.tenantsService.getById(tenantId);
+  }
+
+  @Get("data-residency/regions")
+  @RequirePermissions("tenant:read")
+  listDataResidencyRegions(): DataResidencyOption[] {
+    return this.tenantsService.listDataResidencyRegions();
+  }
+
+  @Get(":tenantId/data-governance")
+  @RequirePermissions("report:export")
+  getDataGovernance(
+    @Param("tenantId") tenantId: string,
+  ): Promise<RegionalGovernanceSummary> {
+    return this.tenantsService.getRegionalGovernance(tenantId);
+  }
+
+  @Patch(":tenantId/data-governance")
+  @RequirePermissions("tenant:update")
+  updateDataGovernance(
+    @Param("tenantId") tenantId: string,
+    @Body() body: UpdateDataGovernanceDto,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<TenantSummary> {
+    return this.tenantsService.updateDataGovernance(
+      tenantId,
+      body,
+      request.user?.subject,
+    );
   }
 
   @Patch(":tenantId")

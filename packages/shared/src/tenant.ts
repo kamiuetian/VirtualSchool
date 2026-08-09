@@ -16,6 +16,29 @@ export type TenantSummary = {
   supportPhone?: string | null;
   studentLabel?: string | null;
   deviceLabel?: string | null;
+  dataRegion: DataResidencyRegion;
+  allowedRegionCodes: string[];
+};
+
+export type DataResidencyRegion = "PK" | "EU" | "US" | "APAC";
+
+export type DataResidencyOption = {
+  code: DataResidencyRegion;
+  label: string;
+};
+
+export type RegionalGovernanceSummary = {
+  tenantId: string;
+  dataRegion: DataResidencyRegion;
+  allowedRegionCodes: string[];
+  regions: Array<{
+    regionCode: string;
+    dataRegion: DataResidencyRegion;
+    branches: number;
+    students: number;
+    classes: number;
+    devices: number;
+  }>;
 };
 
 export type TenantBranding = Pick<
@@ -39,6 +62,8 @@ export type BranchSummary = {
   name: string;
   timezone?: string | null;
   status: string;
+  regionCode?: string | null;
+  dataRegion?: DataResidencyRegion | null;
 };
 
 export type OnboardingChecklistItem = {

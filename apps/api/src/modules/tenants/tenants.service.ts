@@ -8,12 +8,23 @@ import type {
   BranchSummary,
   OnboardingChecklist,
   TenantSummary,
+  DataResidencyOption,
+  DataResidencyRegion,
+  RegionalGovernanceSummary,
 } from "@virtual-school/shared";
 import { Prisma, type Branch, type TenantStatus } from "../../generated/prisma";
 import { PrismaService } from "../prisma/prisma.service";
 import type { CreateBranchDto } from "./dto/create-branch.dto";
 import type { CreateTenantDto } from "./dto/create-tenant.dto";
 import type { UpdateTenantProfileDto } from "./dto/update-tenant-profile.dto";
+import type { UpdateDataGovernanceDto } from "./dto/update-data-governance.dto";
+
+const DATA_REGIONS: DataResidencyOption[] = [
+  { code: "PK", label: "Pakistan" },
+  { code: "EU", label: "European Union" },
+  { code: "US", label: "United States" },
+  { code: "APAC", label: "Asia Pacific" },
+];
 
 @Injectable()
 export class TenantsService {
@@ -83,12 +94,32 @@ export class TenantsService {
   ): Promise<BranchSummary> {
     await this.ensureTenantExists(tenantId);
 
+    const governance = await this.prisma.tenant.findUnique({
+      select: { allowedRegionCodes: true, dataRegion: true },
+      where: { id: tenantId },
+    });
+    if (
+      input.regionCode &&
+      !governance?.allowedRegionCodes.includes(input.regionCode)
+    ) {
+      throw new BadRequestException(
+        "Campus region is not allowed by tenant governance",
+      );
+    }
+    if (input.dataRegion && input.dataRegion !== governance?.dataRegion) {
+      throw new BadRequestException(
+        "Campus data must remain in the tenant data region",
+      );
+    }
+
     const branch = await this.prisma.$transaction(async (tx) => {
       const created = await tx.branch.create({
         data: {
           name: input.name,
           tenantId,
           timezone: input.timezone,
+          regionCode: input.regionCode,
+          dataRegion: input.dataRegion ?? governance?.dataRegion,
         },
       });
 
@@ -99,6 +130,8 @@ export class TenantsService {
             name: created.name,
             status: created.status,
             timezone: created.timezone,
+            regionCode: created.regionCode,
+            dataRegion: created.dataRegion,
           },
           object: "Branch",
           objectId: created.id,
@@ -111,6 +144,131 @@ export class TenantsService {
     });
 
     return this.toBranchSummary(branch);
+  }
+
+  listDataResidencyRegions(): DataResidencyOption[] {
+    return DATA_REGIONS;
+  }
+
+  async updateDataGovernance(
+    tenantId: string,
+    input: UpdateDataGovernanceDto,
+    actorId: string | undefined,
+  ): Promise<TenantSummary> {
+    const existing = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+    });
+    if (!existing)
+      throw new NotFoundException(`Tenant ${tenantId} was not found`);
+
+    const incompatible = await this.prisma.branch.findFirst({
+      where: {
+        tenantId,
+        OR: [
+          {
+            AND: [
+              { regionCode: { not: null } },
+              { regionCode: { notIn: input.allowedRegionCodes } },
+            ],
+          },
+          {
+            AND: [
+              { dataRegion: { not: null } },
+              { dataRegion: { not: input.dataRegion } },
+            ],
+          },
+        ],
+      },
+      select: { id: true },
+    });
+    if (incompatible) {
+      throw new BadRequestException(
+        "Move or reclassify campuses before removing their region or changing residency",
+      );
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const tenant = await tx.tenant.update({
+        data: {
+          dataRegion: input.dataRegion,
+          allowedRegionCodes: input.allowedRegionCodes,
+        },
+        where: { id: tenantId },
+      });
+      await tx.branch.updateMany({
+        data: { dataRegion: input.dataRegion },
+        where: { tenantId, dataRegion: null },
+      });
+      await tx.auditEvent.create({
+        data: {
+          action: "tenant.data_governance_update",
+          actorId,
+          object: "Tenant",
+          objectId: tenantId,
+          oldValue: {
+            dataRegion: existing.dataRegion,
+            allowedRegionCodes: existing.allowedRegionCodes,
+          },
+          newValue: {
+            dataRegion: input.dataRegion,
+            allowedRegionCodes: input.allowedRegionCodes,
+          },
+          outcome: "SUCCESS",
+          tenantId,
+        },
+      });
+      return tenant;
+    });
+    return this.toSummary(updated);
+  }
+
+  async getRegionalGovernance(
+    tenantId: string,
+  ): Promise<RegionalGovernanceSummary> {
+    const tenant = await this.prisma.tenant.findUnique({
+      select: { id: true, dataRegion: true, allowedRegionCodes: true },
+      where: { id: tenantId },
+    });
+    if (!tenant)
+      throw new NotFoundException(`Tenant ${tenantId} was not found`);
+
+    const branches = await this.prisma.branch.findMany({
+      select: {
+        regionCode: true,
+        dataRegion: true,
+        _count: { select: { students: true, classes: true, devices: true } },
+      },
+      where: { tenantId },
+    });
+    const rollup = new Map<
+      string,
+      RegionalGovernanceSummary["regions"][number]
+    >();
+    for (const branch of branches) {
+      const regionCode = branch.regionCode ?? "UNASSIGNED";
+      const current = rollup.get(regionCode) ?? {
+        regionCode,
+        dataRegion: (branch.dataRegion ??
+          tenant.dataRegion) as DataResidencyRegion,
+        branches: 0,
+        students: 0,
+        classes: 0,
+        devices: 0,
+      };
+      current.branches += 1;
+      current.students += branch._count.students;
+      current.classes += branch._count.classes;
+      current.devices += branch._count.devices;
+      rollup.set(regionCode, current);
+    }
+    return {
+      tenantId,
+      dataRegion: tenant.dataRegion as DataResidencyRegion,
+      allowedRegionCodes: tenant.allowedRegionCodes,
+      regions: [...rollup.values()].sort((a, b) =>
+        a.regionCode.localeCompare(b.regionCode),
+      ),
+    };
   }
 
   async updateProfile(
@@ -375,6 +533,8 @@ export class TenantsService {
       status: branch.status,
       tenantId: branch.tenantId,
       timezone: branch.timezone,
+      regionCode: branch.regionCode,
+      dataRegion: branch.dataRegion as DataResidencyRegion | null,
     };
   }
 
@@ -394,6 +554,8 @@ export class TenantsService {
     websiteUrl?: string | null;
     studentLabel?: string | null;
     deviceLabel?: string | null;
+    dataRegion?: string;
+    allowedRegionCodes?: string[];
   }): TenantSummary {
     return {
       accentColor: tenant.accentColor,
@@ -411,6 +573,8 @@ export class TenantsService {
       websiteUrl: tenant.websiteUrl,
       studentLabel: tenant.studentLabel,
       deviceLabel: tenant.deviceLabel,
+      dataRegion: (tenant.dataRegion ?? "PK") as DataResidencyRegion,
+      allowedRegionCodes: tenant.allowedRegionCodes ?? [],
     };
   }
 

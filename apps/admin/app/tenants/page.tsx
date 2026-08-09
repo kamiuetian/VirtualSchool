@@ -20,6 +20,7 @@ import {
   suspendStaffAction,
   updateStaffRoleAction,
   updateTenantProfileAction,
+  updateDataGovernanceAction,
 } from "../../lib/actions";
 import { getAdminData } from "../../lib/api";
 import { roleCan } from "../../lib/auth/portal-access";
@@ -253,6 +254,48 @@ export default async function TenantsPage() {
                 ) : null}
 
                 {canUpdateTenant ? (
+                  <ActionPanel title="Data residency and regions">
+                    <form
+                      action={updateDataGovernanceAction}
+                      className="stacked-form"
+                    >
+                      <input
+                        name="tenantId"
+                        type="hidden"
+                        value={selectedTenant.id}
+                      />
+                      <Field label="Data residency">
+                        <select
+                          name="dataRegion"
+                          defaultValue={selectedTenant.dataRegion}
+                        >
+                          <option value="PK">Pakistan</option>
+                          <option value="EU">European Union</option>
+                          <option value="US">United States</option>
+                          <option value="APAC">Asia Pacific</option>
+                        </select>
+                      </Field>
+                      <Field label="Allowed operating regions">
+                        <input
+                          name="allowedRegionCodes"
+                          defaultValue={selectedTenant.allowedRegionCodes.join(
+                            ", ",
+                          )}
+                          placeholder="NORTH, SOUTH"
+                          required
+                        />
+                      </Field>
+                      <p className="form-help">
+                        Region codes bound delegated campus access. Existing
+                        campuses must be moved before a region or residency is
+                        removed.
+                      </p>
+                      <SubmitButton>Save data governance</SubmitButton>
+                    </form>
+                  </ActionPanel>
+                ) : null}
+
+                {canUpdateTenant ? (
                   <ActionPanel title="Add campus">
                     <form action={createBranchAction} className="stacked-form">
                       <input
@@ -269,6 +312,26 @@ export default async function TenantsPage() {
                           placeholder={selectedTenant.timezone}
                         />
                       </Field>
+                      <div className="form-row">
+                        <Field label="Operating region">
+                          <input
+                            name="regionCode"
+                            placeholder="NORTH"
+                            required
+                          />
+                        </Field>
+                        <Field label="Data residency">
+                          <select
+                            name="dataRegion"
+                            defaultValue={selectedTenant.dataRegion}
+                          >
+                            <option value="PK">Pakistan</option>
+                            <option value="EU">European Union</option>
+                            <option value="US">United States</option>
+                            <option value="APAC">Asia Pacific</option>
+                          </select>
+                        </Field>
+                      </div>
                       <SubmitButton>Add campus</SubmitButton>
                     </form>
                   </ActionPanel>
@@ -362,6 +425,7 @@ export default async function TenantsPage() {
                     <th>Brand</th>
                     <th>Country</th>
                     <th>Timezone</th>
+                    <th>Residency</th>
                     <th>Plan</th>
                     <th>Support</th>
                     <th>Status</th>
@@ -391,6 +455,7 @@ export default async function TenantsPage() {
                       </td>
                       <td>{tenant.country}</td>
                       <td>{tenant.timezone}</td>
+                      <td>{tenant.dataRegion}</td>
                       <td>{tenant.planKey}</td>
                       <td>
                         {tenant.supportEmail ?? tenant.websiteUrl ?? "Not set"}

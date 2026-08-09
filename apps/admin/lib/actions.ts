@@ -533,6 +533,20 @@ export async function createBranchAction(formData: FormData): Promise<void> {
   await adminApiMutation("POST", `/tenants/${tenantId}/branches`, {
     name: text(formData, "name"),
     timezone: text(formData, "timezone"),
+    regionCode: text(formData, "regionCode"),
+    dataRegion: text(formData, "dataRegion"),
+  });
+  revalidateAll();
+}
+
+export async function updateDataGovernanceAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation("PATCH", `/tenants/${tenantId}/data-governance`, {
+    dataRegion: required(formData, "dataRegion"),
+    allowedRegionCodes: csvValues(formData, "allowedRegionCodes"),
   });
   revalidateAll();
 }

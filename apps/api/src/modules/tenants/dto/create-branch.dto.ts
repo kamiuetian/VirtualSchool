@@ -1,5 +1,13 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { IsNotEmpty, IsOptional, IsString } from "class-validator";
+import {
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+} from "class-validator";
+
+const dataRegions = ["PK", "EU", "US", "APAC"] as const;
 
 export class CreateBranchDto {
   @ApiProperty()
@@ -11,4 +19,14 @@ export class CreateBranchDto {
   @IsOptional()
   @IsString()
   timezone?: string;
+
+  @ApiProperty({ example: "NORTH", required: false })
+  @IsOptional()
+  @Matches(/^[A-Z][A-Z0-9_-]{1,31}$/)
+  regionCode?: string;
+
+  @ApiProperty({ enum: dataRegions, required: false })
+  @IsOptional()
+  @IsIn(dataRegions)
+  dataRegion?: (typeof dataRegions)[number];
 }

@@ -249,6 +249,122 @@ describe("TenantsService", () => {
     await expect(service.listAuthorized(["*"])).resolves.toHaveLength(1);
   });
 
+  it("rejects campuses outside the tenant region boundary", async () => {
+    const service = new TenantsService({
+      tenant: {
+        findUnique: async ({ select }: { select?: unknown }) =>
+          select
+            ? {
+                allowedRegionCodes: ["NORTH"],
+                dataRegion: "PK",
+                id: "tenant-1",
+              }
+            : { id: "tenant-1" },
+      },
+    } as never);
+
+    await expect(
+      service.createBranch("tenant-1", {
+        name: "Overseas Campus",
+        regionCode: "SOUTH",
+        dataRegion: "PK",
+      }),
+    ).rejects.toThrow("not allowed by tenant governance");
+  });
+
+  it("updates governance with audit evidence when campuses remain compatible", async () => {
+    const audits: unknown[] = [];
+    const existing = {
+      id: "tenant-1",
+      country: "PK",
+      language: "en",
+      name: "Regional School",
+      planKey: "enterprise",
+      status: "ACTIVE",
+      timezone: "Asia/Karachi",
+      dataRegion: "PK",
+      allowedRegionCodes: ["NORTH"],
+    };
+    const prisma = {
+      branch: { findFirst: async () => null },
+      tenant: { findUnique: async () => existing },
+      $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
+        callback({
+          tenant: {
+            update: async ({ data }: { data: object }) => ({
+              ...existing,
+              ...data,
+            }),
+          },
+          branch: { updateMany: async () => ({ count: 0 }) },
+          auditEvent: {
+            create: async ({ data }: { data: unknown }) => audits.push(data),
+          },
+        }),
+    } as never;
+    const service = new TenantsService(prisma);
+
+    await expect(
+      service.updateDataGovernance(
+        "tenant-1",
+        { dataRegion: "PK", allowedRegionCodes: ["NORTH", "SOUTH"] },
+        "admin-1",
+      ),
+    ).resolves.toMatchObject({
+      dataRegion: "PK",
+      allowedRegionCodes: ["NORTH", "SOUTH"],
+    });
+    expect(audits).toEqual([
+      expect.objectContaining({
+        action: "tenant.data_governance_update",
+        actorId: "admin-1",
+        tenantId: "tenant-1",
+      }),
+    ]);
+  });
+
+  it("rolls up regional counts without returning record-level data", async () => {
+    const service = new TenantsService({
+      tenant: {
+        findUnique: async () => ({
+          id: "tenant-1",
+          dataRegion: "PK",
+          allowedRegionCodes: ["NORTH"],
+        }),
+      },
+      branch: {
+        findMany: async () => [
+          {
+            regionCode: "NORTH",
+            dataRegion: "PK",
+            _count: { students: 25, classes: 3, devices: 20 },
+          },
+          {
+            regionCode: "NORTH",
+            dataRegion: "PK",
+            _count: { students: 10, classes: 1, devices: 8 },
+          },
+        ],
+      },
+    } as never);
+
+    await expect(service.getRegionalGovernance("tenant-1")).resolves.toEqual({
+      tenantId: "tenant-1",
+      dataRegion: "PK",
+      allowedRegionCodes: ["NORTH"],
+      regions: [
+        {
+          regionCode: "NORTH",
+          dataRegion: "PK",
+          branches: 2,
+          students: 35,
+          classes: 4,
+          devices: 28,
+        },
+      ],
+    });
+  });
+
   it("builds the first-run onboarding checklist from tenant setup state", async () => {
     const prisma = {
       appCatalogItem: {

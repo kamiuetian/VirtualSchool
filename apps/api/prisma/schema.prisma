@@ -92,6 +92,8 @@ model Tenant {
   studentLabel                    String?
   deviceLabel                     String?
   webFilterSettings               Json?
+  dataRegion                      String                           @default("PK")
+  allowedRegionCodes              String[]                         @default([])
   createdAt                       DateTime                         @default(now())
   updatedAt                       DateTime                         @updatedAt
   branches                        Branch[]
@@ -812,6 +814,7 @@ model Branch {
   timezone                  String?
   status                    String                     @default("ACTIVE")
   regionCode                String?
+  dataRegion                String?
   createdAt                 DateTime                   @default(now())
   updatedAt                 DateTime                   @updatedAt
   tenant                    Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)

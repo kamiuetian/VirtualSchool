@@ -14,6 +14,8 @@ const tenant = {
   id: tenantId,
   accentColor: "#315f91",
   country: "US",
+  dataRegion: "US",
+  allowedRegionCodes: ["NORTH", "SOUTH"],
   logoUrl: "https://assets.example.edu/northview-logo.png",
   name: "Northview Primary School",
   planKey: "growth",
@@ -193,8 +195,33 @@ const alerts = [
     deviceId,
   },
 ];
-const announcements = [{ id: "announcement-pilot", tenantId, title: "Teacher pilot briefing", message: "Try the new attendance capture before Friday.", targetRoles: ["PLATFORM_SUPER_ADMIN", "TEACHER"], startsAt: now, endsAt: null, archivedAt: null, createdAt: now }];
-const pilotFeedback = [{ id: "feedback-1", tenantId, role: "TEACHER", module: "Attendance", severity: "MEDIUM", status: "TRIAGED", summary: "Daily capture is easy to find.", context: { route: "/reports" }, createdAt: now, updatedAt: now }];
+const announcements = [
+  {
+    id: "announcement-pilot",
+    tenantId,
+    title: "Teacher pilot briefing",
+    message: "Try the new attendance capture before Friday.",
+    targetRoles: ["PLATFORM_SUPER_ADMIN", "TEACHER"],
+    startsAt: now,
+    endsAt: null,
+    archivedAt: null,
+    createdAt: now,
+  },
+];
+const pilotFeedback = [
+  {
+    id: "feedback-1",
+    tenantId,
+    role: "TEACHER",
+    module: "Attendance",
+    severity: "MEDIUM",
+    status: "TRIAGED",
+    summary: "Daily capture is easy to find.",
+    context: { route: "/reports" },
+    createdAt: now,
+    updatedAt: now,
+  },
+];
 
 const rosterImport = {
   committedAt: null,
@@ -291,9 +318,21 @@ const routes = [
       }),
   ],
   ["GET", `/tenants/${tenantId}/devices`, () => json([device])],
-  ["GET", `/tenants/${tenantId}/communications/announcements?includeArchived=true`, () => json(announcements)],
-  ["GET", `/tenants/${tenantId}/communications/announcements`, () => json(announcements)],
-  ["GET", `/tenants/${tenantId}/communications/feedback`, () => json(pilotFeedback)],
+  [
+    "GET",
+    `/tenants/${tenantId}/communications/announcements?includeArchived=true`,
+    () => json(announcements),
+  ],
+  [
+    "GET",
+    `/tenants/${tenantId}/communications/announcements`,
+    () => json(announcements),
+  ],
+  [
+    "GET",
+    `/tenants/${tenantId}/communications/feedback`,
+    () => json(pilotFeedback),
+  ],
   [
     "GET",
     `/tenants/${tenantId}/teacher/dashboard`,
