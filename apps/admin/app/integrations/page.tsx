@@ -26,6 +26,7 @@ import {
   setWebhookEnabledAction,
   authorizeGoogleWorkspaceAction,
   mapGoogleWorkspaceOuAction,
+  configureAppleMdmAction,
 } from "../../lib/actions";
 import {
   getAdminData,
@@ -35,6 +36,7 @@ import {
   getSisOperations,
   getWebhookEndpoints,
   getGoogleWorkspaceIntegration,
+  getAppleMdmIntegration,
 } from "../../lib/api";
 
 export const dynamic = "force-dynamic";
@@ -61,6 +63,10 @@ export default async function IntegrationsPage() {
     ? await getGoogleWorkspaceIntegration(tenant.id)
     : { integration: null, connectionIssue: false };
   const workspace = workspaceResult.integration;
+  const appleResult = tenant
+    ? await getAppleMdmIntegration(tenant.id)
+    : { integration: null, connectionIssue: false };
+  const apple = appleResult.integration;
   return (
     <AppShell
       connectionIssue={
@@ -69,36 +75,277 @@ export default async function IntegrationsPage() {
         lmsResult.connectionIssue ||
         educationResult.connectionIssue ||
         sisResult.connectionIssue ||
-        webhookResult.connectionIssue
-        || workspaceResult.connectionIssue
+        webhookResult.connectionIssue ||
+        workspaceResult.connectionIssue ||
+        appleResult.connectionIssue
       }
       tenant={tenant}
     >
       <div className="content-stack">
+        <PageSection
+          kicker="iPadOS management"
+          title="Apple School Manager and external MDM"
+        >
+          {tenant ? (
+            <div className="form-grid two">
+              <ActionPanel title="Guided token and certificate setup">
+                <form action={configureAppleMdmAction} className="stacked-form">
+                  <input name="tenantId" type="hidden" value={tenant.id} />
+                  <Field label="External MDM provider">
+                    <input
+                      name="providerName"
+                      defaultValue={apple?.providerName}
+                      required
+                    />
+                  </Field>
+                  <Field label="MDM server URL">
+                    <input
+                      name="serverUrl"
+                      type="url"
+                      defaultValue={apple?.serverUrl}
+                      required
+                    />
+                  </Field>
+                  <Field label="Apple School Manager organization ID">
+                    <input
+                      name="appleSchoolManagerId"
+                      defaultValue={apple?.appleSchoolManagerId}
+                      required
+                    />
+                  </Field>
+                  <Field label="Token and certificate secret reference">
+                    <input
+                      name="credentialReference"
+                      defaultValue={apple?.credentialReference}
+                      placeholder="secret://apple-mdm"
+                      required
+                    />
+                  </Field>
+                  <Field label="ASM token expiry">
+                    <input
+                      name="tokenExpiresAt"
+                      type="datetime-local"
+                      required
+                    />
+                  </Field>
+                  <Field label="MDM certificate expiry">
+                    <input
+                      name="certificateExpiresAt"
+                      type="datetime-local"
+                      required
+                    />
+                  </Field>
+                  <small>
+                    Upload tokens and certificates to the deployment secret
+                    manager. This workflow stores only the external reference
+                    and expiry metadata.
+                  </small>
+                  <SubmitButton>
+                    {apple ? "Renew setup" : "Configure"}
+                  </SubmitButton>
+                </form>
+              </ActionPanel>
+              <ActionPanel title="Connection readiness">
+                {apple ? (
+                  <div className="data-list">
+                    <div className="data-row">
+                      <strong>{apple.providerName}</strong>
+                      <StatusPill tone="good">{apple.status}</StatusPill>
+                      <small>
+                        ASM organization: {apple.appleSchoolManagerId}
+                      </small>
+                    </div>
+                    <div className="data-row">
+                      <strong>ADE token</strong>
+                      <StatusPill
+                        tone={apple.tokenExpiryAlert ? "warning" : "good"}
+                      >
+                        {apple.tokenExpiryAlert ? "RENEW SOON" : "CURRENT"}
+                      </StatusPill>
+                      <small>
+                        Expires{" "}
+                        {new Date(apple.tokenExpiresAt).toLocaleString()}
+                      </small>
+                    </div>
+                    <div className="data-row">
+                      <strong>MDM certificate</strong>
+                      <StatusPill
+                        tone={apple.certificateExpiryAlert ? "warning" : "good"}
+                      >
+                        {apple.certificateExpiryAlert
+                          ? "RENEW SOON"
+                          : "CURRENT"}
+                      </StatusPill>
+                      <small>
+                        Expires{" "}
+                        {new Date(apple.certificateExpiresAt).toLocaleString()}
+                      </small>
+                    </div>
+                  </div>
+                ) : (
+                  <EmptyState
+                    title="Setup required"
+                    body="Connect an external iPadOS MDM and record Apple School Manager token and certificate expiry dates."
+                  />
+                )}
+              </ActionPanel>
+            </div>
+          ) : null}
+          {apple ? (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>iPadOS device</th>
+                    <th>ADE</th>
+                    <th>Supervision</th>
+                    <th>Restrictions</th>
+                    <th>Apps / books</th>
+                    <th>Managed configuration</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {apple.devices.map((device) => (
+                    <tr key={device.id}>
+                      <td>
+                        {device.serialNumber}
+                        <small>
+                          {device.model ?? "iPad"} · iPadOS{" "}
+                          {device.osVersion ?? "unknown"}
+                        </small>
+                      </td>
+                      <td>
+                        <StatusPill>{device.adeStatus}</StatusPill>
+                      </td>
+                      <td>
+                        <StatusPill>{device.supervisionStatus}</StatusPill>
+                      </td>
+                      <td>
+                        <StatusPill>{device.restrictionStatus}</StatusPill>
+                      </td>
+                      <td>
+                        <StatusPill>{device.appBookStatus}</StatusPill>
+                      </td>
+                      <td>
+                        <StatusPill>
+                          {device.managedConfigurationStatus}
+                        </StatusPill>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </PageSection>
         <PageSection kicker="ChromeOS management" title="Google Workspace">
           {tenant ? (
             <div className="form-grid two">
               <ActionPanel title="Guided authorization">
-                <form action={authorizeGoogleWorkspaceAction} className="stacked-form">
+                <form
+                  action={authorizeGoogleWorkspaceAction}
+                  className="stacked-form"
+                >
                   <input name="tenantId" type="hidden" value={tenant.id} />
-                  <Field label="Google customer ID"><input defaultValue={workspace?.customerId} name="customerId" required /></Field>
-                  <Field label="Delegated admin email"><input defaultValue={workspace?.delegatedAdminEmail} name="delegatedAdminEmail" type="email" required /></Field>
-                  <Field label="Service-account secret reference"><input defaultValue={workspace?.credentialReference} name="credentialReference" placeholder="secret://google-workspace" required /></Field>
-                  <small>Only an external secret reference is stored. Domain-wide delegation must be configured in Google Workspace.</small>
-                  <SubmitButton>{workspace ? "Reauthorize" : "Authorize"}</SubmitButton>
+                  <Field label="Google customer ID">
+                    <input
+                      defaultValue={workspace?.customerId}
+                      name="customerId"
+                      required
+                    />
+                  </Field>
+                  <Field label="Delegated admin email">
+                    <input
+                      defaultValue={workspace?.delegatedAdminEmail}
+                      name="delegatedAdminEmail"
+                      type="email"
+                      required
+                    />
+                  </Field>
+                  <Field label="Service-account secret reference">
+                    <input
+                      defaultValue={workspace?.credentialReference}
+                      name="credentialReference"
+                      placeholder="secret://google-workspace"
+                      required
+                    />
+                  </Field>
+                  <small>
+                    Only an external secret reference is stored. Domain-wide
+                    delegation must be configured in Google Workspace.
+                  </small>
+                  <SubmitButton>
+                    {workspace ? "Reauthorize" : "Authorize"}
+                  </SubmitButton>
                 </form>
               </ActionPanel>
               <ActionPanel title="Map organizational unit">
-                {workspace ? <form action={mapGoogleWorkspaceOuAction} className="stacked-form">
-                  <input name="tenantId" type="hidden" value={tenant.id} />
-                  <Field label="Organizational unit ID"><input name="organizationalUnitId" required /></Field>
-                  <Field label="Organizational unit path"><input name="organizationalUnitPath" placeholder="/Students/Grade-7" required /></Field>
-                  <SubmitButton>Save mapping</SubmitButton>
-                </form> : <EmptyState title="Authorization required" body="Authorize Google Workspace before mapping organizational units." />}
+                {workspace ? (
+                  <form
+                    action={mapGoogleWorkspaceOuAction}
+                    className="stacked-form"
+                  >
+                    <input name="tenantId" type="hidden" value={tenant.id} />
+                    <Field label="Organizational unit ID">
+                      <input name="organizationalUnitId" required />
+                    </Field>
+                    <Field label="Organizational unit path">
+                      <input
+                        name="organizationalUnitPath"
+                        placeholder="/Students/Grade-7"
+                        required
+                      />
+                    </Field>
+                    <SubmitButton>Save mapping</SubmitButton>
+                  </form>
+                ) : (
+                  <EmptyState
+                    title="Authorization required"
+                    body="Authorize Google Workspace before mapping organizational units."
+                  />
+                )}
               </ActionPanel>
             </div>
           ) : null}
-          {workspace ? <div className="table-wrap"><table><thead><tr><th>ChromeOS device</th><th>OU</th><th>Kiosk</th><th>Managed session</th><th>Apps/extensions</th><th>Web policy</th></tr></thead><tbody>{workspace.devices.map((device) => <tr key={device.id}><td>{device.serialNumber}<small>{device.model ?? "ChromeOS"}</small></td><td>{device.organizationalUnitId}</td><td><StatusPill>{device.kioskStatus}</StatusPill></td><td><StatusPill>{device.managedSessionStatus}</StatusPill></td><td><StatusPill>{device.appExtensionStatus}</StatusPill></td><td><StatusPill>{device.webPolicyStatus}</StatusPill></td></tr>)}</tbody></table></div> : null}
+          {workspace ? (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>ChromeOS device</th>
+                    <th>OU</th>
+                    <th>Kiosk</th>
+                    <th>Managed session</th>
+                    <th>Apps/extensions</th>
+                    <th>Web policy</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {workspace.devices.map((device) => (
+                    <tr key={device.id}>
+                      <td>
+                        {device.serialNumber}
+                        <small>{device.model ?? "ChromeOS"}</small>
+                      </td>
+                      <td>{device.organizationalUnitId}</td>
+                      <td>
+                        <StatusPill>{device.kioskStatus}</StatusPill>
+                      </td>
+                      <td>
+                        <StatusPill>{device.managedSessionStatus}</StatusPill>
+                      </td>
+                      <td>
+                        <StatusPill>{device.appExtensionStatus}</StatusPill>
+                      </td>
+                      <td>
+                        <StatusPill>{device.webPolicyStatus}</StatusPill>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
         </PageSection>
         <PageSection kicker="Event delivery" title="Signed education webhooks">
           {tenant ? (

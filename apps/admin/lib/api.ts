@@ -39,6 +39,7 @@ import type {
   LmsConnectionSummary,
   EducationConnectionSummary,
   GoogleWorkspaceIntegrationSummary,
+  AppleMdmIntegrationSummary,
   SisOperationsSummary,
   WebhookEndpointSummary,
   TenantWebFilterSettings,
@@ -341,6 +342,16 @@ export async function getGoogleWorkspaceIntegration(tenantId: string): Promise<{
 }> {
   const result = await apiGet<GoogleWorkspaceIntegrationSummary>(
     `/tenants/${tenantId}/integrations/google-workspace`,
+  );
+  return { integration: result.data, connectionIssue: result.failed };
+}
+
+export async function getAppleMdmIntegration(tenantId: string): Promise<{
+  integration: AppleMdmIntegrationSummary | null;
+  connectionIssue: boolean;
+}> {
+  const result = await apiGet<AppleMdmIntegrationSummary>(
+    `/tenants/${tenantId}/integrations/apple-mdm`,
   );
   return { integration: result.data, connectionIssue: result.failed };
 }

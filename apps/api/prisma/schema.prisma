@@ -154,6 +154,46 @@ model Tenant {
   googleWorkspaceConnection       GoogleWorkspaceConnection?
   googleWorkspaceOuMappings       GoogleWorkspaceOuMapping[]
   chromeOsDeviceStates            ChromeOsDeviceState[]
+  appleMdmConnection              AppleMdmConnection?
+  appleDeviceStates               AppleDeviceState[]
+}
+
+model AppleMdmConnection {
+  id                    String             @id @default(uuid())
+  tenantId              String             @unique
+  providerName          String
+  serverUrl             String
+  credentialReference   String
+  appleSchoolManagerId  String
+  status                String             @default("AUTHORIZED")
+  tokenExpiresAt        DateTime
+  certificateExpiresAt  DateTime
+  lastValidatedAt       DateTime?
+  lastInventorySyncAt   DateTime?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  tenant                Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deviceStates          AppleDeviceState[]
+}
+
+model AppleDeviceState {
+  id                         String             @id @default(uuid())
+  tenantId                   String
+  connectionId               String
+  deviceId                   String             @unique
+  externalDeviceId           String
+  adeStatus                  String             @default("UNKNOWN")
+  supervisionStatus          String             @default("UNKNOWN")
+  restrictionStatus          String             @default("UNKNOWN")
+  appBookStatus              String             @default("UNKNOWN")
+  managedConfigurationStatus String             @default("UNKNOWN")
+  lastSyncedAt               DateTime           @default(now())
+  tenant                     Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  connection                 AppleMdmConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  device                     Device             @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, externalDeviceId])
+  @@index([tenantId, supervisionStatus])
 }
 
 model GoogleWorkspaceConnection {
@@ -963,6 +1003,7 @@ model Device {
   lifecycleEvents          DeviceLifecycleEvent[]
   teacherSessionEvents     TeacherSessionEvent[]
   chromeOsState            ChromeOsDeviceState?
+  appleState               AppleDeviceState?
 
   @@unique([tenantId, serialNumber])
   @@index([tenantId, status])

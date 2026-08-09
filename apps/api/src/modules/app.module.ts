@@ -31,6 +31,7 @@ import { AttendanceModule } from "./attendance/attendance.module";
 import { AutomationModule } from "./automation/automation.module";
 import { CommunicationsModule } from "./communications/communications.module";
 import { GoogleWorkspaceModule } from "./google-workspace/google-workspace.module";
+import { AppleMdmModule } from "./apple-mdm/apple-mdm.module";
 
 @Module({
   imports: [
@@ -66,6 +67,7 @@ import { GoogleWorkspaceModule } from "./google-workspace/google-workspace.modul
     AutomationModule,
     CommunicationsModule,
     GoogleWorkspaceModule,
+    AppleMdmModule,
   ],
 })
 export class AppModule {}

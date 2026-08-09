@@ -1648,22 +1648,48 @@ export async function mapClassroomCourseAction(formData: FormData) {
 export async function authorizeGoogleWorkspaceAction(formData: FormData) {
   await requireActionPermission("tenant:update");
   const tenantId = required(formData, "tenantId");
-  await adminApiMutation("POST", `/tenants/${tenantId}/integrations/google-workspace/authorize`, {
-    customerId: required(formData, "customerId"),
-    delegatedAdminEmail: required(formData, "delegatedAdminEmail"),
-    credentialReference: required(formData, "credentialReference"),
-  });
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/integrations/google-workspace/authorize`,
+    {
+      customerId: required(formData, "customerId"),
+      delegatedAdminEmail: required(formData, "delegatedAdminEmail"),
+      credentialReference: required(formData, "credentialReference"),
+    },
+  );
   revalidateAll();
 }
 
 export async function mapGoogleWorkspaceOuAction(formData: FormData) {
   await requireActionPermission("tenant:update");
   const tenantId = required(formData, "tenantId");
-  await adminApiMutation("POST", `/tenants/${tenantId}/integrations/google-workspace/organizational-units`, {
-    organizationalUnitId: required(formData, "organizationalUnitId"),
-    organizationalUnitPath: required(formData, "organizationalUnitPath"),
-    branchId: text(formData, "branchId") || undefined,
-  });
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/integrations/google-workspace/organizational-units`,
+    {
+      organizationalUnitId: required(formData, "organizationalUnitId"),
+      organizationalUnitPath: required(formData, "organizationalUnitPath"),
+      branchId: text(formData, "branchId") || undefined,
+    },
+  );
+  revalidateAll();
+}
+
+export async function configureAppleMdmAction(formData: FormData) {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/integrations/apple-mdm/configure`,
+    {
+      providerName: required(formData, "providerName"),
+      serverUrl: required(formData, "serverUrl"),
+      credentialReference: required(formData, "credentialReference"),
+      appleSchoolManagerId: required(formData, "appleSchoolManagerId"),
+      tokenExpiresAt: required(formData, "tokenExpiresAt"),
+      certificateExpiresAt: required(formData, "certificateExpiresAt"),
+    },
+  );
   revalidateAll();
 }
 
