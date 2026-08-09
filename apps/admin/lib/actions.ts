@@ -1722,6 +1722,96 @@ export async function publishDisasterRecoveryAction(
   revalidateAll();
 }
 
+export async function recordBackupVerificationAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("tenant:update");
+  const session = await requireAdminSession();
+  if (session.role !== "PLATFORM_SUPER_ADMIN") throw new Error("Forbidden");
+  const tenantId = required(formData, "tenantId");
+  const retentionUntil = text(formData, "retentionUntil");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/privacy/backup-operations/verifications`,
+    {
+      backupType: required(formData, "backupType"),
+      provider: required(formData, "provider"),
+      backupReference: required(formData, "backupReference"),
+      status: required(formData, "status"),
+      backupCreatedAt: new Date(
+        required(formData, "backupCreatedAt"),
+      ).toISOString(),
+      verifiedAt: new Date(required(formData, "verifiedAt")).toISOString(),
+      expectedIntervalHours: Number(
+        required(formData, "expectedIntervalHours"),
+      ),
+      ...(retentionUntil
+        ? { retentionUntil: new Date(retentionUntil).toISOString() }
+        : {}),
+      evidenceUrl: required(formData, "evidenceUrl"),
+      notes: text(formData, "notes"),
+    },
+  );
+  revalidateAll();
+}
+
+export async function requestRestoreDrillAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("tenant:update");
+  const session = await requireAdminSession();
+  if (session.role !== "PLATFORM_SUPER_ADMIN") throw new Error("Forbidden");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/privacy/backup-operations/restore-drills`,
+    {
+      backupVerificationId: required(formData, "backupVerificationId"),
+      title: required(formData, "title"),
+      environment: required(formData, "environment"),
+      runbookUrl: required(formData, "runbookUrl"),
+      reason: required(formData, "reason"),
+    },
+  );
+  revalidateAll();
+}
+
+export async function approveRestoreDrillAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("tenant:update");
+  const session = await requireAdminSession();
+  if (session.role !== "PLATFORM_SUPER_ADMIN") throw new Error("Forbidden");
+  const tenantId = required(formData, "tenantId");
+  const drillId = required(formData, "drillId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/privacy/backup-operations/restore-drills/${drillId}/approve`,
+    { approvalNote: required(formData, "approvalNote") },
+  );
+  revalidateAll();
+}
+
+export async function completeRestoreDrillAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("tenant:update");
+  const session = await requireAdminSession();
+  if (session.role !== "PLATFORM_SUPER_ADMIN") throw new Error("Forbidden");
+  const tenantId = required(formData, "tenantId");
+  const drillId = required(formData, "drillId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/privacy/backup-operations/restore-drills/${drillId}/complete`,
+    {
+      outcome: required(formData, "outcome"),
+      resultSummary: required(formData, "resultSummary"),
+      evidenceUrl: required(formData, "evidenceUrl"),
+    },
+  );
+  revalidateAll();
+}
+
 export async function addSecurityIncidentUpdateAction(
   formData: FormData,
 ): Promise<void> {

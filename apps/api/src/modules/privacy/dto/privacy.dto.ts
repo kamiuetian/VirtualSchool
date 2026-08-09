@@ -188,3 +188,35 @@ export class PublishDisasterRecoveryEvidenceDto {
   @Length(1, 80, { each: true })
   eligiblePlans!: string[];
 }
+
+export class RecordBackupVerificationDto {
+  @IsIn(["DATABASE", "OBJECT_STORAGE", "CONFIGURATION"])
+  backupType!: string;
+  @IsString() @Length(2, 80) provider!: string;
+  @IsString() @Length(3, 160) backupReference!: string;
+  @IsIn(["VERIFIED", "FAILED", "MISSING"]) status!: string;
+  @IsDateString() backupCreatedAt!: string;
+  @IsDateString() verifiedAt!: string;
+  @IsInt() @Min(1) expectedIntervalHours!: number;
+  @IsOptional() @IsDateString() retentionUntil?: string;
+  @IsString() @Length(8, 2048) evidenceUrl!: string;
+  @IsOptional() @IsString() @Length(10, 1000) notes?: string;
+}
+
+export class RequestRestoreDrillDto {
+  @IsString() @Length(1, 120) backupVerificationId!: string;
+  @IsString() @Length(5, 160) title!: string;
+  @IsIn(["ISOLATED_TEST", "STAGING"]) environment!: string;
+  @IsString() @Length(8, 2048) runbookUrl!: string;
+  @IsString() @Length(20, 1000) reason!: string;
+}
+
+export class ApproveRestoreDrillDto {
+  @IsString() @Length(10, 1000) approvalNote!: string;
+}
+
+export class CompleteRestoreDrillDto {
+  @IsIn(["PASSED", "PASSED_WITH_ACTIONS", "FAILED"]) outcome!: string;
+  @IsString() @Length(20, 2000) resultSummary!: string;
+  @IsString() @Length(8, 2048) evidenceUrl!: string;
+}

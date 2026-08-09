@@ -17,6 +17,10 @@ import {
   publishServiceIncidentAction,
   publishMaintenanceAction,
   publishDisasterRecoveryAction,
+  recordBackupVerificationAction,
+  requestRestoreDrillAction,
+  approveRestoreDrillAction,
+  completeRestoreDrillAction,
   decideDataSubjectRequestAction,
   publishPrivacyNoticeAction,
   revokePrivacyAcceptanceAction,
@@ -417,6 +421,230 @@ export default async function PrivacyPage() {
             />
           )}
         </PageSection>
+        {tenant && data.session.role === "PLATFORM_SUPER_ADMIN" ? (
+          <PageSection
+            kicker="Platform operations"
+            title="Backup and controlled restore"
+          >
+            <div className="metric-grid">
+              <div className="metric-card">
+                <span>Backup checks</span>
+                <strong>{data.backupOperations?.backups.length ?? 0}</strong>
+                <small>credential-free verification records</small>
+              </div>
+              <div className="metric-card">
+                <span>Stale or failed</span>
+                <strong>
+                  {data.backupOperations?.backups.filter(
+                    (item) => item.freshness !== "CURRENT",
+                  ).length ?? 0}
+                </strong>
+                <small>requires operator review</small>
+              </div>
+              <div className="metric-card">
+                <span>Restore drills</span>
+                <strong>
+                  {data.backupOperations?.restoreDrills.length ?? 0}
+                </strong>
+                <small>approval-gated runbook records</small>
+              </div>
+            </div>
+            <div className="form-grid">
+              <ActionPanel title="Backup verification history">
+                <div className="list-panel">
+                  {data.backupOperations?.backups.map((item) => (
+                    <div className="list-row" key={item.id}>
+                      <div>
+                        <strong>
+                          {item.backupType} - {item.backupReference}
+                        </strong>
+                        <span>
+                          {item.provider} - {item.freshness} - verified{" "}
+                          {new Date(item.verifiedAt).toLocaleString()}
+                        </span>
+                        <small>
+                          Expected every {item.expectedIntervalHours} hours
+                        </small>
+                      </div>
+                      <a
+                        className="small-button primary"
+                        href={item.evidenceUrl}
+                      >
+                        Evidence
+                      </a>
+                    </div>
+                  ))}
+                  {!data.backupOperations?.backups.length ? (
+                    <EmptyState
+                      title="No backup checks"
+                      body="Record a provider verification without entering credentials."
+                    />
+                  ) : null}
+                </div>
+                <form
+                  action={recordBackupVerificationAction}
+                  className="stacked-form"
+                >
+                  <input name="tenantId" type="hidden" value={tenant.id} />
+                  <div className="form-row">
+                    <Field label="Backup type">
+                      <select name="backupType">
+                        <option>DATABASE</option>
+                        <option>OBJECT_STORAGE</option>
+                        <option>CONFIGURATION</option>
+                      </select>
+                    </Field>
+                    <Field label="Status">
+                      <select name="status">
+                        <option>VERIFIED</option>
+                        <option>FAILED</option>
+                        <option>MISSING</option>
+                      </select>
+                    </Field>
+                  </div>
+                  <div className="form-row">
+                    <Field label="Provider">
+                      <input name="provider" required />
+                    </Field>
+                    <Field label="Backup reference">
+                      <input name="backupReference" required />
+                    </Field>
+                  </div>
+                  <div className="form-row">
+                    <Field label="Backup created">
+                      <input
+                        name="backupCreatedAt"
+                        type="datetime-local"
+                        required
+                      />
+                    </Field>
+                    <Field label="Verified">
+                      <input name="verifiedAt" type="datetime-local" required />
+                    </Field>
+                  </div>
+                  <div className="form-row">
+                    <Field label="Expected interval hours">
+                      <input
+                        name="expectedIntervalHours"
+                        type="number"
+                        min="1"
+                        defaultValue="24"
+                        required
+                      />
+                    </Field>
+                    <Field label="Retention until">
+                      <input name="retentionUntil" type="date" />
+                    </Field>
+                  </div>
+                  <Field label="HTTPS evidence URL">
+                    <input name="evidenceUrl" type="url" required />
+                  </Field>
+                  <Field label="Operational notes">
+                    <textarea name="notes" minLength={10} />
+                  </Field>
+                  <SubmitButton>Record verification</SubmitButton>
+                </form>
+              </ActionPanel>
+              <ActionPanel title="Controlled restore drills">
+                <div className="list-panel">
+                  {data.backupOperations?.restoreDrills.map((item) => (
+                    <div className="list-row" key={item.id}>
+                      <div>
+                        <strong>{item.title}</strong>
+                        <span>
+                          {item.environment} - {item.status}
+                          {item.outcome ? ` - ${item.outcome}` : ""}
+                        </span>
+                        <small>{item.reason}</small>
+                      </div>
+                      {item.status === "REQUESTED" ? (
+                        <form action={approveRestoreDrillAction}>
+                          <input
+                            name="tenantId"
+                            type="hidden"
+                            value={tenant.id}
+                          />
+                          <input name="drillId" type="hidden" value={item.id} />
+                          <input
+                            name="approvalNote"
+                            type="hidden"
+                            value="Approved after independent review of the referenced runbook."
+                          />
+                          <SubmitButton>Approve</SubmitButton>
+                        </form>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+                <form
+                  action={requestRestoreDrillAction}
+                  className="stacked-form"
+                >
+                  <input name="tenantId" type="hidden" value={tenant.id} />
+                  <Field label="Verified backup">
+                    <select name="backupVerificationId" required>
+                      <option value="">Select backup</option>
+                      {data.backupOperations?.backups
+                        .filter((item) => item.status === "VERIFIED")
+                        .map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.backupType} - {item.backupReference}
+                          </option>
+                        ))}
+                    </select>
+                  </Field>
+                  <Field label="Drill title">
+                    <input name="title" minLength={5} required />
+                  </Field>
+                  <Field label="Environment">
+                    <select name="environment">
+                      <option>ISOLATED_TEST</option>
+                      <option>STAGING</option>
+                    </select>
+                  </Field>
+                  <Field label="HTTPS runbook URL">
+                    <input name="runbookUrl" type="url" required />
+                  </Field>
+                  <Field label="Restore reason">
+                    <textarea name="reason" minLength={20} required />
+                  </Field>
+                  <SubmitButton>Request restore drill</SubmitButton>
+                </form>
+                {data.backupOperations?.restoreDrills
+                  .filter((item) => item.status === "APPROVED")
+                  .map((item) => (
+                    <form
+                      action={completeRestoreDrillAction}
+                      className="stacked-form"
+                      key={`complete-${item.id}`}
+                    >
+                      <input name="tenantId" type="hidden" value={tenant.id} />
+                      <input name="drillId" type="hidden" value={item.id} />
+                      <strong>Complete: {item.title}</strong>
+                      <Field label="Outcome">
+                        <select name="outcome">
+                          <option>PASSED</option>
+                          <option>PASSED_WITH_ACTIONS</option>
+                          <option>FAILED</option>
+                        </select>
+                      </Field>
+                      <Field label="Result summary">
+                        <textarea
+                          name="resultSummary"
+                          minLength={20}
+                          required
+                        />
+                      </Field>
+                      <Field label="HTTPS evidence URL">
+                        <input name="evidenceUrl" type="url" required />
+                      </Field>
+                      <SubmitButton>Record restore result</SubmitButton>
+                    </form>
+                  ))}
+              </ActionPanel>
+            </div>
+          </PageSection>
+        ) : null}
         <PageSection kicker="Security operations" title="Incident management">
           {tenant && overview ? (
             <div className="form-grid">

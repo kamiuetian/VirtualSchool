@@ -17,6 +17,7 @@ import type {
   SecurityPrivacyProfileSummary,
   SecurityIncidentSummary,
   ServiceStatusOverview,
+  BackupOperationsOverview,
 } from "@virtual-school/shared";
 import type { Prisma } from "../../generated/prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
@@ -33,6 +34,9 @@ import type {
   PublishServiceIncidentDto,
   PublishMaintenanceWindowDto,
   PublishDisasterRecoveryEvidenceDto,
+  RecordBackupVerificationDto,
+  RequestRestoreDrillDto,
+  CompleteRestoreDrillDto,
 } from "./dto/privacy.dto";
 
 @Injectable()
@@ -160,6 +164,237 @@ export class PrivacyService {
           },
         }),
     );
+  }
+
+  async backupOperations(
+    tenantId: string,
+    role: Role,
+    now = new Date(),
+  ): Promise<BackupOperationsOverview> {
+    this.requirePlatformOperator(role);
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { id: true },
+    });
+    if (!tenant) throw new NotFoundException("Tenant was not found");
+    const [backups, restoreDrills] = await Promise.all([
+      this.prisma.backupVerification.findMany({
+        where: { tenantId },
+        orderBy: { verifiedAt: "desc" },
+      }),
+      this.prisma.restoreDrill.findMany({
+        where: { tenantId },
+        orderBy: { createdAt: "desc" },
+      }),
+    ]);
+    return {
+      tenantId,
+      backups: backups.map((item) => ({
+        ...item,
+        backupCreatedAt: item.backupCreatedAt.toISOString(),
+        verifiedAt: item.verifiedAt.toISOString(),
+        retentionUntil: item.retentionUntil?.toISOString() ?? null,
+        freshness:
+          item.status !== "VERIFIED"
+            ? "FAILED"
+            : now.getTime() - item.backupCreatedAt.getTime() >
+                item.expectedIntervalHours * 60 * 60 * 1000
+              ? "STALE"
+              : "CURRENT",
+      })) as BackupOperationsOverview["backups"],
+      restoreDrills: restoreDrills.map((item) => ({
+        ...item,
+        approvedAt: item.approvedAt?.toISOString() ?? null,
+        completedAt: item.completedAt?.toISOString() ?? null,
+        createdAt: item.createdAt.toISOString(),
+      })) as BackupOperationsOverview["restoreDrills"],
+    };
+  }
+
+  async recordBackupVerification(
+    tenantId: string,
+    input: RecordBackupVerificationDto,
+    actorId: string | undefined,
+    role: Role,
+  ) {
+    this.requirePlatformOperator(role);
+    this.validateEvidenceReferences([input.evidenceUrl]);
+    const backupCreatedAt = new Date(input.backupCreatedAt);
+    const verifiedAt = new Date(input.verifiedAt);
+    const retentionUntil = input.retentionUntil
+      ? new Date(input.retentionUntil)
+      : null;
+    if (verifiedAt < backupCreatedAt)
+      throw new BadRequestException("Verification cannot predate the backup");
+    if (retentionUntil && retentionUntil <= backupCreatedAt)
+      throw new BadRequestException("Retention must extend beyond the backup");
+    return this.prisma.$transaction(async (tx) => {
+      const tenant = await tx.tenant.findUnique({
+        where: { id: tenantId },
+        select: { id: true },
+      });
+      if (!tenant) throw new NotFoundException("Tenant was not found");
+      const saved = await tx.backupVerification.create({
+        data: {
+          ...input,
+          tenantId,
+          backupCreatedAt,
+          verifiedAt,
+          retentionUntil,
+          verifiedBy: actorId,
+        },
+      });
+      await tx.auditEvent.create({
+        data: {
+          tenantId,
+          actorId,
+          action: "backup.verification.record",
+          object: "BackupVerification",
+          objectId: saved.id,
+          outcome: input.status,
+          newValue: {
+            backupType: input.backupType,
+            provider: input.provider,
+            backupReference: input.backupReference,
+            verifiedAt: input.verifiedAt,
+          },
+        },
+      });
+      return saved;
+    });
+  }
+
+  async requestRestoreDrill(
+    tenantId: string,
+    input: RequestRestoreDrillDto,
+    actorId: string | undefined,
+    role: Role,
+  ) {
+    this.requirePlatformOperator(role);
+    this.validateEvidenceReferences([input.runbookUrl]);
+    return this.prisma.$transaction(async (tx) => {
+      const backup = await tx.backupVerification.findFirst({
+        where: { id: input.backupVerificationId, tenantId },
+        select: { id: true, status: true },
+      });
+      if (!backup)
+        throw new NotFoundException("Backup verification was not found");
+      if (backup.status !== "VERIFIED")
+        throw new BadRequestException(
+          "Restore drills require a verified backup",
+        );
+      const saved = await tx.restoreDrill.create({
+        data: { ...input, tenantId, requestedBy: actorId },
+      });
+      await tx.auditEvent.create({
+        data: {
+          tenantId,
+          actorId,
+          action: "restore_drill.request",
+          object: "RestoreDrill",
+          objectId: saved.id,
+          outcome: "REQUESTED",
+        },
+      });
+      return saved;
+    });
+  }
+
+  async approveRestoreDrill(
+    tenantId: string,
+    drillId: string,
+    approvalNote: string,
+    actorId: string | undefined,
+    role: Role,
+  ) {
+    this.requirePlatformOperator(role);
+    return this.prisma.$transaction(async (tx) => {
+      const drill = await tx.restoreDrill.findFirst({
+        where: { id: drillId, tenantId },
+      });
+      if (!drill) throw new NotFoundException("Restore drill was not found");
+      if (drill.status !== "REQUESTED")
+        throw new BadRequestException(
+          "Only requested restore drills can be approved",
+        );
+      if (!actorId || actorId === drill.requestedBy)
+        throw new ForbiddenException(
+          "Restore approval requires a different platform administrator",
+        );
+      const saved = await tx.restoreDrill.update({
+        where: { id: drill.id },
+        data: {
+          status: "APPROVED",
+          approvedBy: actorId,
+          approvedAt: new Date(),
+        },
+      });
+      await tx.auditEvent.create({
+        data: {
+          tenantId,
+          actorId,
+          action: "restore_drill.approve",
+          object: "RestoreDrill",
+          objectId: drill.id,
+          outcome: "APPROVED",
+          newValue: { approvalNote },
+        },
+      });
+      return saved;
+    });
+  }
+
+  async completeRestoreDrill(
+    tenantId: string,
+    drillId: string,
+    input: CompleteRestoreDrillDto,
+    actorId: string | undefined,
+    role: Role,
+  ) {
+    this.requirePlatformOperator(role);
+    this.validateEvidenceReferences([input.evidenceUrl]);
+    return this.prisma.$transaction(async (tx) => {
+      const drill = await tx.restoreDrill.findFirst({
+        where: { id: drillId, tenantId },
+      });
+      if (!drill) throw new NotFoundException("Restore drill was not found");
+      if (drill.status !== "APPROVED")
+        throw new BadRequestException(
+          "Restore drill must be approved before completion",
+        );
+      const completedAt = new Date();
+      const saved = await tx.restoreDrill.update({
+        where: { id: drill.id },
+        data: {
+          ...input,
+          status: "COMPLETED",
+          startedAt: drill.approvedAt,
+          completedAt,
+        },
+      });
+      await tx.auditEvent.create({
+        data: {
+          tenantId,
+          actorId,
+          action: "restore_drill.complete",
+          object: "RestoreDrill",
+          objectId: drill.id,
+          outcome: input.outcome,
+          newValue: {
+            completedAt: completedAt.toISOString(),
+            evidenceUrl: input.evidenceUrl,
+          },
+        },
+      });
+      return saved;
+    });
+  }
+
+  private requirePlatformOperator(role: Role) {
+    if (role !== "PLATFORM_SUPER_ADMIN")
+      throw new ForbiddenException(
+        "Backup and restore operations require platform administrator access",
+      );
   }
 
   private async auditedServicePublication(

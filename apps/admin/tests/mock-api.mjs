@@ -417,6 +417,32 @@ const routes = [
   ],
   [
     "GET",
+    `/tenants/${tenantId}/privacy/backup-operations`,
+    () =>
+      json({
+        tenantId,
+        backups: [
+          {
+            id: "backup-1",
+            backupType: "DATABASE",
+            provider: "AWS",
+            backupReference: "snapshot-2026-08-09",
+            status: "VERIFIED",
+            freshness: "CURRENT",
+            backupCreatedAt: now,
+            verifiedAt: now,
+            expectedIntervalHours: 24,
+            retentionUntil: null,
+            evidenceUrl: "https://evidence.example.edu/backups/backup-1",
+            notes: null,
+            verifiedBy: "operator-1",
+          },
+        ],
+        restoreDrills: [],
+      }),
+  ],
+  [
+    "GET",
     `/tenants/${tenantId}/privacy/evidence-packs`,
     () =>
       json([

@@ -125,6 +125,8 @@ model Tenant {
   serviceIncidents                ServiceStatusIncident[]
   maintenanceWindows              ServiceMaintenanceWindow[]
   disasterRecoveryEvidence        DisasterRecoveryEvidence[]
+  backupVerifications             BackupVerification[]
+  restoreDrills                   RestoreDrill[]
   blockedDomainEvents             BlockedDomainEvent[]
   assignmentHistory               DeviceAssignment[]
   lifecycleEvents                 DeviceLifecycleEvent[]
@@ -2053,6 +2055,54 @@ model DisasterRecoveryEvidence {
   tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
   @@index([tenantId, exerciseDate])
+}
+
+model BackupVerification {
+  id                    String         @id @default(uuid())
+  tenantId              String
+  backupType            String
+  provider              String
+  backupReference       String
+  status                String
+  backupCreatedAt       DateTime
+  verifiedAt            DateTime
+  expectedIntervalHours Int
+  retentionUntil        DateTime?
+  evidenceUrl           String
+  notes                 String?
+  verifiedBy            String?
+  createdAt             DateTime       @default(now())
+  tenant                Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  restoreDrills         RestoreDrill[]
+
+  @@index([tenantId, backupType, verifiedAt])
+  @@index([tenantId, status, backupCreatedAt])
+}
+
+model RestoreDrill {
+  id                   String             @id @default(uuid())
+  tenantId             String
+  backupVerificationId String
+  title                String
+  environment          String
+  status               String             @default("REQUESTED")
+  runbookUrl           String
+  reason               String
+  requestedBy          String?
+  approvedBy           String?
+  approvedAt           DateTime?
+  startedAt            DateTime?
+  completedAt          DateTime?
+  outcome              String?
+  resultSummary        String?
+  evidenceUrl          String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  tenant               Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  backupVerification   BackupVerification @relation(fields: [backupVerificationId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, status, createdAt])
+  @@index([backupVerificationId, createdAt])
 }
 
 model MachineCredential {

@@ -29,6 +29,10 @@ import {
   PublishServiceIncidentDto,
   PublishMaintenanceWindowDto,
   PublishDisasterRecoveryEvidenceDto,
+  RecordBackupVerificationDto,
+  RequestRestoreDrillDto,
+  ApproveRestoreDrillDto,
+  CompleteRestoreDrillDto,
 } from "./dto/privacy.dto";
 import { PrivacyService } from "./privacy.service";
 
@@ -38,6 +42,74 @@ export class PrivacyController {
   constructor(
     @Inject(PrivacyService) private readonly service: PrivacyService,
   ) {}
+  @Get("backup-operations")
+  @RequirePermissions("tenant:update")
+  backupOperations(
+    @Param("tenantId") tenantId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.service.backupOperations(tenantId, req.user!.role);
+  }
+  @Post("backup-operations/verifications")
+  @RequirePermissions("tenant:update")
+  recordBackupVerification(
+    @Param("tenantId") tenantId: string,
+    @Body() body: RecordBackupVerificationDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.service.recordBackupVerification(
+      tenantId,
+      body,
+      req.user?.subject,
+      req.user!.role,
+    );
+  }
+  @Post("backup-operations/restore-drills")
+  @RequirePermissions("tenant:update")
+  requestRestoreDrill(
+    @Param("tenantId") tenantId: string,
+    @Body() body: RequestRestoreDrillDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.service.requestRestoreDrill(
+      tenantId,
+      body,
+      req.user?.subject,
+      req.user!.role,
+    );
+  }
+  @Post("backup-operations/restore-drills/:drillId/approve")
+  @RequirePermissions("tenant:update")
+  approveRestoreDrill(
+    @Param("tenantId") tenantId: string,
+    @Param("drillId") drillId: string,
+    @Body() body: ApproveRestoreDrillDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.service.approveRestoreDrill(
+      tenantId,
+      drillId,
+      body.approvalNote,
+      req.user?.subject,
+      req.user!.role,
+    );
+  }
+  @Post("backup-operations/restore-drills/:drillId/complete")
+  @RequirePermissions("tenant:update")
+  completeRestoreDrill(
+    @Param("tenantId") tenantId: string,
+    @Param("drillId") drillId: string,
+    @Body() body: CompleteRestoreDrillDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.service.completeRestoreDrill(
+      tenantId,
+      drillId,
+      body,
+      req.user?.subject,
+      req.user!.role,
+    );
+  }
   @Get("service-status")
   @RequirePermissions("audit:read")
   serviceStatus(@Param("tenantId") tenantId: string) {

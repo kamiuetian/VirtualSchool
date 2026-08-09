@@ -167,3 +167,39 @@ export type ServiceStatusOverview = {
     evidenceUrl: string;
   }>;
 };
+
+export type BackupOperationsOverview = {
+  tenantId: string;
+  backups: Array<{
+    id: string;
+    backupType: "DATABASE" | "OBJECT_STORAGE" | "CONFIGURATION";
+    provider: string;
+    backupReference: string;
+    status: "VERIFIED" | "FAILED" | "MISSING";
+    freshness: "CURRENT" | "STALE" | "FAILED";
+    backupCreatedAt: string;
+    verifiedAt: string;
+    expectedIntervalHours: number;
+    retentionUntil: string | null;
+    evidenceUrl: string;
+    notes: string | null;
+    verifiedBy: string | null;
+  }>;
+  restoreDrills: Array<{
+    id: string;
+    backupVerificationId: string;
+    title: string;
+    environment: "ISOLATED_TEST" | "STAGING";
+    status: "REQUESTED" | "APPROVED" | "COMPLETED";
+    runbookUrl: string;
+    reason: string;
+    requestedBy: string | null;
+    approvedBy: string | null;
+    approvedAt: string | null;
+    completedAt: string | null;
+    outcome: "PASSED" | "PASSED_WITH_ACTIONS" | "FAILED" | null;
+    resultSummary: string | null;
+    evidenceUrl: string | null;
+    createdAt: string;
+  }>;
+};

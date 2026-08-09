@@ -240,6 +240,15 @@ test.describe("admin portal regression", () => {
     ).toBeVisible();
     await expect(page.getByText("Annual recovery exercise")).toBeVisible();
     await expect(
+      page.getByRole("heading", { name: "Backup and controlled restore" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("strong").filter({ hasText: "snapshot-2026-08-09" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Record verification" }),
+    ).toBeVisible();
+    await expect(
       page.getByRole("button", { name: "Publish DR evidence" }),
     ).toBeVisible();
     await expect(

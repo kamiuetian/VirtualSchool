@@ -2,6 +2,147 @@ import { describe, expect, it, vi } from "vitest";
 import { PrivacyService } from "./privacy.service";
 
 describe("PrivacyService", () => {
+  it("restricts backup operations to platform admins and reports stale backups", async () => {
+    const service = new PrivacyService({
+      tenant: { findUnique: async () => ({ id: "tenant-1" }) },
+      backupVerification: {
+        findMany: async () => [
+          {
+            id: "backup-1",
+            tenantId: "tenant-1",
+            backupType: "DATABASE",
+            provider: "AWS",
+            backupReference: "snapshot-123",
+            status: "VERIFIED",
+            backupCreatedAt: new Date("2026-08-08T00:00:00Z"),
+            verifiedAt: new Date("2026-08-08T01:00:00Z"),
+            expectedIntervalHours: 24,
+            retentionUntil: null,
+            evidenceUrl: "https://evidence.test/backup-1",
+            notes: null,
+            verifiedBy: "operator-1",
+          },
+        ],
+      },
+      restoreDrill: { findMany: async () => [] },
+    } as never);
+    await expect(
+      service.backupOperations("tenant-1", "SCHOOL_ADMIN"),
+    ).rejects.toThrow("platform administrator");
+    await expect(
+      service.backupOperations(
+        "tenant-1",
+        "PLATFORM_SUPER_ADMIN",
+        new Date("2026-08-10T00:00:00Z"),
+      ),
+    ).resolves.toMatchObject({
+      backups: [{ id: "backup-1", freshness: "STALE" }],
+    });
+  });
+
+  it("records tenant-scoped backup verification without credential fields", async () => {
+    const audit = vi.fn();
+    const create = vi.fn(async ({ data }: any) => ({
+      id: "backup-1",
+      ...data,
+    }));
+    const service = new PrivacyService({
+      $transaction: async (callback: any) =>
+        callback({
+          tenant: { findUnique: async () => ({ id: "tenant-1" }) },
+          backupVerification: { create },
+          auditEvent: { create: audit },
+        }),
+    } as never);
+    await service.recordBackupVerification(
+      "tenant-1",
+      {
+        backupType: "DATABASE",
+        provider: "AWS",
+        backupReference: "snapshot-123",
+        status: "VERIFIED",
+        backupCreatedAt: "2026-08-09T00:00:00Z",
+        verifiedAt: "2026-08-09T01:00:00Z",
+        expectedIntervalHours: 24,
+        retentionUntil: "2026-09-09T00:00:00Z",
+        evidenceUrl: "https://evidence.test/backup-1",
+      },
+      "operator-1",
+      "PLATFORM_SUPER_ADMIN",
+    );
+    expect(create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        tenantId: "tenant-1",
+        backupReference: "snapshot-123",
+        verifiedBy: "operator-1",
+      }),
+    });
+    expect(JSON.stringify(create.mock.calls[0])).not.toMatch(
+      /credential|secret/i,
+    );
+    expect(audit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: "backup.verification.record" }),
+      }),
+    );
+  });
+
+  it("requires independent approval before a restore drill can complete", async () => {
+    const update = vi.fn(async ({ data }: any) => ({ id: "drill-1", ...data }));
+    const drill = {
+      id: "drill-1",
+      tenantId: "tenant-1",
+      status: "REQUESTED",
+      requestedBy: "operator-1",
+      approvedAt: null,
+    };
+    const service = new PrivacyService({
+      $transaction: async (callback: any) =>
+        callback({
+          restoreDrill: {
+            findFirst: async () => drill,
+            update,
+          },
+          auditEvent: { create: vi.fn() },
+        }),
+    } as never);
+    await expect(
+      service.approveRestoreDrill(
+        "tenant-1",
+        "drill-1",
+        "Reviewed against the approved restore runbook.",
+        "operator-1",
+        "PLATFORM_SUPER_ADMIN",
+      ),
+    ).rejects.toThrow("different platform administrator");
+    await service.approveRestoreDrill(
+      "tenant-1",
+      "drill-1",
+      "Reviewed against the approved restore runbook.",
+      "operator-2",
+      "PLATFORM_SUPER_ADMIN",
+    );
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "APPROVED" }),
+      }),
+    );
+    await expect(
+      service.completeRestoreDrill(
+        "tenant-1",
+        "drill-1",
+        {
+          outcome: "PASSED",
+          resultSummary:
+            "Restore completed and application integrity checks passed.",
+          evidenceUrl: "https://evidence.test/restore-1",
+        },
+        "operator-2",
+        "PLATFORM_SUPER_ADMIN",
+      ),
+    ).rejects.toThrow("must be approved");
+  });
+
   it("returns tenant status history and only DR evidence eligible for its plan", async () => {
     const drFind = vi.fn(async () => [
       {

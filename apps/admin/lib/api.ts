@@ -24,6 +24,7 @@ import type {
   SecurityPrivacyOverview,
   SecurityIncidentSummary,
   ServiceStatusOverview,
+  BackupOperationsOverview,
   RetentionSettingsSummary,
   RemoteCommandSummary,
   RosterImportSummary,
@@ -108,6 +109,7 @@ export type AdminData = {
   dataSubjectRequests: DataSubjectRequestSummary[];
   securityIncidents: SecurityIncidentSummary[];
   serviceStatus: ServiceStatusOverview | null;
+  backupOperations: BackupOperationsOverview | null;
   billingUsage: BillingUsageSummary | null;
   session: AdminPortalSession;
   connectionIssue: boolean;
@@ -161,6 +163,7 @@ export async function getAdminData(
       dataSubjectRequests: [],
       securityIncidents: [],
       serviceStatus: null,
+      backupOperations: null,
       session,
     };
   }
@@ -197,6 +200,7 @@ export async function getAdminData(
     dataSubjectRequests,
     securityIncidents,
     serviceStatus,
+    backupOperations,
   ] = await Promise.all([
     apiGet<OnboardingChecklist>(`${tenantPath}/onboarding-checklist`),
     can("device:read")
@@ -302,6 +306,11 @@ export async function getAdminData(
     can("audit:read")
       ? apiGet<ServiceStatusOverview>(`${tenantPath}/privacy/service-status`)
       : skipped<ServiceStatusOverview>(),
+    session.role === "PLATFORM_SUPER_ADMIN"
+      ? apiGet<BackupOperationsOverview>(
+          `${tenantPath}/privacy/backup-operations`,
+        )
+      : skipped<BackupOperationsOverview>(),
   ]);
 
   return {
@@ -342,6 +351,7 @@ export async function getAdminData(
       dataSubjectRequests,
       securityIncidents,
       serviceStatus,
+      backupOperations,
     ].some((result) => result.failed),
     deviceInventory: deviceInventory.data ?? null,
     devices: devices.data ?? [],
@@ -370,6 +380,7 @@ export async function getAdminData(
     dataSubjectRequests: dataSubjectRequests.data ?? [],
     securityIncidents: securityIncidents.data ?? [],
     serviceStatus: serviceStatus.data ?? null,
+    backupOperations: backupOperations.data ?? null,
     session,
   };
 }
