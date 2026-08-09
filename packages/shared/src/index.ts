@@ -28,3 +28,4 @@ export * from "./google-workspace";
 export * from "./apple-mdm";
 export * from "./intune";
 export * from "./access-governance";
+export * from "./change-approval";

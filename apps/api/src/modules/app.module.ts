@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { AppCatalogModule } from "./app-catalog/app-catalog.module";
 import { AuditModule } from "./audit/audit.module";
+import { ChangeApprovalsModule } from "./change-approvals/change-approvals.module";
 import { AuthModule } from "./auth/auth.module";
 import { BillingModule } from "./billing/billing.module";
 import { DeviceDiagnosticsModule } from "./device-diagnostics/device-diagnostics.module";
@@ -52,6 +53,7 @@ import { AccessGovernanceModule } from "./access-governance/access-governance.mo
     PoliciesModule,
     RemoteCommandsModule,
     AuditModule,
+    ChangeApprovalsModule,
     ReportsModule,
     BillingModule,
     UsersModule,

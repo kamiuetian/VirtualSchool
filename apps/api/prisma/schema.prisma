@@ -1756,3 +1756,38 @@ model AuditEvent {
   @@index([tenantId, createdAt])
   @@index([action, createdAt])
 }
+
+model HighRiskApprovalConfig {
+  id                String   @id @default(uuid())
+  tenantId          String   @unique
+  enabledOperations Json
+  requiredApprovals Int      @default(1)
+  updatedBy         String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+model HighRiskChangeRequest {
+  id          String   @id @default(uuid())
+  tenantId    String
+  operation   String
+  objectType  String
+  objectId    String?
+  status      String   @default("PENDING")
+  summary     String
+  reason      String
+  oldValue    Json?
+  newValue    Json
+  requestedBy String
+  decisions   Json
+  outcome     String?
+  decidedAt   DateTime?
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, objectType, objectId])
+}
