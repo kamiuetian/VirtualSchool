@@ -49,7 +49,7 @@ export class AuthService {
     headers: Record<string, string | string[] | undefined>,
   ): Promise<AuthenticatedUser> {
     if (this.config.mode === "development") {
-      return this.authenticateDevelopment(headers);
+      return this.enforceStoredUserState(this.authenticateDevelopment(headers));
     }
 
     const authorization = this.headerValue(headers.authorization);
@@ -180,6 +180,16 @@ export class AuthService {
       select: {
         forcedLogoutAt: true,
         status: true,
+        tenantId: true,
+        accessAssignments: {
+          where: {
+            revokedAt: null,
+            OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+          },
+          include: { template: true },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
       },
     });
 
@@ -198,7 +208,32 @@ export class AuthService {
       throw new UnauthorizedException("User session has been revoked");
     }
 
-    return user;
+    const assignment = storedUser.accessAssignments[0];
+    if (!assignment) return user;
+    const regionCodes = assignment.regionCodes as string[];
+    const branchIds =
+      assignment.scopeType === "BRANCH" && assignment.branchId
+        ? [assignment.branchId]
+        : assignment.scopeType === "REGION"
+          ? (
+              await this.prisma.branch.findMany({
+                where: {
+                  tenantId: storedUser.tenantId,
+                  regionCode: { in: regionCodes },
+                },
+                select: { id: true },
+              })
+            ).map((branch) => branch.id)
+          : [];
+    return {
+      ...user,
+      permissions: assignment.template.permissions as string[],
+      accessScope: {
+        type: assignment.scopeType as "TENANT" | "REGION" | "BRANCH",
+        branchIds,
+        regionCodes,
+      },
+    };
   }
 
   private parseRole(value: string): Role {

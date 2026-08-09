@@ -34,6 +34,7 @@ import { GoogleWorkspaceModule } from "./google-workspace/google-workspace.modul
 import { AppleMdmModule } from "./apple-mdm/apple-mdm.module";
 import { IntuneModule } from "./intune/intune.module";
 import { EnterpriseIdentityModule } from "./enterprise-identity/enterprise-identity.module";
+import { AccessGovernanceModule } from "./access-governance/access-governance.module";
 
 @Module({
   imports: [
@@ -72,6 +73,7 @@ import { EnterpriseIdentityModule } from "./enterprise-identity/enterprise-ident
     AppleMdmModule,
     IntuneModule,
     EnterpriseIdentityModule,
+    AccessGovernanceModule,
   ],
 })
 export class AppModule {}

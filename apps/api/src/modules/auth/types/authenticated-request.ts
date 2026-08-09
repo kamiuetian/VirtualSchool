@@ -9,6 +9,11 @@ export type AuthenticatedUser = {
   permissions: string[];
   authMode: "auth0" | "development";
   tokenIssuedAt?: Date;
+  accessScope?: {
+    type: "TENANT" | "REGION" | "BRANCH";
+    branchIds: string[];
+    regionCodes: string[];
+  };
 };
 
 export type AuthenticatedRequest = Request & {

@@ -13,7 +13,7 @@ export const apiRoles = [
   "GUARDIAN",
 ] as const satisfies readonly Role[];
 
-const allPermissions: Permission[] = [
+export const apiPermissions: Permission[] = [
   "tenant:create",
   "tenant:read",
   "tenant:update",
@@ -34,7 +34,7 @@ const allPermissions: Permission[] = [
 ];
 
 export const apiRolePermissions: Record<Role, Permission[]> = {
-  PLATFORM_SUPER_ADMIN: [...allPermissions],
+  PLATFORM_SUPER_ADMIN: [...apiPermissions],
   SCHOOL_ADMIN: [
     "tenant:read",
     "tenant:update",

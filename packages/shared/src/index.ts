@@ -27,3 +27,4 @@ export * from "./communications";
 export * from "./google-workspace";
 export * from "./apple-mdm";
 export * from "./intune";
+export * from "./access-governance";

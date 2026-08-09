@@ -161,6 +161,9 @@ model Tenant {
   intuneDeviceStates              IntuneDeviceState[]
   enterpriseIdentityConnection    EnterpriseIdentityConnection?
   scimGroupMappings               ScimGroupRoleMapping[]
+  accessRoleTemplates             AccessRoleTemplate[]
+  accessAssignments               AccessAssignment[]
+  accessReviews                   AccessReview[]
 }
 
 model EnterpriseIdentityConnection {
@@ -808,6 +811,7 @@ model Branch {
   name                      String
   timezone                  String?
   status                    String                     @default("ACTIVE")
+  regionCode                String?
   createdAt                 DateTime                   @default(now())
   updatedAt                 DateTime                   @updatedAt
   tenant                    Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -819,6 +823,7 @@ model Branch {
   googleWorkspaceOuMappings GoogleWorkspaceOuMapping[]
   intuneGroupMappings        IntuneGroupMapping[]
   scimGroupMappings          ScimGroupRoleMapping[]
+  accessAssignments          AccessAssignment[]
 
   @@index([tenantId])
 }
@@ -850,10 +855,84 @@ model User {
   teacherSessionTemplates TeacherSessionTemplate[]
   breakGlassFor           EnterpriseIdentityConnection[] @relation("BreakGlassUser")
   scimConnection          EnterpriseIdentityConnection?  @relation("ScimProvisionedUsers", fields: [scimConnectionId], references: [id], onDelete: SetNull)
+  accessAssignments       AccessAssignment[]
+  accessReviewItems       AccessReviewItem[]
 
   @@unique([tenantId, email])
   @@unique([tenantId, scimExternalId])
   @@index([tenantId, role])
+}
+
+model AccessRoleTemplate {
+  id          String             @id @default(uuid())
+  tenantId    String
+  name        String
+  description String?
+  permissions Json
+  active      Boolean            @default(true)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assignments AccessAssignment[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId, active])
+}
+
+model AccessAssignment {
+  id             String             @id @default(uuid())
+  tenantId       String
+  userId         String
+  templateId     String
+  scopeType      String
+  regionCodes    Json
+  branchId       String?
+  expiresAt      DateTime?
+  revokedAt      DateTime?
+  revokedReason  String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  tenant         Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  template       AccessRoleTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  branch         Branch?            @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  reviewItems    AccessReviewItem[]
+
+  @@index([tenantId, userId, revokedAt])
+  @@index([tenantId, scopeType])
+}
+
+model AccessReview {
+  id          String             @id @default(uuid())
+  tenantId    String
+  name        String
+  status      String             @default("OPEN")
+  dueAt       DateTime
+  completedAt DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  items       AccessReviewItem[]
+
+  @@index([tenantId, status, dueAt])
+}
+
+model AccessReviewItem {
+  id           String           @id @default(uuid())
+  reviewId     String
+  assignmentId String
+  userId       String
+  decision     String           @default("PENDING")
+  reason       String?
+  decidedBy    String?
+  decidedAt    DateTime?
+  createdAt    DateTime         @default(now())
+  review       AccessReview     @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  assignment   AccessAssignment @relation(fields: [assignmentId], references: [id], onDelete: Restrict)
+  user         User             @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([reviewId, assignmentId])
+  @@index([reviewId, decision])
 }
 
 model Student {

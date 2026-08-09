@@ -43,6 +43,72 @@ export async function createTenantAction(formData: FormData): Promise<void> {
   revalidateAll();
 }
 
+export async function createAccessRoleTemplateAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("user:invite");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/access-governance/role-templates`,
+    {
+      name: required(formData, "name"),
+      description: text(formData, "description"),
+      permissions: formData.getAll("permissions").map(String),
+    },
+  );
+  revalidatePath("/access");
+}
+
+export async function assignAccessRoleAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("user:invite");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/access-governance/assignments`,
+    {
+      userId: required(formData, "userId"),
+      templateId: required(formData, "templateId"),
+      scopeType: required(formData, "scopeType"),
+      regionCodes: csvValues(formData, "regionCodes"),
+      branchId: text(formData, "branchId"),
+      expiresAt: text(formData, "expiresAt"),
+    },
+  );
+  revalidatePath("/access");
+}
+
+export async function createAccessReviewAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("audit:read");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/access-governance/reviews`,
+    { name: required(formData, "name"), dueAt: required(formData, "dueAt") },
+  );
+  revalidatePath("/access");
+}
+
+export async function decideAccessReviewAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("audit:read");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/access-governance/reviews/${required(formData, "reviewId")}/items/${required(formData, "itemId")}`,
+    {
+      decision: required(formData, "decision"),
+      reason: required(formData, "reason"),
+    },
+  );
+  revalidatePath("/access");
+}
+
 export async function createAutomationRuleAction(
   formData: FormData,
 ): Promise<void> {

@@ -18,7 +18,8 @@ export type PortalHref =
   | "/support"
   | "/reports"
   | "/billing"
-  | "/integrations";
+  | "/integrations"
+  | "/access";
 
 export type PortalNavigationItem = {
   href: PortalHref;
@@ -47,6 +48,11 @@ export const portalRoutes: PortalRoute[] = [
       "user:invite",
       "user:suspend",
     ],
+  },
+  {
+    href: "/access",
+    label: "Access",
+    anyPermissions: ["user:invite", "audit:read"],
   },
   {
     href: "/roster",

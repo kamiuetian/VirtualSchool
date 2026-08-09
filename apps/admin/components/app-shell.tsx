@@ -18,6 +18,7 @@ import {
   FileLock2,
   LogOut,
   Users,
+  UserCog,
 } from "lucide-react";
 import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
@@ -48,6 +49,7 @@ const navigationIcons = {
   "/tenants": GraduationCap,
   "/timetable": CalendarClock,
   "/integrations": PlugZap,
+  "/access": UserCog,
 } satisfies Record<PortalHref, typeof LayoutDashboard>;
 
 const roleLabels: Record<string, string> = {
@@ -92,6 +94,7 @@ export async function AppShell({
     "/tenants": "tenants",
     "/timetable": "timetable",
     "/integrations": "integrations",
+    "/access": "tenants",
   };
 
   return (

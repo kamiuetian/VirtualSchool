@@ -62,6 +62,35 @@ export class AuthRbacGuard implements CanActivate {
       );
     }
 
+    if (user.accessScope && user.accessScope.type !== "TENANT") {
+      const requestedBranches = this.collectBranchIds({
+        params: request.params,
+        query: request.query,
+        body: request.body,
+      });
+      if (
+        requestedBranches.some(
+          (branchId) => !user.accessScope!.branchIds.includes(branchId),
+        )
+      ) {
+        throw new ForbiddenException(
+          "Requested branch is outside the delegated access scope",
+        );
+      }
+    }
+
     return true;
+  }
+
+  private collectBranchIds(value: unknown): string[] {
+    if (!value || typeof value !== "object") return [];
+    if (Array.isArray(value))
+      return value.flatMap((item) => this.collectBranchIds(item));
+    return Object.entries(value as Record<string, unknown>).flatMap(
+      ([key, item]) =>
+        key.toLowerCase() === "branchid" && typeof item === "string"
+          ? [item]
+          : this.collectBranchIds(item),
+    );
   }
 }

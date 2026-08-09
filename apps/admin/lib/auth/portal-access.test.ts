@@ -12,6 +12,7 @@ describe("portal access", () => {
     ).toEqual([
       "/",
       "/tenants",
+      "/access",
       "/roster",
       "/enrollment",
       "/devices",

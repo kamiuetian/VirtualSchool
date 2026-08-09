@@ -53,6 +53,9 @@ import type {
   AnnouncementSummary,
   PilotFeedbackSummary,
   PlatformCapabilityCatalog,
+  AccessAssignmentSummary,
+  AccessReviewSummary,
+  AccessRoleTemplateSummary,
 } from "@virtual-school/shared";
 import {
   requirePortalRouteAccess,
@@ -365,6 +368,22 @@ export async function getIntuneIntegration(tenantId: string): Promise<{
     `/tenants/${tenantId}/integrations/intune`,
   );
   return { integration: result.data, connectionIssue: result.failed };
+}
+
+export async function getAccessGovernance(tenantId: string): Promise<{
+  data: {
+    templates: AccessRoleTemplateSummary[];
+    assignments: AccessAssignmentSummary[];
+    reviews: AccessReviewSummary[];
+  } | null;
+  connectionIssue: boolean;
+}> {
+  const result = await apiGet<{
+    templates: AccessRoleTemplateSummary[];
+    assignments: AccessAssignmentSummary[];
+    reviews: AccessReviewSummary[];
+  }>(`/tenants/${tenantId}/access-governance`);
+  return { data: result.data, connectionIssue: result.failed };
 }
 
 export async function getLmsIntegrations(
