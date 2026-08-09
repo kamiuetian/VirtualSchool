@@ -119,4 +119,101 @@ describe("ResellerService", () => {
       tenantId: "tenant-1",
     });
   });
+
+  it("validates approved domains and sender identity before saving branding", async () => {
+    const service = new ResellerService({
+      resellerPartner: { findUnique: async () => partner },
+    } as never);
+    await expect(
+      service.updateBranding(
+        "partner-1",
+        {
+          approvedDomains: ["north.example"],
+          emailSenderName: "North Schools",
+          emailSenderEmail: "hello@another.example",
+        },
+        "operator-1",
+      ),
+    ).rejects.toThrow("approved partner domain");
+    await expect(
+      service.updateBranding(
+        "partner-1",
+        { approvedDomains: ["not a domain"], primaryColor: "blue" },
+        "operator-1",
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it("normalizes, saves, and audits reseller white-label settings", async () => {
+    const writes: any[] = [];
+    const service = new ResellerService({
+      resellerPartner: { findUnique: async () => partner },
+      $transaction: async (work: any) =>
+        work({
+          resellerPartner: {
+            update: async ({ data }: any) => ({ ...partner, ...data }),
+          },
+          auditEvent: { create: async ({ data }: any) => writes.push(data) },
+        }),
+    } as never);
+    const result = await service.updateBranding(
+      "partner-1",
+      {
+        approvedDomains: [" Portal.North.Example/", "portal.north.example"],
+        logoUrl: "https://cdn.north.example/logo.png",
+        primaryColor: "#AABBCC",
+        emailSenderName: "North Schools",
+        emailSenderEmail: "WELCOME@PORTAL.NORTH.EXAMPLE",
+      },
+      "operator-1",
+    );
+    expect(result).toMatchObject({
+      approvedDomains: ["portal.north.example"],
+      primaryColor: "#aabbcc",
+      emailSenderEmail: "welcome@portal.north.example",
+    });
+    expect(writes[0]).toMatchObject({
+      action: "reseller.branding.update",
+      objectId: "partner-1",
+      outcome: "UPDATED",
+    });
+  });
+
+  it("reports commercial totals without querying learning records", async () => {
+    const service = new ResellerService({
+      resellerPartner: { findUnique: async () => partner },
+      resellerCustomer: {
+        findMany: async () => [
+          {
+            id: "customer-1",
+            externalRef: "crm-1",
+            onboardingState: "LIVE",
+            renewalAt: new Date("2027-01-01T00:00:00.000Z"),
+            tenant: {
+              id: "tenant-1",
+              name: "Customer School",
+              planKey: "pilot",
+              _count: { students: 20, devices: 12 },
+              billingSubscription: {
+                planKey: "growth",
+                status: "ACTIVE",
+                billingPeriodStart: new Date("2026-12-01T00:00:00.000Z"),
+                billingPeriodEnd: new Date("2027-01-01T00:00:00.000Z"),
+              },
+            },
+          },
+        ],
+      },
+    } as never);
+    const report = await service.commercialReport("partner-1", "operator-1");
+    expect(report.totals).toMatchObject({
+      customers: 1,
+      students: 20,
+      devices: 12,
+    });
+    expect(report.billingByPlan).toEqual({ growth: 1 });
+    expect(report.billingByStatus).toEqual({ ACTIVE: 1 });
+    expect(report.customers[0]).not.toHaveProperty("attendance");
+    expect(report.customers[0]).not.toHaveProperty("engagement");
+  });
 });

@@ -10,6 +10,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import type {
   CreateResellerPartnerDto,
   ProvisionResellerTenantDto,
+  UpdateResellerBrandingDto,
   UpdateResellerCustomerDto,
 } from "./reseller.dto";
 
@@ -92,6 +93,136 @@ export class ResellerService {
           provision: false,
         },
       })),
+    };
+  }
+
+  async updateBranding(
+    partnerId: string,
+    input: UpdateResellerBrandingDto,
+    actorId?: string,
+  ) {
+    const partner = await this.requirePartner(partnerId, actorId);
+    if (!input.approvedDomains?.length)
+      throw new BadRequestException("At least one approved domain is required");
+    const approvedDomains = [
+      ...new Set(input.approvedDomains.map(normalizeDomain)),
+    ];
+    if (approvedDomains.some((domain) => !isDomain(domain)))
+      throw new BadRequestException(
+        "Approved domains must be valid host names",
+      );
+    const senderEmail = input.emailSenderEmail?.trim().toLowerCase();
+    if (Boolean(senderEmail) !== Boolean(input.emailSenderName?.trim()))
+      throw new BadRequestException(
+        "Email sender name and address must be configured together",
+      );
+    if (senderEmail) {
+      const senderDomain = senderEmail.split("@")[1];
+      if (!senderDomain || !approvedDomains.includes(senderDomain))
+        throw new BadRequestException(
+          "Email sender must use an approved partner domain",
+        );
+      if (!input.emailSenderName?.trim())
+        throw new BadRequestException("Email sender name is required");
+    }
+    if (input.logoUrl) {
+      try {
+        const url = new URL(input.logoUrl);
+        if (url.protocol !== "https:") throw new Error();
+      } catch {
+        throw new BadRequestException("Logo URL must be a valid HTTPS URL");
+      }
+    }
+    if (
+      [input.primaryColor, input.accentColor].some(
+        (color) => color && !/^#[0-9a-f]{6}$/i.test(color.trim()),
+      )
+    )
+      throw new BadRequestException(
+        "Brand colors must use six-digit hex values",
+      );
+    const data = {
+      approvedDomains,
+      logoUrl: input.logoUrl?.trim() ?? null,
+      primaryColor: normalizeColor(input.primaryColor),
+      accentColor: normalizeColor(input.accentColor),
+      emailSenderName: input.emailSenderName?.trim() ?? null,
+      emailSenderEmail: senderEmail ?? null,
+      brandingUpdatedBy: actorId,
+    };
+    return this.prisma.$transaction(async (tx) => {
+      const saved = await tx.resellerPartner.update({
+        where: { id: partnerId },
+        data,
+      });
+      await tx.auditEvent.create({
+        data: {
+          actorId,
+          action: "reseller.branding.update",
+          object: "ResellerPartner",
+          objectId: partnerId,
+          outcome: "UPDATED",
+          oldValue: brandingEvidence(partner),
+          newValue: brandingEvidence(saved),
+        },
+      });
+      return brandingEvidence(saved);
+    });
+  }
+
+  async commercialReport(partnerId: string, actorId?: string) {
+    const partner = await this.requirePartner(partnerId, actorId);
+    const customers = await this.prisma.resellerCustomer.findMany({
+      where: { partnerId },
+      orderBy: { renewalAt: "asc" },
+      include: {
+        tenant: {
+          include: {
+            billingSubscription: true,
+            _count: { select: { students: true, devices: true } },
+          },
+        },
+      },
+    });
+    const now = new Date();
+    const rows = customers.map(({ tenant, ...customer }) => ({
+      customerId: customer.id,
+      tenantId: tenant.id,
+      customerName: tenant.name,
+      externalRef: customer.externalRef,
+      onboardingState: customer.onboardingState,
+      renewalAt: customer.renewalAt?.toISOString() ?? null,
+      renewalState: renewalState(customer.renewalAt, now),
+      usage: {
+        students: tenant._count.students,
+        devices: tenant._count.devices,
+      },
+      billing: {
+        planKey: tenant.billingSubscription?.planKey ?? tenant.planKey,
+        status: tenant.billingSubscription?.status ?? "UNCONFIGURED",
+        periodStart:
+          tenant.billingSubscription?.billingPeriodStart?.toISOString() ?? null,
+        periodEnd:
+          tenant.billingSubscription?.billingPeriodEnd?.toISOString() ?? null,
+      },
+    }));
+    return {
+      generatedAt: now.toISOString(),
+      partner: { id: partner.id, name: partner.name },
+      totals: {
+        customers: rows.length,
+        students: rows.reduce((total, row) => total + row.usage.students, 0),
+        devices: rows.reduce((total, row) => total + row.usage.devices, 0),
+        renewalsOverdue: rows.filter((row) => row.renewalState === "OVERDUE")
+          .length,
+        renewalsDueSoon: rows.filter((row) => row.renewalState === "DUE_SOON")
+          .length,
+      },
+      billingByPlan: countBy(rows, (row) => row.billing.planKey),
+      billingByStatus: countBy(rows, (row) => row.billing.status),
+      customers: rows,
+      privacy:
+        "Commercial metadata and aggregate usage only; learning records are excluded.",
     };
   }
 
@@ -206,4 +337,48 @@ export class ResellerService {
       throw new ForbiddenException("Operator is not assigned to this reseller");
     return partner;
   }
+}
+
+function normalizeDomain(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/\/$/, "");
+}
+
+function isDomain(value: string) {
+  return /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(
+    value,
+  );
+}
+
+function normalizeColor(value?: string) {
+  return value?.trim().toLowerCase() ?? null;
+}
+
+function brandingEvidence(value: any) {
+  return {
+    approvedDomains: value.approvedDomains ?? [],
+    logoUrl: value.logoUrl ?? null,
+    primaryColor: value.primaryColor ?? null,
+    accentColor: value.accentColor ?? null,
+    emailSenderName: value.emailSenderName ?? null,
+    emailSenderEmail: value.emailSenderEmail ?? null,
+  };
+}
+
+function renewalState(value: Date | null, now: Date) {
+  if (!value) return "UNSCHEDULED";
+  if (value < now) return "OVERDUE";
+  const dueSoon = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  return value <= dueSoon ? "DUE_SOON" : "SCHEDULED";
+}
+
+function countBy<T>(values: T[], key: (value: T) => string) {
+  return values.reduce<Record<string, number>>((counts, value) => {
+    const name = key(value);
+    counts[name] = (counts[name] ?? 0) + 1;
+    return counts;
+  }, {});
 }

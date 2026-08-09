@@ -7,8 +7,10 @@ import {
   IsDateString,
   IsIn,
   IsInt,
+  IsEmail,
   IsOptional,
   IsString,
+  Matches,
   Max,
   Min,
 } from "class-validator";
@@ -22,6 +24,30 @@ export class ProvisionResellerTenantDto {
   @IsOptional() @IsString() externalRef?: string;
   @IsOptional() @IsDateString() renewalAt?: string;
   @IsBoolean() approved!: boolean;
+}
+
+export class UpdateResellerBrandingDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  approvedDomains!: string[];
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^https:\/\//i, { message: "logoUrl must use HTTPS" })
+  logoUrl?: string;
+
+  @IsOptional()
+  @Matches(/^#[0-9a-f]{6}$/i)
+  primaryColor?: string;
+
+  @IsOptional()
+  @Matches(/^#[0-9a-f]{6}$/i)
+  accentColor?: string;
+
+  @IsOptional() @IsString() emailSenderName?: string;
+  @IsOptional() @IsEmail() emailSenderEmail?: string;
 }
 
 export class UpdateResellerCustomerDto {

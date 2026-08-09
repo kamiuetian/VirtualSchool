@@ -14,6 +14,7 @@ import type { AuthenticatedRequest } from "../auth/types/authenticated-request";
 import {
   CreateResellerPartnerDto,
   ProvisionResellerTenantDto,
+  UpdateResellerBrandingDto,
   UpdateResellerCustomerDto,
 } from "./reseller.dto";
 import { ResellerService } from "./reseller.service";
@@ -38,6 +39,19 @@ export class ResellerController {
     @Req() req: AuthenticatedRequest,
   ) {
     return this.service.portfolio(id, req.user?.subject);
+  }
+  @Patch(":partnerId/branding") branding(
+    @Param("partnerId") id: string,
+    @Body() body: UpdateResellerBrandingDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.service.updateBranding(id, body, req.user?.subject);
+  }
+  @Get(":partnerId/commercial-report") commercialReport(
+    @Param("partnerId") id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.service.commercialReport(id, req.user?.subject);
   }
   @Post(":partnerId/customers") provision(
     @Param("partnerId") id: string,

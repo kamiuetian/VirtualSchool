@@ -173,16 +173,23 @@ model Tenant {
 }
 
 model ResellerPartner {
-  id               String             @id @default(uuid())
-  name             String
-  status           String             @default("ACTIVE")
-  operatorIds      String[]
-  maxCustomers     Int
-  allowedPlanKeys  String[]
-  approvalRequired Boolean            @default(true)
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-  customers        ResellerCustomer[]
+  id                String             @id @default(uuid())
+  name              String
+  status            String             @default("ACTIVE")
+  operatorIds       String[]
+  maxCustomers      Int
+  allowedPlanKeys   String[]
+  approvalRequired  Boolean            @default(true)
+  approvedDomains   String[]           @default([])
+  logoUrl           String?
+  primaryColor      String?
+  accentColor       String?
+  emailSenderName   String?
+  emailSenderEmail  String?
+  brandingUpdatedBy String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  customers         ResellerCustomer[]
 
   @@index([status])
 }
