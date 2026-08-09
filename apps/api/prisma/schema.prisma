@@ -121,6 +121,7 @@ model Tenant {
   complianceEvidencePacks         ComplianceEvidencePack[]
   dataSubjectRequests             DataSubjectRequest[]
   dataLegalHolds                  DataLegalHold[]
+  securityIncidents               SecurityIncident[]
   blockedDomainEvents             BlockedDomainEvent[]
   assignmentHistory               DeviceAssignment[]
   lifecycleEvents                 DeviceLifecycleEvent[]
@@ -1961,6 +1962,42 @@ model DataLegalHold {
   tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
   @@index([tenantId, subjectType, subjectId, releasedAt])
+}
+
+model SecurityIncident {
+  id             String                   @id @default(uuid())
+  tenantId       String
+  title          String
+  classification String
+  severity       String
+  description    String
+  status         String                   @default("OPEN")
+  ownerId        String
+  evidence       Json
+  reportedBy     String?
+  closedBy       String?
+  closedAt       DateTime?
+  closureSummary String?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  tenant         Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  timeline       SecurityIncidentUpdate[]
+
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, severity, createdAt])
+}
+
+model SecurityIncidentUpdate {
+  id         String           @id @default(uuid())
+  incidentId String
+  updateType String
+  summary    String
+  evidence   Json
+  createdBy  String?
+  createdAt  DateTime         @default(now())
+  incident   SecurityIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+
+  @@index([incidentId, createdAt])
 }
 
 model MachineCredential {

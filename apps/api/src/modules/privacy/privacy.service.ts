@@ -15,6 +15,7 @@ import type {
   Role,
   SecurityPrivacyOverview,
   SecurityPrivacyProfileSummary,
+  SecurityIncidentSummary,
 } from "@virtual-school/shared";
 import type { Prisma } from "../../generated/prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
@@ -26,11 +27,217 @@ import type {
   CreateDataLegalHoldDto,
   PublishPrivacyNoticeDto,
   UpdateSecurityPrivacyProfileDto,
+  CreateSecurityIncidentDto,
+  AddSecurityIncidentUpdateDto,
 } from "./dto/privacy.dto";
 
 @Injectable()
 export class PrivacyService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+
+  async listSecurityIncidents(
+    tenantId: string,
+  ): Promise<SecurityIncidentSummary[]> {
+    const incidents = await this.prisma.securityIncident.findMany({
+      where: { tenantId },
+      include: { timeline: { orderBy: { createdAt: "asc" } } },
+      orderBy: { createdAt: "desc" },
+    });
+    return incidents.map((value) => this.securityIncidentSummary(value));
+  }
+
+  async createSecurityIncident(
+    tenantId: string,
+    input: CreateSecurityIncidentDto,
+    actorId?: string,
+  ) {
+    this.validateEvidenceReferences(input.evidence);
+    const owner = await this.prisma.user.findFirst({
+      where: { id: input.ownerId, tenantId, status: "ACTIVE" },
+      select: { id: true },
+    });
+    if (!owner)
+      throw new BadRequestException(
+        "Incident owner must be an active user in this tenant",
+      );
+    const saved = await this.prisma.$transaction(async (tx) => {
+      const incident = await tx.securityIncident.create({
+        data: {
+          ...input,
+          evidence: input.evidence,
+          tenantId,
+          reportedBy: actorId,
+        },
+      });
+      await tx.auditEvent.create({
+        data: {
+          tenantId,
+          actorId,
+          action: "security_incident.create",
+          object: "SecurityIncident",
+          objectId: incident.id,
+          outcome: "OPEN",
+          newValue: {
+            classification: input.classification,
+            severity: input.severity,
+            ownerId: input.ownerId,
+            evidenceCount: input.evidence.length,
+          },
+        },
+      });
+      return incident;
+    });
+    return this.securityIncidentSummary({ ...saved, timeline: [] });
+  }
+
+  async addSecurityIncidentUpdate(
+    tenantId: string,
+    incidentId: string,
+    input: AddSecurityIncidentUpdateDto,
+    actorId?: string,
+  ) {
+    this.validateEvidenceReferences(input.evidence);
+    const incident = await this.prisma.securityIncident.findFirst({
+      where: { id: incidentId, tenantId },
+    });
+    if (!incident)
+      throw new NotFoundException(
+        "Security incident was not found for this tenant",
+      );
+    if (incident.status === "CLOSED")
+      throw new BadRequestException(
+        "Closed incidents cannot receive timeline updates",
+      );
+    return this.prisma.$transaction(async (tx) => {
+      const update = await tx.securityIncidentUpdate.create({
+        data: {
+          incidentId,
+          ...input,
+          evidence: input.evidence,
+          createdBy: actorId,
+        },
+      });
+      await tx.auditEvent.create({
+        data: {
+          tenantId,
+          actorId,
+          action: "security_incident.update",
+          object: "SecurityIncident",
+          objectId: incidentId,
+          outcome: input.updateType,
+          newValue: {
+            updateType: input.updateType,
+            evidenceCount: input.evidence.length,
+          },
+        },
+      });
+      return update;
+    });
+  }
+
+  async closeSecurityIncident(
+    tenantId: string,
+    incidentId: string,
+    closureSummary: string,
+    actorId?: string,
+  ) {
+    const incident = await this.prisma.securityIncident.findFirst({
+      where: { id: incidentId, tenantId },
+    });
+    if (!incident)
+      throw new NotFoundException(
+        "Security incident was not found for this tenant",
+      );
+    if (incident.status === "CLOSED")
+      throw new BadRequestException("Security incident is already closed");
+    const saved = await this.prisma.$transaction(async (tx) => {
+      const value = await tx.securityIncident.update({
+        where: { id: incident.id },
+        data: {
+          status: "CLOSED",
+          closedAt: new Date(),
+          closedBy: actorId,
+          closureSummary,
+        },
+      });
+      await tx.auditEvent.create({
+        data: {
+          tenantId,
+          actorId,
+          action: "security_incident.close",
+          object: "SecurityIncident",
+          objectId: incident.id,
+          outcome: "CLOSED",
+          newValue: { closureSummaryLength: closureSummary.length },
+        },
+      });
+      return value;
+    });
+    return this.securityIncidentSummary({ ...saved, timeline: [] });
+  }
+
+  async exportSecurityIncident(tenantId: string, incidentId: string) {
+    const incident = await this.prisma.securityIncident.findFirst({
+      where: { id: incidentId, tenantId },
+      include: {
+        timeline: { orderBy: { createdAt: "asc" } },
+        tenant: { select: { name: true } },
+      },
+    });
+    if (!incident)
+      throw new NotFoundException(
+        "Security incident was not found for this tenant",
+      );
+    return {
+      schemaVersion: 1,
+      generatedAt: new Date().toISOString(),
+      customer: { tenantId, name: incident.tenant.name },
+      incident: this.securityIncidentSummary(incident),
+    };
+  }
+
+  private validateEvidenceReferences(references: string[]) {
+    for (const reference of references) {
+      let url: URL;
+      try {
+        url = new URL(reference);
+      } catch {
+        throw new BadRequestException(
+          "Evidence references must be valid HTTPS URLs",
+        );
+      }
+      if (url.protocol !== "https:")
+        throw new BadRequestException(
+          "Evidence references must be valid HTTPS URLs",
+        );
+    }
+  }
+
+  private securityIncidentSummary(value: any): SecurityIncidentSummary {
+    return {
+      id: value.id,
+      tenantId: value.tenantId,
+      title: value.title,
+      classification: value.classification,
+      severity: value.severity,
+      description: value.description,
+      status: value.status,
+      ownerId: value.ownerId,
+      evidence: value.evidence as string[],
+      reportedBy: value.reportedBy,
+      closedBy: value.closedBy,
+      closedAt: value.closedAt?.toISOString() ?? null,
+      closureSummary: value.closureSummary,
+      createdAt: value.createdAt.toISOString(),
+      updatedAt: value.updatedAt.toISOString(),
+      timeline: (value.timeline ?? []).map((item: any) => ({
+        ...item,
+        evidence: item.evidence as string[],
+        createdAt: item.createdAt.toISOString(),
+      })),
+      exportPath: `/api/v1/tenants/${value.tenantId}/privacy/security-incidents/${value.id}/export`,
+    };
+  }
 
   async listLegalHolds(tenantId: string) {
     return this.prisma.dataLegalHold.findMany({

@@ -437,4 +437,105 @@ describe("PrivacyService", () => {
       }),
     );
   });
+
+  it("creates a tenant-scoped incident with validated ownership and audit evidence", async () => {
+    const audit = vi.fn();
+    const create = vi.fn(async ({ data }: any) => ({
+      ...data,
+      id: "incident-1",
+      status: "OPEN",
+      closedBy: null,
+      closedAt: null,
+      closureSummary: null,
+      createdAt: new Date("2026-08-09T00:00:00Z"),
+      updatedAt: new Date("2026-08-09T00:00:00Z"),
+    }));
+    const service = new PrivacyService({
+      user: {
+        findFirst: async ({ where }: any) =>
+          where.tenantId === "tenant-1" ? { id: where.id } : null,
+      },
+      $transaction: async (callback: any) =>
+        callback({
+          securityIncident: { create },
+          auditEvent: { create: audit },
+        }),
+    } as never);
+    const incident = await service.createSecurityIncident(
+      "tenant-1",
+      {
+        title: "Unauthorized roster access",
+        classification: "CONFIDENTIALITY",
+        severity: "HIGH",
+        description:
+          "A scoped investigation confirmed unexpected access to roster metadata.",
+        ownerId: "security-1",
+        evidence: ["https://evidence.school.test/case-1"],
+      },
+      "auditor-1",
+    );
+    expect(incident).toMatchObject({
+      tenantId: "tenant-1",
+      status: "OPEN",
+      ownerId: "security-1",
+    });
+    expect(audit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "security_incident.create",
+          outcome: "OPEN",
+        }),
+      }),
+    );
+    await expect(
+      service.createSecurityIncident(
+        "tenant-1",
+        {
+          title: "Invalid evidence",
+          classification: "OTHER",
+          severity: "LOW",
+          description:
+            "This record contains an unsafe local evidence reference.",
+          ownerId: "security-1",
+          evidence: ["file:///secret.log"],
+        },
+        "auditor-1",
+      ),
+    ).rejects.toThrow("valid HTTPS URLs");
+  });
+
+  it("prevents cross-tenant updates and updates to closed incidents", async () => {
+    const service = new PrivacyService({
+      securityIncident: {
+        findFirst: async ({ where }: any) =>
+          where.tenantId === "tenant-1"
+            ? { id: "incident-1", status: "CLOSED" }
+            : null,
+      },
+    } as never);
+    await expect(
+      service.addSecurityIncidentUpdate(
+        "tenant-2",
+        "incident-1",
+        {
+          updateType: "INVESTIGATION",
+          summary: "Validated the initial security report.",
+          evidence: [],
+        },
+        "auditor-1",
+      ),
+    ).rejects.toThrow("not found for this tenant");
+    await expect(
+      service.addSecurityIncidentUpdate(
+        "tenant-1",
+        "incident-1",
+        {
+          updateType: "RECOVERY",
+          summary: "Recovery has already completed and the case is closed.",
+          evidence: [],
+        },
+        "auditor-1",
+      ),
+    ).rejects.toThrow("Closed incidents");
+  });
 });

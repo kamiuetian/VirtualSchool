@@ -94,3 +94,43 @@ export type DataSubjectRequestSummary = {
   createdAt: string;
   downloadPath: string | null;
 };
+
+export type SecurityIncidentUpdateSummary = {
+  id: string;
+  updateType:
+    | "INVESTIGATION"
+    | "CONTAINMENT"
+    | "RECOVERY"
+    | "CUSTOMER_COMMUNICATION"
+    | "EVIDENCE";
+  summary: string;
+  evidence: string[];
+  createdBy: string | null;
+  createdAt: string;
+};
+
+export type SecurityIncidentSummary = {
+  id: string;
+  tenantId: string;
+  title: string;
+  classification:
+    | "CONFIDENTIALITY"
+    | "INTEGRITY"
+    | "AVAILABILITY"
+    | "PRIVACY"
+    | "CHILD_SAFETY"
+    | "OTHER";
+  severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  description: string;
+  status: "OPEN" | "CLOSED";
+  ownerId: string;
+  evidence: string[];
+  reportedBy: string | null;
+  closedBy: string | null;
+  closedAt: string | null;
+  closureSummary: string | null;
+  createdAt: string;
+  updatedAt: string;
+  timeline: SecurityIncidentUpdateSummary[];
+  exportPath: string;
+};

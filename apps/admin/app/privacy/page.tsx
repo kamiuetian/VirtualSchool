@@ -11,6 +11,9 @@ import {
   acceptPrivacyNoticeAction,
   createComplianceEvidencePackAction,
   createDataSubjectRequestAction,
+  createSecurityIncidentAction,
+  addSecurityIncidentUpdateAction,
+  closeSecurityIncidentAction,
   decideDataSubjectRequestAction,
   publishPrivacyNoticeAction,
   revokePrivacyAcceptanceAction,
@@ -193,6 +196,149 @@ export default async function PrivacyPage() {
               body="The consolidated governance view requires privacy-officer access."
             />
           )}
+        </PageSection>
+        <PageSection kicker="Security operations" title="Incident management">
+          {tenant && overview ? (
+            <div className="form-grid">
+              <ActionPanel title="Report a security or privacy incident">
+                <form
+                  action={createSecurityIncidentAction}
+                  className="stacked-form"
+                >
+                  <input name="tenantId" type="hidden" value={tenant.id} />
+                  <Field label="Incident title">
+                    <input name="title" minLength={5} required />
+                  </Field>
+                  <div className="form-row">
+                    <Field label="Classification">
+                      <select name="classification">
+                        <option>CONFIDENTIALITY</option>
+                        <option>INTEGRITY</option>
+                        <option>AVAILABILITY</option>
+                        <option>PRIVACY</option>
+                        <option>CHILD_SAFETY</option>
+                        <option>OTHER</option>
+                      </select>
+                    </Field>
+                    <Field label="Severity">
+                      <select name="severity">
+                        <option>LOW</option>
+                        <option>MEDIUM</option>
+                        <option>HIGH</option>
+                        <option>CRITICAL</option>
+                      </select>
+                    </Field>
+                  </div>
+                  <Field label="Accountable owner user ID">
+                    <input name="ownerId" required />
+                  </Field>
+                  <Field label="Minimum necessary description">
+                    <textarea
+                      name="description"
+                      minLength={20}
+                      rows={4}
+                      required
+                    />
+                  </Field>
+                  <Field label="Evidence references (one HTTPS URL per line)">
+                    <textarea name="evidence" rows={3} />
+                  </Field>
+                  <SubmitButton>Open incident</SubmitButton>
+                </form>
+              </ActionPanel>
+              <ActionPanel title="Restricted incident register">
+                {data.securityIncidents.length ? (
+                  <div className="list-panel">
+                    {data.securityIncidents.map((incident) => (
+                      <div className="list-row" key={incident.id}>
+                        <div>
+                          <strong>{incident.title}</strong>
+                          <span>
+                            {incident.classification} · {incident.severity} ·
+                            owner {incident.ownerId}
+                          </span>
+                          <small>
+                            {incident.status} · {incident.timeline.length}{" "}
+                            timeline updates
+                          </small>
+                        </div>
+                        {incident.status === "OPEN" ? (
+                          <div className="stacked-form">
+                            <form
+                              action={addSecurityIncidentUpdateAction}
+                              className="row-form"
+                            >
+                              <input
+                                name="tenantId"
+                                type="hidden"
+                                value={tenant.id}
+                              />
+                              <input
+                                name="incidentId"
+                                type="hidden"
+                                value={incident.id}
+                              />
+                              <select name="updateType">
+                                <option>INVESTIGATION</option>
+                                <option>CONTAINMENT</option>
+                                <option>RECOVERY</option>
+                                <option>CUSTOMER_COMMUNICATION</option>
+                                <option>EVIDENCE</option>
+                              </select>
+                              <input
+                                name="summary"
+                                minLength={10}
+                                placeholder="Timeline update"
+                                required
+                              />
+                              <button className="small-button primary">
+                                Add update
+                              </button>
+                            </form>
+                            <form
+                              action={closeSecurityIncidentAction}
+                              className="row-form"
+                            >
+                              <input
+                                name="tenantId"
+                                type="hidden"
+                                value={tenant.id}
+                              />
+                              <input
+                                name="incidentId"
+                                type="hidden"
+                                value={incident.id}
+                              />
+                              <input
+                                name="closureSummary"
+                                minLength={20}
+                                placeholder="Closure and lessons learned"
+                                required
+                              />
+                              <button className="small-button danger">
+                                Close
+                              </button>
+                            </form>
+                          </div>
+                        ) : null}
+                        <a
+                          className="small-button primary"
+                          href={`/privacy/security-incident.json?tenantId=${encodeURIComponent(tenant.id)}&incidentId=${encodeURIComponent(incident.id)}`}
+                        >
+                          Customer export
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState
+                    title="No incidents"
+                    body="Security and privacy incidents will appear in this restricted register."
+                  />
+                )}
+              </ActionPanel>
+            </div>
+          ) : null}
         </PageSection>
         <PageSection kicker="Compliance" title="Immutable evidence packs">
           {tenant && overview ? (

@@ -98,3 +98,45 @@ export class CreateDataLegalHoldDto {
 export class ReleaseDataLegalHoldDto {
   @IsString() @Length(10, 500) reason!: string;
 }
+
+export class CreateSecurityIncidentDto {
+  @IsString() @Length(5, 160) title!: string;
+  @IsIn([
+    "CONFIDENTIALITY",
+    "INTEGRITY",
+    "AVAILABILITY",
+    "PRIVACY",
+    "CHILD_SAFETY",
+    "OTHER",
+  ])
+  classification!: string;
+  @IsIn(["LOW", "MEDIUM", "HIGH", "CRITICAL"]) severity!: string;
+  @IsString() @Length(20, 5000) description!: string;
+  @IsString() @Length(1, 120) ownerId!: string;
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  @Length(8, 2048, { each: true })
+  evidence!: string[];
+}
+
+export class AddSecurityIncidentUpdateDto {
+  @IsIn([
+    "INVESTIGATION",
+    "CONTAINMENT",
+    "RECOVERY",
+    "CUSTOMER_COMMUNICATION",
+    "EVIDENCE",
+  ])
+  updateType!: string;
+  @IsString() @Length(10, 2000) summary!: string;
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  @Length(8, 2048, { each: true })
+  evidence!: string[];
+}
+
+export class CloseSecurityIncidentDto {
+  @IsString() @Length(20, 2000) closureSummary!: string;
+}

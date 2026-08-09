@@ -394,6 +394,11 @@ const routes = [
   ["GET", `/tenants/${tenantId}/privacy/acceptances`, () => json([])],
   [
     "GET",
+    `/tenants/${tenantId}/privacy/security-incidents`,
+    () => json([]),
+  ],
+  [
+    "GET",
     `/tenants/${tenantId}/privacy/evidence-packs`,
     () =>
       json([

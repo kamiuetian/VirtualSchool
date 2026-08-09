@@ -1636,6 +1636,61 @@ export async function createDataSubjectRequestAction(
   revalidateAll();
 }
 
+export async function createSecurityIncidentAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("audit:read");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/privacy/security-incidents`,
+    {
+      title: required(formData, "title"),
+      classification: required(formData, "classification"),
+      severity: required(formData, "severity"),
+      description: required(formData, "description"),
+      ownerId: required(formData, "ownerId"),
+      evidence: text(formData, "evidence")
+        .split(/\r?\n/)
+        .map((value) => value.trim())
+        .filter(Boolean),
+    },
+  );
+  revalidateAll();
+}
+
+export async function addSecurityIncidentUpdateAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("audit:read");
+  const tenantId = required(formData, "tenantId");
+  const incidentId = required(formData, "incidentId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/privacy/security-incidents/${incidentId}/timeline`,
+    {
+      updateType: required(formData, "updateType"),
+      summary: required(formData, "summary"),
+      evidence: [],
+    },
+  );
+  revalidateAll();
+}
+
+export async function closeSecurityIncidentAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("audit:read");
+  const tenantId = required(formData, "tenantId");
+  const incidentId = required(formData, "incidentId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/privacy/security-incidents/${incidentId}/close`,
+    { closureSummary: required(formData, "closureSummary") },
+  );
+  revalidateAll();
+}
+
 export async function decideDataSubjectRequestAction(
   formData: FormData,
 ): Promise<void> {

@@ -23,6 +23,9 @@ import {
   PublishPrivacyNoticeDto,
   RevokePrivacyAcceptanceDto,
   UpdateSecurityPrivacyProfileDto,
+  CreateSecurityIncidentDto,
+  AddSecurityIncidentUpdateDto,
+  CloseSecurityIncidentDto,
 } from "./dto/privacy.dto";
 import { PrivacyService } from "./privacy.service";
 
@@ -32,6 +35,67 @@ export class PrivacyController {
   constructor(
     @Inject(PrivacyService) private readonly service: PrivacyService,
   ) {}
+  @Get("security-incidents")
+  @RequirePermissions("audit:read")
+  listSecurityIncidents(@Param("tenantId") tenantId: string) {
+    return this.service.listSecurityIncidents(tenantId);
+  }
+  @Post("security-incidents")
+  @RequirePermissions("audit:read")
+  createSecurityIncident(
+    @Param("tenantId") tenantId: string,
+    @Body() body: CreateSecurityIncidentDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.service.createSecurityIncident(
+      tenantId,
+      body,
+      req.user?.subject,
+    );
+  }
+  @Post("security-incidents/:incidentId/timeline")
+  @RequirePermissions("audit:read")
+  addSecurityIncidentUpdate(
+    @Param("tenantId") tenantId: string,
+    @Param("incidentId") incidentId: string,
+    @Body() body: AddSecurityIncidentUpdateDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.service.addSecurityIncidentUpdate(
+      tenantId,
+      incidentId,
+      body,
+      req.user?.subject,
+    );
+  }
+  @Post("security-incidents/:incidentId/close")
+  @RequirePermissions("audit:read")
+  closeSecurityIncident(
+    @Param("tenantId") tenantId: string,
+    @Param("incidentId") incidentId: string,
+    @Body() body: CloseSecurityIncidentDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.service.closeSecurityIncident(
+      tenantId,
+      incidentId,
+      body.closureSummary,
+      req.user?.subject,
+    );
+  }
+  @Get("security-incidents/:incidentId/export")
+  @RequirePermissions("audit:read")
+  @Header("Content-Type", "application/json; charset=utf-8")
+  @Header(
+    "Content-Disposition",
+    'attachment; filename="security-incident.json"',
+  )
+  exportSecurityIncident(
+    @Param("tenantId") tenantId: string,
+    @Param("incidentId") incidentId: string,
+  ) {
+    return this.service.exportSecurityIncident(tenantId, incidentId);
+  }
   @Get("legal-holds") @RequirePermissions("audit:read") listLegalHolds(
     @Param("tenantId") tenantId: string,
   ) {
