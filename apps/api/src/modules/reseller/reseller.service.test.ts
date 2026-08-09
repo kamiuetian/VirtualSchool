@@ -216,4 +216,133 @@ describe("ResellerService", () => {
     expect(report.customers[0]).not.toHaveProperty("attendance");
     expect(report.customers[0]).not.toHaveProperty("engagement");
   });
+
+  it("keeps implementation projects inside the assigned tenant or portfolio", async () => {
+    const service = new ResellerService({
+      resellerCustomer: {
+        findFirst: async () => ({
+          id: "customer-1",
+          tenantId: "tenant-1",
+          partner: { ...partner, operatorIds: ["operator-1"] },
+        }),
+      },
+    } as never);
+    await expect(
+      service.implementationProject("partner-1", "customer-1", "outsider", [
+        "tenant-2",
+      ]),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it("computes go-live blockers and refuses a premature ready status", async () => {
+    const service = new ResellerService({
+      resellerCustomer: {
+        findFirst: async () => ({
+          id: "customer-1",
+          tenantId: "tenant-1",
+          partner,
+        }),
+      },
+    } as never);
+    await expect(
+      service.saveImplementationProject(
+        "partner-1",
+        "customer-1",
+        {
+          name: "Customer launch",
+          status: "READY",
+          ownerIds: ["owner-1"],
+          targetGoLiveAt: "2026-09-01T00:00:00.000Z",
+          milestones: [
+            {
+              id: "security-review",
+              title: "Security review",
+              ownerId: "owner-1",
+              status: "IN_PROGRESS",
+              dueAt: "2026-08-20T00:00:00.000Z",
+              readinessGate: true,
+              evidenceIds: [],
+            },
+          ],
+          risks: [],
+          evidence: [],
+          decisions: [],
+          reason: "Review readiness",
+        },
+        "operator-1",
+      ),
+    ).rejects.toThrow("every go-live gate passes");
+  });
+
+  it("saves a ready project with immutable history and audit evidence", async () => {
+    const writes: any[] = [];
+    const tx = {
+      implementationProject: {
+        findUnique: async () => null,
+        create: async ({ data }: any) => ({
+          id: "project-1",
+          ...data,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }),
+      },
+      implementationProjectEvent: {
+        create: async ({ data }: any) => writes.push(data),
+      },
+      auditEvent: { create: async ({ data }: any) => writes.push(data) },
+    };
+    const service = new ResellerService({
+      resellerCustomer: {
+        findFirst: async () => ({
+          id: "customer-1",
+          tenantId: "tenant-1",
+          partner,
+        }),
+      },
+      $transaction: async (work: any) => work(tx),
+    } as never);
+    const result = await service.saveImplementationProject(
+      "partner-1",
+      "customer-1",
+      {
+        name: "Customer launch",
+        status: "READY",
+        ownerIds: ["owner-1"],
+        targetGoLiveAt: "2026-09-01T00:00:00.000Z",
+        milestones: [
+          {
+            id: "security-review",
+            title: "Security review",
+            ownerId: "owner-1",
+            status: "COMPLETE",
+            dueAt: "2026-08-20T00:00:00.000Z",
+            readinessGate: true,
+            evidenceIds: ["evidence-1"],
+          },
+        ],
+        risks: [],
+        evidence: [
+          {
+            id: "evidence-1",
+            title: "Signed review",
+            url: "https://evidence.example/review",
+          },
+        ],
+        decisions: [],
+        reason: "Approve launch readiness",
+      },
+      "operator-1",
+    );
+    expect(result.readiness.ready).toBe(true);
+    expect(writes[0]).toMatchObject({
+      projectId: "project-1",
+      action: "CREATED",
+      reason: "Approve launch readiness",
+    });
+    expect(writes[1]).toMatchObject({
+      tenantId: "tenant-1",
+      action: "implementation.project.create",
+      outcome: "CREATED",
+    });
+  });
 });

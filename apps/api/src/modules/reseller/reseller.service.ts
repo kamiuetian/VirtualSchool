@@ -10,6 +10,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import type {
   CreateResellerPartnerDto,
   ProvisionResellerTenantDto,
+  SaveImplementationProjectDto,
   UpdateResellerBrandingDto,
   UpdateResellerCustomerDto,
 } from "./reseller.dto";
@@ -327,6 +328,125 @@ export class ResellerService {
     });
   }
 
+  async implementationProject(
+    partnerId: string,
+    customerId: string,
+    actorId?: string,
+    tenantIds: string[] = [],
+  ) {
+    const customer = await this.requireImplementationAccess(
+      partnerId,
+      customerId,
+      actorId,
+      tenantIds,
+    );
+    const project = await this.prisma.implementationProject.findUnique({
+      where: { customerId },
+      include: { events: { orderBy: { createdAt: "desc" }, take: 100 } },
+    });
+    if (!project)
+      return { project: null, tenantId: customer.tenantId, readiness: null };
+    return implementationView(project);
+  }
+
+  async saveImplementationProject(
+    partnerId: string,
+    customerId: string,
+    input: SaveImplementationProjectDto,
+    actorId?: string,
+    tenantIds: string[] = [],
+  ) {
+    const customer = await this.requireImplementationAccess(
+      partnerId,
+      customerId,
+      actorId,
+      tenantIds,
+    );
+    validateImplementation(input);
+    const readiness = implementationReadiness(input);
+    if (["READY", "LIVE"].includes(input.status) && !readiness.ready)
+      throw new BadRequestException(
+        `Project cannot enter ${input.status} until every go-live gate passes`,
+      );
+    const data = {
+      partnerId,
+      customerId,
+      tenantId: customer.tenantId,
+      name: input.name.trim(),
+      status: input.status,
+      ownerIds: [...new Set(input.ownerIds)],
+      targetGoLiveAt: input.targetGoLiveAt
+        ? new Date(input.targetGoLiveAt)
+        : null,
+      milestones: input.milestones as unknown as Prisma.InputJsonValue,
+      risks: input.risks as unknown as Prisma.InputJsonValue,
+      evidence: input.evidence as unknown as Prisma.InputJsonValue,
+      decisions: input.decisions as unknown as Prisma.InputJsonValue,
+      updatedBy: actorId,
+    };
+    return this.prisma.$transaction(async (tx) => {
+      const existing = await tx.implementationProject.findUnique({
+        where: { customerId },
+      });
+      const project = existing
+        ? await tx.implementationProject.update({
+            where: { customerId },
+            data,
+          })
+        : await tx.implementationProject.create({
+            data: { ...data, createdBy: actorId },
+          });
+      const snapshot = projectSnapshot(project, readiness);
+      await tx.implementationProjectEvent.create({
+        data: {
+          projectId: project.id,
+          actorId,
+          action: existing ? "UPDATED" : "CREATED",
+          reason: input.reason.trim(),
+          snapshot,
+        },
+      });
+      await tx.auditEvent.create({
+        data: {
+          tenantId: customer.tenantId,
+          actorId,
+          action: existing
+            ? "implementation.project.update"
+            : "implementation.project.create",
+          object: "ImplementationProject",
+          objectId: project.id,
+          outcome: existing ? "UPDATED" : "CREATED",
+          oldValue: existing ? projectSnapshot(existing) : undefined,
+          newValue: snapshot,
+          reason: input.reason.trim(),
+        },
+      });
+      return implementationView({ project: undefined, ...project, events: [] });
+    });
+  }
+
+  private async requireImplementationAccess(
+    partnerId: string,
+    customerId: string,
+    actorId?: string,
+    tenantIds: string[] = [],
+  ) {
+    const customer = await this.prisma.resellerCustomer.findFirst({
+      where: { id: customerId, partnerId },
+      include: { partner: true },
+    });
+    if (!customer || customer.partner.status !== "ACTIVE")
+      throw new NotFoundException("Assigned customer was not found");
+    const portfolioAccess = Boolean(
+      actorId && customer.partner.operatorIds.includes(actorId),
+    );
+    if (!portfolioAccess && !tenantIds.includes(customer.tenantId))
+      throw new ForbiddenException(
+        "Implementation project is outside the actor's tenant or portfolio scope",
+      );
+    return customer;
+  }
+
   private async requirePartner(partnerId: string, actorId?: string) {
     const partner = await this.prisma.resellerPartner.findUnique({
       where: { id: partnerId },
@@ -337,6 +457,123 @@ export class ResellerService {
       throw new ForbiddenException("Operator is not assigned to this reseller");
     return partner;
   }
+}
+
+function validateImplementation(input: SaveImplementationProjectDto) {
+  if (!input.name.trim() || !input.reason.trim())
+    throw new BadRequestException(
+      "Project name and change reason are required",
+    );
+  for (const [label, values] of [
+    ["milestone", input.milestones],
+    ["risk", input.risks],
+    ["evidence", input.evidence],
+    ["decision", input.decisions],
+  ] as const) {
+    const ids = values.map((value) => value.id.trim());
+    if (ids.some((id) => !id) || new Set(ids).size !== ids.length)
+      throw new BadRequestException(
+        `${label} IDs must be non-empty and unique`,
+      );
+  }
+  const evidenceIds = new Set(input.evidence.map((item) => item.id));
+  if (
+    input.milestones.some((milestone) =>
+      (milestone.evidenceIds ?? []).some((id) => !evidenceIds.has(id)),
+    )
+  )
+    throw new BadRequestException(
+      "Milestone evidence must reference evidence in this project",
+    );
+}
+
+function implementationReadiness(input: {
+  targetGoLiveAt?: string | Date | null;
+  milestones: any[];
+  risks: any[];
+  decisions: any[];
+}) {
+  const gates = input.milestones.filter((item) => item.readinessGate);
+  const incompleteMilestones = gates
+    .filter(
+      (item) => item.status !== "COMPLETE" || !(item.evidenceIds?.length > 0),
+    )
+    .map((item) => item.id);
+  const blockingRisks = input.risks
+    .filter(
+      (item) =>
+        ["HIGH", "CRITICAL"].includes(item.severity) && item.status === "OPEN",
+    )
+    .map((item) => item.id);
+  const pendingDecisions = input.decisions
+    .filter((item) => item.status === "PENDING")
+    .map((item) => item.id);
+  const checks = {
+    targetDateSet: Boolean(input.targetGoLiveAt),
+    readinessMilestonesDefined: gates.length > 0,
+    readinessMilestonesComplete: incompleteMilestones.length === 0,
+    noBlockingRisks: blockingRisks.length === 0,
+    noPendingDecisions: pendingDecisions.length === 0,
+  };
+  return {
+    ready: Object.values(checks).every(Boolean),
+    checks,
+    incompleteMilestones,
+    blockingRisks,
+    pendingDecisions,
+  };
+}
+
+function projectSnapshot(
+  project: any,
+  readiness?: ReturnType<typeof implementationReadiness>,
+) {
+  return {
+    name: project.name,
+    status: project.status,
+    ownerIds: project.ownerIds,
+    targetGoLiveAt:
+      project.targetGoLiveAt instanceof Date
+        ? project.targetGoLiveAt.toISOString()
+        : project.targetGoLiveAt,
+    milestones: project.milestones,
+    risks: project.risks,
+    evidence: project.evidence,
+    decisions: project.decisions,
+    readiness:
+      readiness ??
+      implementationReadiness({
+        targetGoLiveAt: project.targetGoLiveAt,
+        milestones: project.milestones ?? [],
+        risks: project.risks ?? [],
+        decisions: project.decisions ?? [],
+      }),
+  };
+}
+
+function implementationView(project: any) {
+  return {
+    project: projectSnapshot(project),
+    id: project.id,
+    partnerId: project.partnerId,
+    customerId: project.customerId,
+    tenantId: project.tenantId,
+    readiness: implementationReadiness({
+      targetGoLiveAt: project.targetGoLiveAt,
+      milestones: project.milestones ?? [],
+      risks: project.risks ?? [],
+      decisions: project.decisions ?? [],
+    }),
+    history: (project.events ?? []).map((event: any) => ({
+      id: event.id,
+      actorId: event.actorId,
+      action: event.action,
+      reason: event.reason,
+      snapshot: event.snapshot,
+      createdAt: event.createdAt,
+    })),
+    updatedAt: project.updatedAt,
+  };
 }
 
 function normalizeDomain(value: string) {

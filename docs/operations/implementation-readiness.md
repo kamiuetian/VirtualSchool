@@ -1,0 +1,7 @@
+# Implementation projects and go-live readiness
+
+Assigned reseller operators and authenticated customer-tenant administrators use the reseller customer implementation endpoints to maintain one tenant-bound delivery project. Every lookup first resolves the customer under the supplied partner, then requires either explicit reseller operator assignment or membership in that customer's tenant. Project records cannot be moved between customers, tenants, or portfolios.
+
+`PATCH /api/v1/resellers/:partnerId/customers/:customerId/implementation` records the project owners, target date, milestones, risks, HTTPS evidence references, decisions, and a required change reason. Milestone, risk, evidence, and decision IDs are unique inside the project; milestone evidence references must resolve inside the same project. Each accepted write creates an immutable project event and a tenant-scoped audit event with the resulting readiness snapshot.
+
+`GET /api/v1/resellers/:partnerId/customers/:customerId/implementation` returns current state, computed readiness, and the newest 100 history events. Readiness requires a target date, at least one readiness-gate milestone, completion plus evidence for every gate, no open high or critical risk, and no pending decision. The API rejects `READY` or `LIVE` status while any gate is blocked. Evidence URLs are references only; credentials and document contents must remain in the approved evidence repository.

@@ -14,6 +14,7 @@ import type { AuthenticatedRequest } from "../auth/types/authenticated-request";
 import {
   CreateResellerPartnerDto,
   ProvisionResellerTenantDto,
+  SaveImplementationProjectDto,
   UpdateResellerBrandingDto,
   UpdateResellerCustomerDto,
 } from "./reseller.dto";
@@ -67,5 +68,35 @@ export class ResellerController {
     @Req() req: AuthenticatedRequest,
   ) {
     return this.service.updateCustomer(id, customerId, body, req.user?.subject);
+  }
+
+  @Get(":partnerId/customers/:customerId/implementation")
+  implementation(
+    @Param("partnerId") partnerId: string,
+    @Param("customerId") customerId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.service.implementationProject(
+      partnerId,
+      customerId,
+      req.user?.subject,
+      req.user?.tenantIds ?? [],
+    );
+  }
+
+  @Patch(":partnerId/customers/:customerId/implementation")
+  saveImplementation(
+    @Param("partnerId") partnerId: string,
+    @Param("customerId") customerId: string,
+    @Body() body: SaveImplementationProjectDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.service.saveImplementationProject(
+      partnerId,
+      customerId,
+      body,
+      req.user?.subject,
+      req.user?.tenantIds ?? [],
+    );
   }
 }

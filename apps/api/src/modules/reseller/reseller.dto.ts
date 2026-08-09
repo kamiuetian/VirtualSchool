@@ -10,10 +10,80 @@ import {
   IsEmail,
   IsOptional,
   IsString,
+  ValidateNested,
   Matches,
   Max,
   Min,
 } from "class-validator";
+
+export class ImplementationMilestoneDto {
+  @IsString() id!: string;
+  @IsString() title!: string;
+  @IsString() ownerId!: string;
+  @IsIn(["NOT_STARTED", "IN_PROGRESS", "BLOCKED", "COMPLETE"])
+  status!: string;
+  @IsDateString() dueAt!: string;
+  @IsOptional() @IsBoolean() readinessGate?: boolean;
+  @IsOptional() @IsArray() @IsString({ each: true }) evidenceIds?: string[];
+}
+
+export class ImplementationRiskDto {
+  @IsString() id!: string;
+  @IsString() title!: string;
+  @IsString() ownerId!: string;
+  @IsIn(["LOW", "MEDIUM", "HIGH", "CRITICAL"]) severity!: string;
+  @IsIn(["OPEN", "MITIGATED", "ACCEPTED", "CLOSED"]) status!: string;
+  @IsString() mitigation!: string;
+}
+
+export class ImplementationEvidenceDto {
+  @IsString() id!: string;
+  @IsString() title!: string;
+  @Matches(/^https:\/\//i, { message: "evidence URL must use HTTPS" })
+  url!: string;
+}
+
+export class ImplementationDecisionDto {
+  @IsString() id!: string;
+  @IsString() title!: string;
+  @IsIn(["PENDING", "APPROVED", "REJECTED", "SUPERSEDED"])
+  status!: string;
+  @IsString() ownerId!: string;
+  @IsOptional() @IsString() rationale?: string;
+}
+
+export class SaveImplementationProjectDto {
+  @IsString() name!: string;
+  @IsIn(["PLANNING", "DELIVERY", "READY", "LIVE", "ON_HOLD", "CLOSED"])
+  status!: string;
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  ownerIds!: string[];
+  @IsOptional() @IsDateString() targetGoLiveAt?: string;
+  @IsArray()
+  @ArrayMaxSize(100)
+  @ValidateNested({ each: true })
+  @Type(() => ImplementationMilestoneDto)
+  milestones!: ImplementationMilestoneDto[];
+  @IsArray()
+  @ArrayMaxSize(100)
+  @ValidateNested({ each: true })
+  @Type(() => ImplementationRiskDto)
+  risks!: ImplementationRiskDto[];
+  @IsArray()
+  @ArrayMaxSize(100)
+  @ValidateNested({ each: true })
+  @Type(() => ImplementationEvidenceDto)
+  evidence!: ImplementationEvidenceDto[];
+  @IsArray()
+  @ArrayMaxSize(100)
+  @ValidateNested({ each: true })
+  @Type(() => ImplementationDecisionDto)
+  decisions!: ImplementationDecisionDto[];
+  @IsString() reason!: string;
+}
 
 export class ProvisionResellerTenantDto {
   @IsString() name!: string;

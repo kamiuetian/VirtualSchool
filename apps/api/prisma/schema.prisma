@@ -170,45 +170,87 @@ model Tenant {
   marketplaceSubmissions          IntegrationSubmission[]
   marketplaceInstallations        IntegrationInstallation[]
   resellerCustomer                ResellerCustomer?
+  implementationProject           ImplementationProject?
 }
 
 model ResellerPartner {
-  id                String             @id @default(uuid())
-  name              String
-  status            String             @default("ACTIVE")
-  operatorIds       String[]
-  maxCustomers      Int
-  allowedPlanKeys   String[]
-  approvalRequired  Boolean            @default(true)
-  approvedDomains   String[]           @default([])
-  logoUrl           String?
-  primaryColor      String?
-  accentColor       String?
-  emailSenderName   String?
-  emailSenderEmail  String?
-  brandingUpdatedBy String?
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  customers         ResellerCustomer[]
+  id                     String                  @id @default(uuid())
+  name                   String
+  status                 String                  @default("ACTIVE")
+  operatorIds            String[]
+  maxCustomers           Int
+  allowedPlanKeys        String[]
+  approvalRequired       Boolean                 @default(true)
+  approvedDomains        String[]                @default([])
+  logoUrl                String?
+  primaryColor           String?
+  accentColor            String?
+  emailSenderName        String?
+  emailSenderEmail       String?
+  brandingUpdatedBy      String?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  customers              ResellerCustomer[]
+  implementationProjects ImplementationProject[]
 
   @@index([status])
 }
 
 model ResellerCustomer {
-  id              String          @id @default(uuid())
-  partnerId       String
-  tenantId        String          @unique
-  externalRef     String?
-  onboardingState String          @default("PROVISIONED")
-  renewalAt       DateTime?
-  provisionedBy   String?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  partner         ResellerPartner @relation(fields: [partnerId], references: [id], onDelete: Restrict)
-  tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  id                    String                 @id @default(uuid())
+  partnerId             String
+  tenantId              String                 @unique
+  externalRef           String?
+  onboardingState       String                 @default("PROVISIONED")
+  renewalAt             DateTime?
+  provisionedBy         String?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  partner               ResellerPartner        @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  tenant                Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  implementationProject ImplementationProject?
 
   @@unique([partnerId, externalRef])
   @@index([partnerId, renewalAt])
+}
+
+model ImplementationProject {
+  id             String                       @id @default(uuid())
+  partnerId      String
+  customerId     String                       @unique
+  tenantId       String                       @unique
+  name           String
+  status         String                       @default("PLANNING")
+  ownerIds       String[]
+  targetGoLiveAt DateTime?
+  milestones     Json                         @default("[]")
+  risks          Json                         @default("[]")
+  evidence       Json                         @default("[]")
+  decisions      Json                         @default("[]")
+  createdBy      String?
+  updatedBy      String?
+  createdAt      DateTime                     @default(now())
+  updatedAt      DateTime                     @updatedAt
+  partner        ResellerPartner              @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  customer       ResellerCustomer             @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  tenant         Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  events         ImplementationProjectEvent[]
+
+  @@index([partnerId, status, targetGoLiveAt])
+  @@index([tenantId, status])
+}
+
+model ImplementationProjectEvent {
+  id        String                @id @default(uuid())
+  projectId String
+  actorId   String?
+  action    String
+  reason    String
+  snapshot  Json
+  createdAt DateTime              @default(now())
+  project   ImplementationProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
 }
 
 model IntegrationSubmission {
