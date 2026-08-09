@@ -32,6 +32,7 @@ import { AutomationModule } from "./automation/automation.module";
 import { CommunicationsModule } from "./communications/communications.module";
 import { GoogleWorkspaceModule } from "./google-workspace/google-workspace.module";
 import { AppleMdmModule } from "./apple-mdm/apple-mdm.module";
+import { IntuneModule } from "./intune/intune.module";
 
 @Module({
   imports: [
@@ -68,6 +69,7 @@ import { AppleMdmModule } from "./apple-mdm/apple-mdm.module";
     CommunicationsModule,
     GoogleWorkspaceModule,
     AppleMdmModule,
+    IntuneModule,
   ],
 })
 export class AppModule {}

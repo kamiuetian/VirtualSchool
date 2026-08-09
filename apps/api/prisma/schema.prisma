@@ -156,6 +156,64 @@ model Tenant {
   chromeOsDeviceStates            ChromeOsDeviceState[]
   appleMdmConnection              AppleMdmConnection?
   appleDeviceStates               AppleDeviceState[]
+  intuneConnection                IntuneConnection?
+  intuneGroupMappings             IntuneGroupMapping[]
+  intuneDeviceStates              IntuneDeviceState[]
+}
+
+model IntuneConnection {
+  id                  String               @id @default(uuid())
+  tenantId            String               @unique
+  entraTenantId       String
+  clientId            String
+  credentialReference String
+  status              String               @default("AUTHORIZED")
+  lastValidatedAt     DateTime?
+  lastInventorySyncAt DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  tenant              Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  groupMappings       IntuneGroupMapping[]
+  deviceStates        IntuneDeviceState[]
+}
+
+model IntuneGroupMapping {
+  id           String           @id @default(uuid())
+  tenantId     String
+  connectionId String
+  groupId      String
+  groupName    String
+  branchId     String?
+  enabled      Boolean          @default(true)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  connection   IntuneConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  branch       Branch?          @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, groupId])
+  @@index([tenantId, enabled])
+}
+
+model IntuneDeviceState {
+  id                     String           @id @default(uuid())
+  tenantId               String
+  connectionId           String
+  deviceId               String           @unique
+  externalDeviceId       String
+  groupId                String
+  kioskStatus            String           @default("UNKNOWN")
+  assessmentStatus       String           @default("UNKNOWN")
+  autopilotStatus        String           @default("UNKNOWN")
+  appDeploymentStatus    String           @default("UNKNOWN")
+  managementHealthStatus String           @default("UNKNOWN")
+  lastSyncedAt           DateTime         @default(now())
+  tenant                 Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  connection             IntuneConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  device                 Device           @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, externalDeviceId])
+  @@index([tenantId, groupId])
 }
 
 model AppleMdmConnection {
@@ -720,6 +778,7 @@ model Branch {
   devices                   Device[]
   timetableBlocks           TimetableBlock[]
   googleWorkspaceOuMappings GoogleWorkspaceOuMapping[]
+  intuneGroupMappings        IntuneGroupMapping[]
 
   @@index([tenantId])
 }
@@ -1004,6 +1063,7 @@ model Device {
   teacherSessionEvents     TeacherSessionEvent[]
   chromeOsState            ChromeOsDeviceState?
   appleState               AppleDeviceState?
+  intuneState              IntuneDeviceState?
 
   @@unique([tenantId, serialNumber])
   @@index([tenantId, status])

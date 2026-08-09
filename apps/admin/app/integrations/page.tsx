@@ -27,6 +27,8 @@ import {
   authorizeGoogleWorkspaceAction,
   mapGoogleWorkspaceOuAction,
   configureAppleMdmAction,
+  authorizeIntuneAction,
+  mapIntuneGroupAction,
 } from "../../lib/actions";
 import {
   getAdminData,
@@ -37,6 +39,7 @@ import {
   getWebhookEndpoints,
   getGoogleWorkspaceIntegration,
   getAppleMdmIntegration,
+  getIntuneIntegration,
 } from "../../lib/api";
 
 export const dynamic = "force-dynamic";
@@ -67,6 +70,10 @@ export default async function IntegrationsPage() {
     ? await getAppleMdmIntegration(tenant.id)
     : { integration: null, connectionIssue: false };
   const apple = appleResult.integration;
+  const intuneResult = tenant
+    ? await getIntuneIntegration(tenant.id)
+    : { integration: null, connectionIssue: false };
+  const intune = intuneResult.integration;
   return (
     <AppShell
       connectionIssue={
@@ -77,11 +84,135 @@ export default async function IntegrationsPage() {
         sisResult.connectionIssue ||
         webhookResult.connectionIssue ||
         workspaceResult.connectionIssue ||
-        appleResult.connectionIssue
+        appleResult.connectionIssue ||
+        intuneResult.connectionIssue
       }
       tenant={tenant}
     >
       <div className="content-stack">
+        <PageSection
+          kicker="Windows management"
+          title="Microsoft Intune for Education"
+        >
+          {tenant ? (
+            <div className="form-grid two">
+              <ActionPanel title="Guided authorization">
+                <form action={authorizeIntuneAction} className="stacked-form">
+                  <input name="tenantId" type="hidden" value={tenant.id} />
+                  <Field label="Microsoft Entra tenant ID">
+                    <input
+                      name="entraTenantId"
+                      defaultValue={intune?.entraTenantId}
+                      placeholder="00000000-0000-0000-0000-000000000000"
+                      required
+                    />
+                  </Field>
+                  <Field label="Application client ID">
+                    <input
+                      name="clientId"
+                      defaultValue={intune?.clientId}
+                      placeholder="00000000-0000-0000-0000-000000000000"
+                      required
+                    />
+                  </Field>
+                  <Field label="Client credential secret reference">
+                    <input
+                      name="credentialReference"
+                      defaultValue={intune?.credentialReference}
+                      placeholder="secret://microsoft-intune"
+                      required
+                    />
+                  </Field>
+                  <small>
+                    Grant the application least-privilege Microsoft Graph
+                    device-management read access. Only an external secret or
+                    certificate reference is stored.
+                  </small>
+                  <SubmitButton>
+                    {intune ? "Reauthorize" : "Authorize"}
+                  </SubmitButton>
+                </form>
+              </ActionPanel>
+              <ActionPanel title="Map Microsoft Entra group">
+                {intune ? (
+                  <form action={mapIntuneGroupAction} className="stacked-form">
+                    <input name="tenantId" type="hidden" value={tenant.id} />
+                    <Field label="Group object ID">
+                      <input name="groupId" required />
+                    </Field>
+                    <Field label="Group name">
+                      <input
+                        name="groupName"
+                        placeholder="Grade 7 managed devices"
+                        required
+                      />
+                    </Field>
+                    <small>
+                      Only devices in enabled mappings are accepted during
+                      inventory sync.
+                    </small>
+                    <SubmitButton>Save mapping</SubmitButton>
+                  </form>
+                ) : (
+                  <EmptyState
+                    title="Authorization required"
+                    body="Authorize Microsoft Intune before mapping device groups."
+                  />
+                )}
+              </ActionPanel>
+            </div>
+          ) : null}
+          {intune ? (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Windows device</th>
+                    <th>Group</th>
+                    <th>Health</th>
+                    <th>Kiosk</th>
+                    <th>Assessment</th>
+                    <th>Autopilot</th>
+                    <th>Applications</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {intune.devices.map((device) => (
+                    <tr key={device.id}>
+                      <td>
+                        {device.serialNumber}
+                        <small>
+                          {device.model ?? "Windows device"} · Windows{" "}
+                          {device.osVersion ?? "unknown"}
+                        </small>
+                      </td>
+                      <td>
+                        {intune.groups.find(
+                          (group) => group.groupId === device.groupId,
+                        )?.groupName ?? device.groupId}
+                      </td>
+                      <td>
+                        <StatusPill>{device.managementHealthStatus}</StatusPill>
+                      </td>
+                      <td>
+                        <StatusPill>{device.kioskStatus}</StatusPill>
+                      </td>
+                      <td>
+                        <StatusPill>{device.assessmentStatus}</StatusPill>
+                      </td>
+                      <td>
+                        <StatusPill>{device.autopilotStatus}</StatusPill>
+                      </td>
+                      <td>
+                        <StatusPill>{device.appDeploymentStatus}</StatusPill>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </PageSection>
         <PageSection
           kicker="iPadOS management"
           title="Apple School Manager and external MDM"

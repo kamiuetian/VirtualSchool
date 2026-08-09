@@ -1693,6 +1693,36 @@ export async function configureAppleMdmAction(formData: FormData) {
   revalidateAll();
 }
 
+export async function authorizeIntuneAction(formData: FormData) {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/integrations/intune/authorize`,
+    {
+      entraTenantId: required(formData, "entraTenantId"),
+      clientId: required(formData, "clientId"),
+      credentialReference: required(formData, "credentialReference"),
+    },
+  );
+  revalidateAll();
+}
+
+export async function mapIntuneGroupAction(formData: FormData) {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/integrations/intune/groups`,
+    {
+      groupId: required(formData, "groupId"),
+      groupName: required(formData, "groupName"),
+      branchId: text(formData, "branchId") || undefined,
+    },
+  );
+  revalidateAll();
+}
+
 export async function mapClassroomIdentityAction(formData: FormData) {
   await requireActionPermission("tenant:update");
   const tenantId = required(formData, "tenantId");

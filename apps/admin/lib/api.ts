@@ -40,6 +40,7 @@ import type {
   EducationConnectionSummary,
   GoogleWorkspaceIntegrationSummary,
   AppleMdmIntegrationSummary,
+  IntuneIntegrationSummary,
   SisOperationsSummary,
   WebhookEndpointSummary,
   TenantWebFilterSettings,
@@ -352,6 +353,16 @@ export async function getAppleMdmIntegration(tenantId: string): Promise<{
 }> {
   const result = await apiGet<AppleMdmIntegrationSummary>(
     `/tenants/${tenantId}/integrations/apple-mdm`,
+  );
+  return { integration: result.data, connectionIssue: result.failed };
+}
+
+export async function getIntuneIntegration(tenantId: string): Promise<{
+  integration: IntuneIntegrationSummary | null;
+  connectionIssue: boolean;
+}> {
+  const result = await apiGet<IntuneIntegrationSummary>(
+    `/tenants/${tenantId}/integrations/intune`,
   );
   return { integration: result.data, connectionIssue: result.failed };
 }
