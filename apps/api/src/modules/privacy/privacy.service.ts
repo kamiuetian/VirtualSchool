@@ -18,6 +18,8 @@ import type {
   SecurityIncidentSummary,
   ServiceStatusOverview,
   BackupOperationsOverview,
+  PolicyRecommendationSummary,
+  SecurityAnomalyAlertSummary,
 } from "@virtual-school/shared";
 import type { Prisma } from "../../generated/prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
@@ -37,11 +39,343 @@ import type {
   RecordBackupVerificationDto,
   RequestRestoreDrillDto,
   CompleteRestoreDrillDto,
+  DecidePolicyRecommendationDto,
+  UpdateSecurityAnomalyDto,
 } from "./dto/privacy.dto";
 
 @Injectable()
 export class PrivacyService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+
+  async listPolicyRecommendations(
+    tenantId: string,
+  ): Promise<PolicyRecommendationSummary[]> {
+    await this.ensureTenant(tenantId);
+    const values = await this.prisma.policyRecommendation.findMany({
+      where: { tenantId },
+      orderBy: { generatedAt: "desc" },
+    });
+    return values.map((value) => this.recommendationSummary(value));
+  }
+
+  async generatePolicyRecommendations(
+    tenantId: string,
+    actorId?: string,
+  ): Promise<PolicyRecommendationSummary[]> {
+    await this.ensureTenant(tenantId);
+    const [devices, failures, blocked, policy, pending] = await Promise.all([
+      this.prisma.device.findMany({
+        where: { tenantId },
+        select: { id: true, status: true, compliance: true },
+      }),
+      this.prisma.remoteCommand.count({
+        where: {
+          tenantId,
+          type: "POLICY_REFRESH",
+          status: { in: ["FAILED", "EXPIRED"] },
+        },
+      }),
+      this.prisma.blockedDomainEvent.count({
+        where: {
+          tenantId,
+          occurredAt: { gte: new Date(Date.now() - 30 * 86400000) },
+        },
+      }),
+      this.prisma.policy.findFirst({
+        where: { tenantId, status: "PUBLISHED" },
+        orderBy: { updatedAt: "desc" },
+        select: { id: true, version: true },
+      }),
+      this.prisma.policyRecommendation.findMany({
+        where: { tenantId, status: "PENDING" },
+        select: { kind: true },
+      }),
+    ]);
+    const existing = new Set(pending.map((item) => item.kind));
+    const candidates: Array<{
+      kind: string;
+      title: string;
+      explanation: string;
+      evidence: object;
+      proposedChange: object;
+    }> = [];
+    const affected = devices.filter(
+      (item) =>
+        item.status === "NON_COMPLIANT" || item.compliance === "NON_COMPLIANT",
+    ).length;
+    if (devices.length >= 3 && affected / devices.length >= 0.2)
+      candidates.push({
+        kind: "TIGHTEN_BASELINE",
+        title: "Review the device baseline policy",
+        explanation: `${affected} of ${devices.length} devices are non-compliant; reviewing baseline controls may reduce the observed compliance gap.`,
+        evidence: {
+          affectedDeviceCount: affected,
+          totalDeviceCount: devices.length,
+          ratio: affected / devices.length,
+        },
+        proposedChange: {
+          reviewControls: ["kiosk", "web-filter", "app-deployment"],
+          policyId: policy?.id ?? null,
+        },
+      });
+    if (failures >= 3)
+      candidates.push({
+        kind: "STAGE_POLICY_ROLLOUT",
+        title: "Stage policy rollout before broad publication",
+        explanation: `${failures} policy delivery commands failed or expired; a staged rollout can isolate compatibility issues.`,
+        evidence: {
+          failedOrExpiredPolicyCommands: failures,
+          policyVersion: policy?.version ?? null,
+        },
+        proposedChange: {
+          rolloutStrategy: "PILOT_THEN_BROAD",
+          policyId: policy?.id ?? null,
+        },
+      });
+    if (blocked >= 10)
+      candidates.push({
+        kind: "REVIEW_WEB_RULES",
+        title: "Review frequently triggered web rules",
+        explanation: `${blocked} blocked-domain events were observed in the last 30 days; review aggregate rules for learning-impact and false positives.`,
+        evidence: { blockedDomainEvents: blocked, windowDays: 30 },
+        proposedChange: {
+          action: "REVIEW_BLOCKED_DOMAIN_AGGREGATES",
+          policyId: policy?.id ?? null,
+        },
+      });
+    const created = [];
+    for (const candidate of candidates.filter(
+      (item) => !existing.has(item.kind),
+    ))
+      created.push(
+        await this.prisma.policyRecommendation.create({
+          data: { tenantId, policyId: policy?.id, ...candidate },
+        }),
+      );
+    await this.prisma.auditEvent.create({
+      data: {
+        tenantId,
+        actorId,
+        action: "policy_recommendation.generate",
+        object: "PolicyRecommendation",
+        outcome: "SUCCESS",
+        newValue: {
+          generated: created.length,
+          evaluatedSignals: { devices: devices.length, failures, blocked },
+        },
+      },
+    });
+    return created.map((value) => this.recommendationSummary(value));
+  }
+
+  async decidePolicyRecommendation(
+    tenantId: string,
+    id: string,
+    input: DecidePolicyRecommendationDto,
+    actorId?: string,
+  ): Promise<PolicyRecommendationSummary> {
+    if (!actorId)
+      throw new ForbiddenException(
+        "An authenticated administrator is required",
+      );
+    const current = await this.prisma.policyRecommendation.findFirst({
+      where: { id, tenantId },
+    });
+    if (!current)
+      throw new NotFoundException(
+        "Recommendation was not found for this tenant",
+      );
+    if (current.status !== "PENDING")
+      throw new BadRequestException("Recommendation has already been decided");
+    const status = input.decision === "APPROVE" ? "APPROVED" : "REJECTED";
+    const saved = await this.prisma.$transaction(async (tx) => {
+      const value = await tx.policyRecommendation.update({
+        where: { id },
+        data: {
+          status,
+          decidedAt: new Date(),
+          decidedBy: actorId,
+          decisionReason: input.reason,
+        },
+      });
+      await tx.auditEvent.create({
+        data: {
+          tenantId,
+          actorId,
+          action: "policy_recommendation.decision",
+          object: "PolicyRecommendation",
+          objectId: id,
+          outcome: status,
+          reason: input.reason,
+          oldValue: { status: current.status },
+          newValue: { status },
+        },
+      });
+      return value;
+    });
+    return this.recommendationSummary(saved);
+  }
+
+  async listAnomalyAlerts(
+    tenantId: string,
+  ): Promise<SecurityAnomalyAlertSummary[]> {
+    await this.ensureTenant(tenantId);
+    const values = await this.prisma.securityAnomalyAlert.findMany({
+      where: { tenantId },
+      orderBy: { detectedAt: "desc" },
+    });
+    return values.map((value) => this.anomalySummary(value));
+  }
+
+  async scanAnomalies(
+    tenantId: string,
+    actorId?: string,
+  ): Promise<SecurityAnomalyAlertSummary[]> {
+    await this.ensureTenant(tenantId);
+    const since = new Date(Date.now() - 24 * 3600000);
+    const [deviceEvents, policyFailures, auditEvents] = await Promise.all([
+      this.prisma.deviceLifecycleEvent.count({
+        where: { tenantId, createdAt: { gte: since } },
+      }),
+      this.prisma.remoteCommand.count({
+        where: {
+          tenantId,
+          type: "POLICY_REFRESH",
+          status: { in: ["FAILED", "EXPIRED"] },
+          updatedAt: { gte: since },
+        },
+      }),
+      this.prisma.auditEvent.findMany({
+        where: { tenantId, createdAt: { gte: since }, actorId: { not: null } },
+        select: { actorId: true },
+      }),
+    ]);
+    const counts = new Map<string, number>();
+    for (const item of auditEvents)
+      if (item.actorId)
+        counts.set(item.actorId, (counts.get(item.actorId) ?? 0) + 1);
+    const adminPeak = Math.max(0, ...counts.values());
+    const day = since.toISOString().slice(0, 10);
+    const signals = [
+      deviceEvents >= 10
+        ? {
+            fingerprint: `device:${day}`,
+            category: "DEVICE_ACTIVITY",
+            severity: deviceEvents >= 25 ? "CRITICAL" : "HIGH",
+            title: "Unusual device lifecycle activity",
+            explanation: `${deviceEvents} device lifecycle changes occurred within 24 hours, exceeding the review threshold of 10.`,
+            evidence: {
+              eventCount: deviceEvents,
+              windowHours: 24,
+              threshold: 10,
+            },
+          }
+        : null,
+      policyFailures >= 5
+        ? {
+            fingerprint: `policy:${day}`,
+            category: "POLICY_ACTIVITY",
+            severity: policyFailures >= 15 ? "CRITICAL" : "HIGH",
+            title: "Unusual policy delivery failures",
+            explanation: `${policyFailures} policy deliveries failed or expired within 24 hours, exceeding the review threshold of 5.`,
+            evidence: {
+              failureCount: policyFailures,
+              windowHours: 24,
+              threshold: 5,
+            },
+          }
+        : null,
+      adminPeak >= 25
+        ? {
+            fingerprint: `admin:${day}`,
+            category: "ADMIN_ACTIVITY",
+            severity: adminPeak >= 75 ? "CRITICAL" : "MEDIUM",
+            title: "Unusual administrator activity volume",
+            explanation: `One administrator generated ${adminPeak} audited actions within 24 hours, exceeding the review threshold of 25.`,
+            evidence: {
+              maximumActionsByOneActor: adminPeak,
+              windowHours: 24,
+              threshold: 25,
+            },
+          }
+        : null,
+    ].filter(Boolean) as any[];
+    const saved = [];
+    for (const signal of signals)
+      saved.push(
+        await this.prisma.securityAnomalyAlert.upsert({
+          where: {
+            tenantId_fingerprint: { tenantId, fingerprint: signal.fingerprint },
+          },
+          create: { tenantId, ...signal },
+          update: {},
+        }),
+      );
+    await this.prisma.auditEvent.create({
+      data: {
+        tenantId,
+        actorId,
+        action: "security_anomaly.scan",
+        object: "SecurityAnomalyAlert",
+        outcome: "SUCCESS",
+        newValue: { detected: saved.length, windowHours: 24 },
+      },
+    });
+    return saved.map((value) => this.anomalySummary(value));
+  }
+
+  async updateAnomaly(
+    tenantId: string,
+    id: string,
+    input: UpdateSecurityAnomalyDto,
+    actorId?: string,
+  ): Promise<SecurityAnomalyAlertSummary> {
+    if (!actorId)
+      throw new ForbiddenException(
+        "An authenticated administrator is required",
+      );
+    const current = await this.prisma.securityAnomalyAlert.findFirst({
+      where: { id, tenantId },
+    });
+    if (!current)
+      throw new NotFoundException(
+        "Anomaly alert was not found for this tenant",
+      );
+    if (current.status === "RESOLVED")
+      throw new BadRequestException("Resolved anomaly alerts are immutable");
+    const now = new Date();
+    const status = input.action === "RESOLVE" ? "RESOLVED" : "ACKNOWLEDGED";
+    const data =
+      input.action === "RESOLVE"
+        ? {
+            status,
+            resolvedAt: now,
+            resolvedBy: actorId,
+            resolutionNote: input.reason,
+          }
+        : { status, acknowledgedAt: now, acknowledgedBy: actorId };
+    const saved = await this.prisma.$transaction(async (tx) => {
+      const value = await tx.securityAnomalyAlert.update({
+        where: { id },
+        data,
+      });
+      await tx.auditEvent.create({
+        data: {
+          tenantId,
+          actorId,
+          action: `security_anomaly.${input.action.toLowerCase()}`,
+          object: "SecurityAnomalyAlert",
+          objectId: id,
+          outcome: status,
+          reason: input.reason,
+          oldValue: { status: current.status },
+          newValue: { status },
+        },
+      });
+      return value;
+    });
+    return this.anomalySummary(saved);
+  }
 
   async serviceStatus(tenantId: string): Promise<ServiceStatusOverview> {
     const tenant = await this.prisma.tenant.findUnique({
@@ -1517,6 +1851,41 @@ export class PrivacyService {
       where: { tenantId },
     });
     return values.map((value) => this.acceptanceSummary(value));
+  }
+
+  private async ensureTenant(tenantId: string) {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { id: true },
+    });
+    if (!tenant) throw new NotFoundException("Tenant was not found");
+  }
+
+  private recommendationSummary(value: any): PolicyRecommendationSummary {
+    return {
+      ...value,
+      evidence: value.evidence,
+      proposedChange: value.proposedChange,
+      generatedAt: value.generatedAt.toISOString(),
+      decidedAt: value.decidedAt?.toISOString() ?? null,
+    };
+  }
+
+  private anomalySummary(value: any): SecurityAnomalyAlertSummary {
+    return {
+      id: value.id,
+      tenantId: value.tenantId,
+      category: value.category,
+      severity: value.severity,
+      title: value.title,
+      explanation: value.explanation,
+      evidence: value.evidence,
+      status: value.status,
+      detectedAt: value.detectedAt.toISOString(),
+      acknowledgedAt: value.acknowledgedAt?.toISOString() ?? null,
+      resolvedAt: value.resolvedAt?.toISOString() ?? null,
+      resolutionNote: value.resolutionNote,
+    };
   }
 
   private subject(role?: Role, subjectId?: string): PrivacySubjectType {

@@ -220,3 +220,13 @@ export class CompleteRestoreDrillDto {
   @IsString() @Length(20, 2000) resultSummary!: string;
   @IsString() @Length(8, 2048) evidenceUrl!: string;
 }
+
+export class DecidePolicyRecommendationDto {
+  @IsIn(["APPROVE", "REJECT"]) decision!: "APPROVE" | "REJECT";
+  @IsString() @Length(10, 1000) reason!: string;
+}
+
+export class UpdateSecurityAnomalyDto {
+  @IsIn(["ACKNOWLEDGE", "RESOLVE"]) action!: "ACKNOWLEDGE" | "RESOLVE";
+  @IsString() @Length(10, 1000) reason!: string;
+}

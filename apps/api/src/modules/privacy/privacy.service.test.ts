@@ -803,4 +803,104 @@ describe("PrivacyService", () => {
       ),
     ).rejects.toThrow("Closed incidents");
   });
+
+  it("generates explainable recommendations without mutating policy", async () => {
+    const create = vi.fn(async ({ data }: any) => ({
+      ...data,
+      id: "rec-1",
+      status: "PENDING",
+      generatedAt: new Date("2026-08-09T00:00:00Z"),
+      decidedAt: null,
+      decidedBy: null,
+      decisionReason: null,
+    }));
+    const service = new PrivacyService({
+      tenant: { findUnique: async () => ({ id: "tenant-1" }) },
+      device: {
+        findMany: async () => [
+          { id: "d1", status: "NON_COMPLIANT", compliance: "NON_COMPLIANT" },
+          { id: "d2", status: "ONLINE", compliance: "COMPLIANT" },
+          { id: "d3", status: "ONLINE", compliance: "COMPLIANT" },
+        ],
+      },
+      remoteCommand: { count: async () => 0 },
+      blockedDomainEvent: { count: async () => 0 },
+      policy: { findFirst: async () => ({ id: "policy-1", version: 4 }) },
+      policyRecommendation: { findMany: async () => [], create },
+      auditEvent: { create: vi.fn() },
+    } as never);
+    const result = await service.generatePolicyRecommendations(
+      "tenant-1",
+      "admin-1",
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      kind: "TIGHTEN_BASELINE",
+      status: "PENDING",
+      evidence: { affectedDeviceCount: 1, totalDeviceCount: 3 },
+    });
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          proposedChange: expect.objectContaining({ policyId: "policy-1" }),
+        }),
+      }),
+    );
+  });
+
+  it("detects threshold-backed anomalies idempotently", async () => {
+    const upsert = vi.fn(async ({ create }: any) => ({
+      ...create,
+      id: "alert-1",
+      status: "OPEN",
+      detectedAt: new Date("2026-08-09T00:00:00Z"),
+      acknowledgedAt: null,
+      resolvedAt: null,
+      resolutionNote: null,
+    }));
+    const service = new PrivacyService({
+      tenant: { findUnique: async () => ({ id: "tenant-1" }) },
+      deviceLifecycleEvent: { count: async () => 12 },
+      remoteCommand: { count: async () => 6 },
+      auditEvent: { findMany: async () => [], create: vi.fn() },
+      securityAnomalyAlert: { upsert },
+    } as never);
+    const result = await service.scanAnomalies("tenant-1", "auditor-1");
+    expect(result).toHaveLength(2);
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          tenantId_fingerprint: expect.objectContaining({
+            tenantId: "tenant-1",
+          }),
+        },
+      }),
+    );
+    expect(result.map((item) => item.category)).toEqual([
+      "DEVICE_ACTIVITY",
+      "POLICY_ACTIVITY",
+    ]);
+  });
+
+  it("requires an authenticated decision and enforces tenant scope", async () => {
+    const service = new PrivacyService({
+      policyRecommendation: { findFirst: async () => null },
+    } as never);
+    await expect(
+      service.decidePolicyRecommendation(
+        "tenant-1",
+        "rec-1",
+        { decision: "APPROVE", reason: "Evidence supports a staged review" },
+        undefined,
+      ),
+    ).rejects.toThrow("authenticated administrator");
+    await expect(
+      service.decidePolicyRecommendation(
+        "tenant-2",
+        "rec-1",
+        { decision: "REJECT", reason: "Evidence belongs to another tenant" },
+        "admin-1",
+      ),
+    ).rejects.toThrow("not found for this tenant");
+  });
 });

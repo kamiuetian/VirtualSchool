@@ -108,6 +108,8 @@ model Tenant {
   procurementItems                ProcurementDevice[]
   deviceCustodyEvents             DeviceCustodyEvent[]
   deviceReplacements              DeviceReplacement[]
+  policyRecommendations           PolicyRecommendation[]
+  securityAnomalyAlerts           SecurityAnomalyAlert[]
   appCatalogItems                 AppCatalogItem[]
   policies                        Policy[]
   policyAssignments               PolicyAssignment[]
@@ -2040,6 +2042,48 @@ model AuditEvent {
 
   @@index([tenantId, createdAt])
   @@index([action, createdAt])
+}
+
+model PolicyRecommendation {
+  id          String   @id @default(uuid())
+  tenantId    String
+  policyId    String?
+  kind        String
+  title       String
+  explanation String
+  evidence    Json
+  proposedChange Json
+  status      String   @default("PENDING")
+  generatedAt DateTime @default(now())
+  decidedAt   DateTime?
+  decidedBy   String?
+  decisionReason String?
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status, generatedAt])
+  @@index([tenantId, policyId])
+}
+
+model SecurityAnomalyAlert {
+  id          String   @id @default(uuid())
+  tenantId    String
+  fingerprint String
+  category    String
+  severity    String
+  title       String
+  explanation String
+  evidence    Json
+  status      String   @default("OPEN")
+  detectedAt  DateTime @default(now())
+  acknowledgedAt DateTime?
+  acknowledgedBy String?
+  resolvedAt  DateTime?
+  resolvedBy  String?
+  resolutionNote String?
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, fingerprint])
+  @@index([tenantId, status, severity, detectedAt])
 }
 
 model ComplianceEvidencePack {

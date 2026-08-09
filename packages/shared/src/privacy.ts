@@ -56,6 +56,37 @@ export type SecurityPrivacyOverview = {
   auditExportPath: string;
 };
 
+export type PolicyRecommendationSummary = {
+  id: string;
+  tenantId: string;
+  policyId: string | null;
+  kind: string;
+  title: string;
+  explanation: string;
+  evidence: Record<string, unknown>;
+  proposedChange: Record<string, unknown>;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  generatedAt: string;
+  decidedAt: string | null;
+  decidedBy: string | null;
+  decisionReason: string | null;
+};
+
+export type SecurityAnomalyAlertSummary = {
+  id: string;
+  tenantId: string;
+  category: "DEVICE_ACTIVITY" | "POLICY_ACTIVITY" | "ADMIN_ACTIVITY";
+  severity: "MEDIUM" | "HIGH" | "CRITICAL";
+  title: string;
+  explanation: string;
+  evidence: Record<string, unknown>;
+  status: "OPEN" | "ACKNOWLEDGED" | "RESOLVED";
+  detectedAt: string;
+  acknowledgedAt: string | null;
+  resolvedAt: string | null;
+  resolutionNote: string | null;
+};
+
 export type ComplianceEvidenceSection =
   | "AUDIT_LOGS"
   | "ACCESS_REVIEWS"

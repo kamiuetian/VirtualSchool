@@ -33,6 +33,8 @@ import {
   RequestRestoreDrillDto,
   ApproveRestoreDrillDto,
   CompleteRestoreDrillDto,
+  DecidePolicyRecommendationDto,
+  UpdateSecurityAnomalyDto,
 } from "./dto/privacy.dto";
 import { PrivacyService } from "./privacy.service";
 
@@ -42,6 +44,65 @@ export class PrivacyController {
   constructor(
     @Inject(PrivacyService) private readonly service: PrivacyService,
   ) {}
+  @Get("policy-recommendations")
+  @RequirePermissions("policy:manage")
+  listPolicyRecommendations(@Param("tenantId") tenantId: string) {
+    return this.service.listPolicyRecommendations(tenantId);
+  }
+  @Post("policy-recommendations/generate")
+  @RequirePermissions("policy:manage")
+  generatePolicyRecommendations(
+    @Param("tenantId") tenantId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.service.generatePolicyRecommendations(
+      tenantId,
+      req.user?.subject,
+    );
+  }
+  @Post("policy-recommendations/:recommendationId/decision")
+  @RequirePermissions("policy:manage")
+  decidePolicyRecommendation(
+    @Param("tenantId") tenantId: string,
+    @Param("recommendationId") recommendationId: string,
+    @Body() body: DecidePolicyRecommendationDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.service.decidePolicyRecommendation(
+      tenantId,
+      recommendationId,
+      body,
+      req.user?.subject,
+    );
+  }
+  @Get("anomaly-alerts")
+  @RequirePermissions("audit:read")
+  listAnomalyAlerts(@Param("tenantId") tenantId: string) {
+    return this.service.listAnomalyAlerts(tenantId);
+  }
+  @Post("anomaly-alerts/scan")
+  @RequirePermissions("audit:read")
+  scanAnomalies(
+    @Param("tenantId") tenantId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.service.scanAnomalies(tenantId, req.user?.subject);
+  }
+  @Post("anomaly-alerts/:alertId/action")
+  @RequirePermissions("audit:read")
+  updateAnomaly(
+    @Param("tenantId") tenantId: string,
+    @Param("alertId") alertId: string,
+    @Body() body: UpdateSecurityAnomalyDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.service.updateAnomaly(
+      tenantId,
+      alertId,
+      body,
+      req.user?.subject,
+    );
+  }
   @Get("backup-operations")
   @RequirePermissions("tenant:update")
   backupOperations(
