@@ -2,6 +2,93 @@ import { describe, expect, it, vi } from "vitest";
 import { PrivacyService } from "./privacy.service";
 
 describe("PrivacyService", () => {
+  it("builds the security center only from the requested tenant", async () => {
+    const userCount = vi.fn(async ({ where }: any) =>
+      where.status === "SUSPENDED" ? 1 : 3,
+    );
+    const service = new PrivacyService({
+      tenant: {
+        findUnique: async ({ where }: any) =>
+          where.id === "tenant-1"
+            ? {
+                id: "tenant-1",
+                dataRegion: "PK",
+                allowedRegionCodes: ["PK-IS"],
+                webFilterSettings: {},
+                securityPrivacyProfile: null,
+              }
+            : null,
+      },
+      retentionSettings: { findUnique: async () => null },
+      user: { count: userCount },
+      accessAssignment: { count: async () => 2 },
+      accessReview: { count: async () => 1 },
+      privacyNotice: { count: async () => 4 },
+    } as never);
+    await expect(service.securityCenter("tenant-1")).resolves.toMatchObject({
+      tenantId: "tenant-1",
+      dataSettings: { dataRegion: "PK" },
+      accessControls: { activeDelegatedAssignments: 2, openAccessReviews: 1 },
+      privacyNoticeCount: 4,
+    });
+    expect(
+      userCount.mock.calls.every(
+        ([input]) => input.where.tenantId === "tenant-1",
+      ),
+    ).toBe(true);
+    await expect(service.securityCenter("tenant-2")).rejects.toThrow(
+      "Tenant was not found",
+    );
+  });
+
+  it("validates HTTPS policy evidence and audits governance profile updates", async () => {
+    const createAudit = vi.fn();
+    const upsert = vi.fn(async ({ create }: any) => ({
+      ...create,
+      id: "profile-1",
+      updatedAt: new Date("2026-08-09T00:00:00Z"),
+    }));
+    const service = new PrivacyService({
+      $transaction: async (callback: any) =>
+        callback({
+          tenant: { findUnique: async () => ({ id: "tenant-1" }) },
+          securityPrivacyProfile: { upsert },
+          auditEvent: { create: createAudit },
+        }),
+    } as never);
+    const input = {
+      incidentContactName: "Privacy office",
+      incidentContactEmail: "privacy@school.test",
+      policyDocuments: [
+        { title: "Privacy policy", url: "https://school.test/privacy" },
+      ],
+      childSafetyGuardrails: ["No covert monitoring of children"],
+    };
+    await expect(
+      service.updateSecurityPrivacyProfile("tenant-1", input, "admin-1"),
+    ).resolves.toMatchObject({
+      incidentContact: { email: "privacy@school.test" },
+    });
+    expect(createAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          tenantId: "tenant-1",
+          action: "security_privacy_profile.update",
+        }),
+      }),
+    );
+    await expect(
+      service.updateSecurityPrivacyProfile(
+        "tenant-1",
+        {
+          ...input,
+          policyDocuments: [{ title: "Unsafe", url: "http://school.test" }],
+        },
+        "admin-1",
+      ),
+    ).rejects.toThrow("valid HTTPS URLs");
+  });
+
   it("publishes the next immutable tenant/channel version and audits it", async () => {
     const createAudit = vi.fn();
     const service = new PrivacyService({

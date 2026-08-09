@@ -10,16 +10,168 @@ import type {
   PrivacyNoticeSummary,
   PrivacySubjectType,
   Role,
+  SecurityPrivacyOverview,
+  SecurityPrivacyProfileSummary,
 } from "@virtual-school/shared";
+import type { Prisma } from "../../generated/prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import type {
   AcceptPrivacyNoticeDto,
   PublishPrivacyNoticeDto,
+  UpdateSecurityPrivacyProfileDto,
 } from "./dto/privacy.dto";
 
 @Injectable()
 export class PrivacyService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+
+  async securityCenter(tenantId: string): Promise<SecurityPrivacyOverview> {
+    const now = new Date();
+    const [
+      tenant,
+      retention,
+      activeUsers,
+      suspendedUsers,
+      assignments,
+      reviews,
+      noticeCount,
+      privilegedWithoutMfa,
+    ] = await Promise.all([
+      this.prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: {
+          id: true,
+          dataRegion: true,
+          allowedRegionCodes: true,
+          webFilterSettings: true,
+          securityPrivacyProfile: true,
+        },
+      }),
+      this.prisma.retentionSettings.findUnique({ where: { tenantId } }),
+      this.prisma.user.count({ where: { tenantId, status: "ACTIVE" } }),
+      this.prisma.user.count({ where: { tenantId, status: "SUSPENDED" } }),
+      this.prisma.accessAssignment.count({
+        where: {
+          tenantId,
+          revokedAt: null,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+        },
+      }),
+      this.prisma.accessReview.count({ where: { tenantId, status: "OPEN" } }),
+      this.prisma.privacyNotice.count({ where: { tenantId } }),
+      this.prisma.user.count({
+        where: {
+          tenantId,
+          status: "ACTIVE",
+          mfaEnabled: false,
+          role: { in: ["PLATFORM_SUPER_ADMIN", "SCHOOL_ADMIN", "IT_ADMIN"] },
+        },
+      }),
+    ]);
+    if (!tenant) throw new NotFoundException("Tenant was not found");
+    return {
+      tenantId,
+      dataSettings: {
+        dataRegion: tenant.dataRegion,
+        allowedRegionCodes: tenant.allowedRegionCodes,
+        webFilteringConfigured: tenant.webFilterSettings !== null,
+      },
+      accessControls: {
+        activeUsers,
+        suspendedUsers,
+        activeDelegatedAssignments: assignments,
+        openAccessReviews: reviews,
+        mfaEnforcedForPrivilegedAccess: privilegedWithoutMfa === 0,
+      },
+      retention: retention
+        ? {
+            id: retention.id,
+            tenantId: retention.tenantId,
+            diagnosticRetentionDays: retention.diagnosticRetentionDays,
+            resolvedAlertRetentionDays: retention.resolvedAlertRetentionDays,
+            commandHistoryRetentionDays: retention.commandHistoryRetentionDays,
+            supportNoteRetentionDays: retention.supportNoteRetentionDays,
+            exportArtifactRetentionDays: retention.exportArtifactRetentionDays,
+            auditRetentionDays: retention.auditRetentionDays,
+            updatedBy: retention.updatedBy,
+            createdAt: retention.createdAt.toISOString(),
+            updatedAt: retention.updatedAt.toISOString(),
+          }
+        : null,
+      profile: this.profileSummary(tenant.securityPrivacyProfile),
+      privacyNoticeCount: noticeCount,
+      auditExportPath: `/api/v1/tenants/${tenantId}/audit-events`,
+    };
+  }
+
+  async updateSecurityPrivacyProfile(
+    tenantId: string,
+    input: UpdateSecurityPrivacyProfileDto,
+    actorId?: string,
+  ): Promise<SecurityPrivacyProfileSummary> {
+    for (const document of input.policyDocuments) {
+      let url: URL;
+      try {
+        url = new URL(document.url);
+      } catch {
+        throw new BadRequestException(
+          "Policy document URLs must be valid HTTPS URLs",
+        );
+      }
+      if (url.protocol !== "https:")
+        throw new BadRequestException(
+          "Policy document URLs must be valid HTTPS URLs",
+        );
+    }
+    const saved = await this.prisma.$transaction(async (tx) => {
+      const tenant = await tx.tenant.findUnique({
+        where: { id: tenantId },
+        select: { id: true },
+      });
+      if (!tenant) throw new NotFoundException("Tenant was not found");
+      const profile = await tx.securityPrivacyProfile.upsert({
+        where: { tenantId },
+        create: {
+          tenantId,
+          incidentContactName: input.incidentContactName,
+          incidentContactEmail: input.incidentContactEmail,
+          policyDocuments:
+            input.policyDocuments as unknown as Prisma.InputJsonValue,
+          childSafetyGuardrails:
+            input.childSafetyGuardrails as Prisma.InputJsonValue,
+          incidentContactPhone: input.incidentContactPhone || null,
+          updatedBy: actorId,
+        },
+        update: {
+          incidentContactName: input.incidentContactName,
+          incidentContactEmail: input.incidentContactEmail,
+          policyDocuments:
+            input.policyDocuments as unknown as Prisma.InputJsonValue,
+          childSafetyGuardrails:
+            input.childSafetyGuardrails as Prisma.InputJsonValue,
+          incidentContactPhone: input.incidentContactPhone || null,
+          updatedBy: actorId,
+        },
+      });
+      await tx.auditEvent.create({
+        data: {
+          tenantId,
+          actorId,
+          action: "security_privacy_profile.update",
+          object: "SecurityPrivacyProfile",
+          objectId: profile.id,
+          outcome: "UPDATED",
+          newValue: {
+            incidentContactEmail: input.incidentContactEmail,
+            policyDocumentCount: input.policyDocuments.length,
+            childSafetyGuardrailCount: input.childSafetyGuardrails.length,
+          },
+        },
+      });
+      return profile;
+    });
+    return this.profileSummary(saved);
+  }
 
   async publish(
     tenantId: string,
@@ -210,5 +362,25 @@ export class PrivacyService {
       revokedAt: value.revokedAt?.toISOString() ?? null,
       revokeReason: value.revokeReason,
     };
+  }
+  private profileSummary(value: any): SecurityPrivacyProfileSummary {
+    return value
+      ? {
+          incidentContact: {
+            name: value.incidentContactName,
+            email: value.incidentContactEmail,
+            phone: value.incidentContactPhone,
+          },
+          policyDocuments:
+            value.policyDocuments as SecurityPrivacyProfileSummary["policyDocuments"],
+          childSafetyGuardrails: value.childSafetyGuardrails as string[],
+          updatedAt: value.updatedAt.toISOString(),
+        }
+      : {
+          incidentContact: null,
+          policyDocuments: [],
+          childSafetyGuardrails: [],
+          updatedAt: null,
+        };
   }
 }

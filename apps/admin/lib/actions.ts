@@ -1559,6 +1559,41 @@ export async function publishPrivacyNoticeAction(
   revalidateAll();
 }
 
+export async function updateSecurityPrivacyProfileAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  const policyDocuments = text(formData, "policyDocuments")
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map((line) => {
+      const separator = line.indexOf("|");
+      if (separator < 1)
+        throw new Error("Each policy document must use Title | https://url");
+      return {
+        title: line.slice(0, separator).trim(),
+        url: line.slice(separator + 1).trim(),
+      };
+    });
+  const childSafetyGuardrails = text(formData, "childSafetyGuardrails")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  await adminApiMutation(
+    "PUT",
+    `/tenants/${tenantId}/privacy/security-center/profile`,
+    {
+      incidentContactName: text(formData, "incidentContactName"),
+      incidentContactEmail: text(formData, "incidentContactEmail"),
+      incidentContactPhone: text(formData, "incidentContactPhone"),
+      policyDocuments,
+      childSafetyGuardrails,
+    },
+  );
+  revalidateAll();
+}
+
 export async function acceptPrivacyNoticeAction(
   formData: FormData,
 ): Promise<void> {

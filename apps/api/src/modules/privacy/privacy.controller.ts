@@ -5,6 +5,7 @@ import {
   Inject,
   Param,
   Post,
+  Put,
   Query,
   Req,
 } from "@nestjs/common";
@@ -15,6 +16,7 @@ import {
   AcceptPrivacyNoticeDto,
   PublishPrivacyNoticeDto,
   RevokePrivacyAcceptanceDto,
+  UpdateSecurityPrivacyProfileDto,
 } from "./dto/privacy.dto";
 import { PrivacyService } from "./privacy.service";
 
@@ -24,6 +26,24 @@ export class PrivacyController {
   constructor(
     @Inject(PrivacyService) private readonly service: PrivacyService,
   ) {}
+  @Get("security-center") @RequirePermissions("audit:read") overview(
+    @Param("tenantId") tenantId: string,
+  ) {
+    return this.service.securityCenter(tenantId);
+  }
+  @Put("security-center/profile")
+  @RequirePermissions("tenant:update")
+  updateProfile(
+    @Param("tenantId") tenantId: string,
+    @Body() body: UpdateSecurityPrivacyProfileDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.service.updateSecurityPrivacyProfile(
+      tenantId,
+      body,
+      req.user?.subject,
+    );
+  }
   @Post("notices") @RequirePermissions("tenant:update") publish(
     @Param("tenantId") tenantId: string,
     @Body() body: PublishPrivacyNoticeDto,

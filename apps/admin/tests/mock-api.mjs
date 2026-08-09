@@ -394,6 +394,52 @@ const routes = [
   ["GET", `/tenants/${tenantId}/privacy/acceptances`, () => json([])],
   [
     "GET",
+    `/tenants/${tenantId}/privacy/security-center`,
+    () =>
+      json({
+        tenantId,
+        dataSettings: {
+          dataRegion: "PK",
+          allowedRegionCodes: ["PK-IS"],
+          webFilteringConfigured: true,
+        },
+        accessControls: {
+          activeUsers: 4,
+          suspendedUsers: 1,
+          activeDelegatedAssignments: 2,
+          openAccessReviews: 1,
+          mfaEnforcedForPrivilegedAccess: true,
+        },
+        retention: {
+          id: "retention-1",
+          tenantId,
+          diagnosticRetentionDays: 90,
+          resolvedAlertRetentionDays: 180,
+          commandHistoryRetentionDays: 365,
+          supportNoteRetentionDays: 730,
+          exportArtifactRetentionDays: 30,
+          auditRetentionDays: 2555,
+          createdAt: now,
+          updatedAt: now,
+        },
+        profile: {
+          incidentContact: {
+            name: "Privacy Office",
+            email: "privacy@pilot.example",
+            phone: null,
+          },
+          policyDocuments: [
+            { title: "Privacy policy", url: "https://pilot.example/privacy" },
+          ],
+          childSafetyGuardrails: ["No covert monitoring of children"],
+          updatedAt: now,
+        },
+        privacyNoticeCount: 1,
+        auditExportPath: `/api/v1/tenants/${tenantId}/audit-events`,
+      }),
+  ],
+  [
+    "GET",
     `/tenants/${tenantId}/reports/device-inventory`,
     () =>
       json({

@@ -19,6 +19,7 @@ import type {
   PolicySummary,
   PrivacyAcceptanceSummary,
   PrivacyNoticeSummary,
+  SecurityPrivacyOverview,
   RetentionSettingsSummary,
   RemoteCommandSummary,
   RosterImportSummary,
@@ -98,6 +99,7 @@ export type AdminData = {
   pilotFeedback: PilotFeedbackSummary[];
   privacyNotices: PrivacyNoticeSummary[];
   privacyAcceptances: PrivacyAcceptanceSummary[];
+  securityPrivacyOverview: SecurityPrivacyOverview | null;
   billingUsage: BillingUsageSummary | null;
   session: AdminPortalSession;
   connectionIssue: boolean;
@@ -146,6 +148,7 @@ export async function getAdminData(
       notificationDeliveries: [],
       privacyNotices: [],
       privacyAcceptances: [],
+      securityPrivacyOverview: null,
       session,
     };
   }
@@ -177,6 +180,7 @@ export async function getAdminData(
     pilotFeedback,
     privacyNotices,
     privacyAcceptances,
+    securityPrivacyOverview,
   ] = await Promise.all([
     apiGet<OnboardingChecklist>(`${tenantPath}/onboarding-checklist`),
     can("device:read")
@@ -261,6 +265,9 @@ export async function getAdminData(
     can("tenant:update")
       ? apiGet<PrivacyAcceptanceSummary[]>(`${tenantPath}/privacy/acceptances`)
       : skipped([]),
+    can("audit:read")
+      ? apiGet<SecurityPrivacyOverview>(`${tenantPath}/privacy/security-center`)
+      : skipped<SecurityPrivacyOverview>(),
   ]);
 
   return {
@@ -296,6 +303,7 @@ export async function getAdminData(
       pilotFeedback,
       privacyNotices,
       privacyAcceptances,
+      securityPrivacyOverview,
     ].some((result) => result.failed),
     deviceInventory: deviceInventory.data ?? null,
     devices: devices.data ?? [],
@@ -319,12 +327,13 @@ export async function getAdminData(
     pilotFeedback: pilotFeedback.data ?? [],
     privacyNotices: privacyNotices.data ?? [],
     privacyAcceptances: privacyAcceptances.data ?? [],
+    securityPrivacyOverview: securityPrivacyOverview.data ?? null,
     session,
   };
 }
 
 export async function adminApiMutation(
-  method: "PATCH" | "POST",
+  method: "PATCH" | "POST" | "PUT",
   path: string,
   body: Record<string, unknown>,
 ): Promise<void> {
@@ -560,7 +569,7 @@ export async function getExamReport(
 }
 
 export async function adminApiJsonMutation<T>(
-  method: "PATCH" | "POST",
+  method: "PATCH" | "POST" | "PUT",
   path: string,
   body: Record<string, unknown>,
 ): Promise<T> {

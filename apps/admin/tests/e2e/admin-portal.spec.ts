@@ -231,6 +231,12 @@ test.describe("admin portal regression", () => {
 
     await page.goto("/privacy");
     await expect(
+      page.getByRole("heading", { name: "Security and privacy center" }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("No covert monitoring of children"),
+    ).toBeVisible();
+    await expect(
       page.getByRole("button", { name: "Publish notice" }),
     ).toBeVisible();
     await expect(

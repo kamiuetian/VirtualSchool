@@ -23,3 +23,35 @@ export type PrivacyAcceptanceSummary = {
   revokedAt: string | null;
   revokeReason: string | null;
 };
+
+export type SecurityPrivacyPolicyDocument = {
+  title: string;
+  url: string;
+};
+
+export type SecurityPrivacyProfileSummary = {
+  incidentContact: { name: string; email: string; phone: string | null } | null;
+  policyDocuments: SecurityPrivacyPolicyDocument[];
+  childSafetyGuardrails: string[];
+  updatedAt: string | null;
+};
+
+export type SecurityPrivacyOverview = {
+  tenantId: string;
+  dataSettings: {
+    dataRegion: string;
+    allowedRegionCodes: string[];
+    webFilteringConfigured: boolean;
+  };
+  accessControls: {
+    activeUsers: number;
+    suspendedUsers: number;
+    activeDelegatedAssignments: number;
+    openAccessReviews: number;
+    mfaEnforcedForPrivilegedAccess: boolean;
+  };
+  retention: import("./support").RetentionSettingsSummary | null;
+  profile: SecurityPrivacyProfileSummary;
+  privacyNoticeCount: number;
+  auditExportPath: string;
+};

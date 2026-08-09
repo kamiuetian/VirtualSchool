@@ -11,19 +11,188 @@ import {
   acceptPrivacyNoticeAction,
   publishPrivacyNoticeAction,
   revokePrivacyAcceptanceAction,
+  updateSecurityPrivacyProfileAction,
 } from "../../lib/actions";
 import { getAdminData } from "../../lib/api";
+import { roleCan } from "../../lib/auth/portal-access";
 
 export const dynamic = "force-dynamic";
 
 export default async function PrivacyPage() {
   const data = await getAdminData("/privacy");
   const tenant = data.selectedTenant;
+  const overview = data.securityPrivacyOverview;
+  const canManage = roleCan(data.session.role, "tenant:update");
   return (
     <AppShell connectionIssue={data.connectionIssue} tenant={tenant}>
       <div className="content-stack">
+        <PageSection
+          kicker="Enterprise governance"
+          title="Security and privacy center"
+        >
+          {tenant && overview ? (
+            <>
+              <div className="metric-grid">
+                <div className="metric-card">
+                  <span>Data region</span>
+                  <strong>{overview.dataSettings.dataRegion}</strong>
+                  <small>
+                    {overview.dataSettings.allowedRegionCodes.join(", ") ||
+                      "Tenant region only"}
+                  </small>
+                </div>
+                <div className="metric-card">
+                  <span>Active staff</span>
+                  <strong>{overview.accessControls.activeUsers}</strong>
+                  <small>
+                    {overview.accessControls.suspendedUsers} suspended
+                  </small>
+                </div>
+                <div className="metric-card">
+                  <span>Access governance</span>
+                  <strong>
+                    {overview.accessControls.activeDelegatedAssignments}
+                  </strong>
+                  <small>
+                    {overview.accessControls.openAccessReviews} open reviews
+                  </small>
+                </div>
+                <div className="metric-card">
+                  <span>Privileged MFA</span>
+                  <strong>
+                    {overview.accessControls.mfaEnforcedForPrivilegedAccess
+                      ? "Enforced"
+                      : "Action needed"}
+                  </strong>
+                  <small>
+                    {overview.privacyNoticeCount} policy notice versions
+                  </small>
+                </div>
+              </div>
+              <div className="form-grid">
+                <ActionPanel title="Incident and child-safety governance">
+                  {canManage ? (
+                    <form
+                      action={updateSecurityPrivacyProfileAction}
+                      className="stacked-form"
+                    >
+                      <input name="tenantId" type="hidden" value={tenant.id} />
+                      <div className="form-row">
+                        <Field label="Incident contact">
+                          <input
+                            name="incidentContactName"
+                            required
+                            defaultValue={
+                              overview.profile.incidentContact?.name ?? ""
+                            }
+                          />
+                        </Field>
+                        <Field label="Contact email">
+                          <input
+                            name="incidentContactEmail"
+                            type="email"
+                            required
+                            defaultValue={
+                              overview.profile.incidentContact?.email ?? ""
+                            }
+                          />
+                        </Field>
+                      </div>
+                      <Field label="Contact phone">
+                        <input
+                          name="incidentContactPhone"
+                          defaultValue={
+                            overview.profile.incidentContact?.phone ?? ""
+                          }
+                        />
+                      </Field>
+                      <Field label="Policy documents (one Title | https://URL per line)">
+                        <textarea
+                          name="policyDocuments"
+                          rows={4}
+                          defaultValue={overview.profile.policyDocuments
+                            .map((item) => `${item.title} | ${item.url}`)
+                            .join("\n")}
+                        />
+                      </Field>
+                      <Field label="Child-safety guardrails (one per line)">
+                        <textarea
+                          name="childSafetyGuardrails"
+                          required
+                          rows={5}
+                          defaultValue={overview.profile.childSafetyGuardrails.join(
+                            "\n",
+                          )}
+                        />
+                      </Field>
+                      <SubmitButton>Save governance profile</SubmitButton>
+                    </form>
+                  ) : (
+                    <div className="list-panel">
+                      <div className="list-row">
+                        <div>
+                          <strong>
+                            {overview.profile.incidentContact?.name ??
+                              "Incident contact not configured"}
+                          </strong>
+                          <span>
+                            {overview.profile.incidentContact?.email ??
+                              "Ask a tenant administrator to configure the contact."}
+                          </span>
+                        </div>
+                      </div>
+                      {overview.profile.childSafetyGuardrails.map((item) => (
+                        <div className="list-row" key={item}>
+                          <div>
+                            <strong>Child-safety guardrail</strong>
+                            <span>{item}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </ActionPanel>
+                <ActionPanel title="Retention and audit evidence">
+                  <div className="list-panel">
+                    <div className="list-row">
+                      <div>
+                        <strong>Audit retention</strong>
+                        <span>
+                          {overview.retention?.auditRetentionDays
+                            ? `${overview.retention.auditRetentionDays} days`
+                            : "Indefinite"}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="list-row">
+                      <div>
+                        <strong>Diagnostics retention</strong>
+                        <span>
+                          {overview.retention?.diagnosticRetentionDays ??
+                            "Default"}{" "}
+                          days
+                        </span>
+                      </div>
+                    </div>
+                    <div className="list-row">
+                      <div>
+                        <strong>Tenant-scoped audit export</strong>
+                        <span>{overview.auditExportPath}</span>
+                      </div>
+                    </div>
+                  </div>
+                </ActionPanel>
+              </div>
+            </>
+          ) : (
+            <EmptyState
+              title="Security center unavailable"
+              body="The consolidated governance view requires privacy-officer access."
+            />
+          )}
+        </PageSection>
         <PageSection kicker="Governance" title="Privacy notices and consent">
-          {tenant ? (
+          {tenant && canManage ? (
             <div className="form-grid">
               <ActionPanel title="Publish a new immutable version">
                 <form

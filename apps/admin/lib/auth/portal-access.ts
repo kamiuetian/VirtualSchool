@@ -72,7 +72,11 @@ export const portalRoutes: PortalRoute[] = [
     roles: ["TEACHER"],
   },
   { href: "/policies", label: "Policies", anyPermissions: ["policy:manage"] },
-  { href: "/privacy", label: "Privacy", anyPermissions: ["tenant:update"] },
+  {
+    href: "/privacy",
+    label: "Privacy",
+    anyPermissions: ["tenant:update", "audit:read"],
+  },
   { href: "/timetable", label: "Timetable", anyPermissions: ["policy:manage"] },
   { href: "/apps", label: "Apps & Web", anyPermissions: ["policy:manage"] },
   {

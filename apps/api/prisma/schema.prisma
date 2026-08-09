@@ -114,6 +114,7 @@ model Tenant {
   supportTicketNotes              SupportTicketNote[]
   remoteAssistanceSessions        RemoteAssistanceSession[]
   retentionSettings               RetentionSettings?
+  securityPrivacyProfile          SecurityPrivacyProfile?
   retentionRuns                   DataRetentionRun[]
   billingSubscription             BillingSubscription?
   auditEvents                     AuditEvent[]
@@ -1535,6 +1536,20 @@ model RetentionSettings {
   createdAt                   DateTime @default(now())
   updatedAt                   DateTime @updatedAt
   tenant                      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model SecurityPrivacyProfile {
+  id                    String   @id @default(uuid())
+  tenantId              String   @unique
+  incidentContactName   String
+  incidentContactEmail  String
+  incidentContactPhone  String?
+  policyDocuments       Json
+  childSafetyGuardrails Json
+  updatedBy             String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  tenant                Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 
 model DataRetentionRun {
