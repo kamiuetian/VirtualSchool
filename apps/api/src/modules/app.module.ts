@@ -33,6 +33,7 @@ import { CommunicationsModule } from "./communications/communications.module";
 import { GoogleWorkspaceModule } from "./google-workspace/google-workspace.module";
 import { AppleMdmModule } from "./apple-mdm/apple-mdm.module";
 import { IntuneModule } from "./intune/intune.module";
+import { EnterpriseIdentityModule } from "./enterprise-identity/enterprise-identity.module";
 
 @Module({
   imports: [
@@ -70,6 +71,7 @@ import { IntuneModule } from "./intune/intune.module";
     GoogleWorkspaceModule,
     AppleMdmModule,
     IntuneModule,
+    EnterpriseIdentityModule,
   ],
 })
 export class AppModule {}

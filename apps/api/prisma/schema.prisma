@@ -159,6 +159,45 @@ model Tenant {
   intuneConnection                IntuneConnection?
   intuneGroupMappings             IntuneGroupMapping[]
   intuneDeviceStates              IntuneDeviceState[]
+  enterpriseIdentityConnection    EnterpriseIdentityConnection?
+  scimGroupMappings               ScimGroupRoleMapping[]
+}
+
+model EnterpriseIdentityConnection {
+  id                    String                 @id @default(uuid())
+  tenantId              String                 @unique
+  protocol              String
+  issuer                String
+  clientId              String?
+  metadataUrl           String?
+  credentialReference   String
+  scimTokenReference    String
+  status                String                 @default("ACTIVE")
+  breakGlassUserId      String
+  lastValidatedAt       DateTime?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  tenant                Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  breakGlassUser        User                   @relation("BreakGlassUser", fields: [breakGlassUserId], references: [id], onDelete: Restrict)
+  groupMappings         ScimGroupRoleMapping[]
+  provisionedUsers      User[]                 @relation("ScimProvisionedUsers")
+}
+
+model ScimGroupRoleMapping {
+  id           String                       @id @default(uuid())
+  tenantId     String
+  connectionId String
+  externalGroup String
+  role         String
+  branchId     String?
+  createdAt    DateTime                     @default(now())
+  updatedAt    DateTime                     @updatedAt
+  tenant       Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  connection   EnterpriseIdentityConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  branch       Branch?                      @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, externalGroup])
+  @@index([tenantId, role])
 }
 
 model IntuneConnection {
@@ -779,6 +818,7 @@ model Branch {
   timetableBlocks           TimetableBlock[]
   googleWorkspaceOuMappings GoogleWorkspaceOuMapping[]
   intuneGroupMappings        IntuneGroupMapping[]
+  scimGroupMappings          ScimGroupRoleMapping[]
 
   @@index([tenantId])
 }
@@ -799,6 +839,8 @@ model User {
   deactivatedAt           DateTime?
   forcedLogoutAt          DateTime?
   lastRoleChangedAt       DateTime?
+  scimExternalId          String?
+  scimConnectionId        String?
   createdAt               DateTime                 @default(now())
   updatedAt               DateTime                 @updatedAt
   tenant                  Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -806,8 +848,11 @@ model User {
   classAssignments        TeacherClassAssignment[]
   teacherSessions         TeacherSession[]
   teacherSessionTemplates TeacherSessionTemplate[]
+  breakGlassFor           EnterpriseIdentityConnection[] @relation("BreakGlassUser")
+  scimConnection          EnterpriseIdentityConnection?  @relation("ScimProvisionedUsers", fields: [scimConnectionId], references: [id], onDelete: SetNull)
 
   @@unique([tenantId, email])
+  @@unique([tenantId, scimExternalId])
   @@index([tenantId, role])
 }
 
