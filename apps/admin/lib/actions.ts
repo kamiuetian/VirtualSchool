@@ -1614,6 +1614,45 @@ export async function createComplianceEvidencePackAction(
   revalidateAll();
 }
 
+export async function createDataSubjectRequestAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("audit:read");
+  const tenantId = required(formData, "tenantId");
+  const retentionUntil = text(formData, "retentionUntil");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/privacy/data-subject-requests`,
+    {
+      requestType: required(formData, "requestType"),
+      subjectType: required(formData, "subjectType"),
+      subjectId: required(formData, "subjectId"),
+      reason: required(formData, "reason"),
+      ...(retentionUntil
+        ? { retentionUntil: new Date(retentionUntil).toISOString() }
+        : {}),
+    },
+  );
+  revalidateAll();
+}
+
+export async function decideDataSubjectRequestAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("tenant:update");
+  const tenantId = required(formData, "tenantId");
+  const requestId = required(formData, "requestId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/privacy/data-subject-requests/${requestId}/decision`,
+    {
+      decision: required(formData, "decision"),
+      reason: required(formData, "reason"),
+    },
+  );
+  revalidateAll();
+}
+
 export async function acceptPrivacyNoticeAction(
   formData: FormData,
 ): Promise<void> {

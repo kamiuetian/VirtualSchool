@@ -6,6 +6,7 @@ import type {
   BlockedDomainAggregate,
   ClassSectionSummary,
   ComplianceEvidencePackSummary,
+  DataSubjectRequestSummary,
   DeviceAlertSummary,
   DeviceDiagnosticSummary,
   DeviceHistory,
@@ -102,6 +103,7 @@ export type AdminData = {
   privacyAcceptances: PrivacyAcceptanceSummary[];
   securityPrivacyOverview: SecurityPrivacyOverview | null;
   complianceEvidencePacks: ComplianceEvidencePackSummary[];
+  dataSubjectRequests: DataSubjectRequestSummary[];
   billingUsage: BillingUsageSummary | null;
   session: AdminPortalSession;
   connectionIssue: boolean;
@@ -152,6 +154,7 @@ export async function getAdminData(
       privacyAcceptances: [],
       securityPrivacyOverview: null,
       complianceEvidencePacks: [],
+      dataSubjectRequests: [],
       session,
     };
   }
@@ -185,6 +188,7 @@ export async function getAdminData(
     privacyAcceptances,
     securityPrivacyOverview,
     complianceEvidencePacks,
+    dataSubjectRequests,
   ] = await Promise.all([
     apiGet<OnboardingChecklist>(`${tenantPath}/onboarding-checklist`),
     can("device:read")
@@ -277,6 +281,11 @@ export async function getAdminData(
           `${tenantPath}/privacy/evidence-packs`,
         )
       : skipped([]),
+    can("audit:read")
+      ? apiGet<DataSubjectRequestSummary[]>(
+          `${tenantPath}/privacy/data-subject-requests`,
+        )
+      : skipped([]),
   ]);
 
   return {
@@ -314,6 +323,7 @@ export async function getAdminData(
       privacyAcceptances,
       securityPrivacyOverview,
       complianceEvidencePacks,
+      dataSubjectRequests,
     ].some((result) => result.failed),
     deviceInventory: deviceInventory.data ?? null,
     devices: devices.data ?? [],
@@ -339,6 +349,7 @@ export async function getAdminData(
     privacyAcceptances: privacyAcceptances.data ?? [],
     securityPrivacyOverview: securityPrivacyOverview.data ?? null,
     complianceEvidencePacks: complianceEvidencePacks.data ?? [],
+    dataSubjectRequests: dataSubjectRequests.data ?? [],
     session,
   };
 }

@@ -119,6 +119,8 @@ model Tenant {
   billingSubscription             BillingSubscription?
   auditEvents                     AuditEvent[]
   complianceEvidencePacks         ComplianceEvidencePack[]
+  dataSubjectRequests             DataSubjectRequest[]
+  dataLegalHolds                  DataLegalHold[]
   blockedDomainEvents             BlockedDomainEvent[]
   assignmentHistory               DeviceAssignment[]
   lifecycleEvents                 DeviceLifecycleEvent[]
@@ -1907,19 +1909,58 @@ model AuditEvent {
 }
 
 model ComplianceEvidencePack {
-  id          String   @id @default(uuid())
-  tenantId    String
-  name        String
-  windowFrom  DateTime
-  windowTo    DateTime
-  sections    Json
-  artifact    Json
-  checksum    String
-  createdBy   String?
-  createdAt   DateTime @default(now())
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  id         String   @id @default(uuid())
+  tenantId   String
+  name       String
+  windowFrom DateTime
+  windowTo   DateTime
+  sections   Json
+  artifact   Json
+  checksum   String
+  createdBy  String?
+  createdAt  DateTime @default(now())
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
   @@index([tenantId, createdAt])
+}
+
+model DataSubjectRequest {
+  id             String    @id @default(uuid())
+  tenantId       String
+  requestType    String
+  subjectType    String
+  subjectId      String
+  reason         String
+  status         String    @default("PENDING")
+  retentionUntil DateTime?
+  requestedBy    String?
+  approvedBy     String?
+  approvedAt     DateTime?
+  completedAt    DateTime?
+  result         Json?
+  artifact       Json?
+  checksum       String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, subjectType, subjectId])
+}
+
+model DataLegalHold {
+  id          String    @id @default(uuid())
+  tenantId    String
+  subjectType String
+  subjectId   String
+  reason      String
+  createdBy   String?
+  releasedBy  String?
+  releasedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, subjectType, subjectId, releasedAt])
 }
 
 model MachineCredential {

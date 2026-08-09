@@ -10,6 +10,8 @@ import {
 import {
   acceptPrivacyNoticeAction,
   createComplianceEvidencePackAction,
+  createDataSubjectRequestAction,
+  decideDataSubjectRequestAction,
   publishPrivacyNoticeAction,
   revokePrivacyAcceptanceAction,
   updateSecurityPrivacyProfileAction,
@@ -270,6 +272,113 @@ export default async function PrivacyPage() {
                   <EmptyState
                     title="No evidence packs"
                     body="Generate a bounded snapshot for an audit or customer evidence request."
+                  />
+                )}
+              </ActionPanel>
+            </div>
+          ) : null}
+        </PageSection>
+        <PageSection kicker="Privacy operations" title="Data-subject requests">
+          {tenant && overview ? (
+            <div className="form-grid">
+              <ActionPanel title="Open a governed request">
+                <form
+                  action={createDataSubjectRequestAction}
+                  className="stacked-form"
+                >
+                  <input name="tenantId" type="hidden" value={tenant.id} />
+                  <div className="form-row">
+                    <Field label="Operation">
+                      <select name="requestType">
+                        <option>EXPORT</option>
+                        <option>DELETE</option>
+                      </select>
+                    </Field>
+                    <Field label="Subject type">
+                      <select name="subjectType">
+                        <option>STUDENT</option>
+                        <option>GUARDIAN</option>
+                        <option>USER</option>
+                      </select>
+                    </Field>
+                  </div>
+                  <Field label="Tenant record ID">
+                    <input name="subjectId" required />
+                  </Field>
+                  <Field label="Reason and identity-verification evidence">
+                    <textarea name="reason" minLength={10} required rows={3} />
+                  </Field>
+                  <Field label="Retention obligation ends (optional)">
+                    <input name="retentionUntil" type="datetime-local" />
+                  </Field>
+                  <SubmitButton>Submit for independent approval</SubmitButton>
+                </form>
+              </ActionPanel>
+              <ActionPanel title="Request queue">
+                {data.dataSubjectRequests.length ? (
+                  <div className="list-panel">
+                    {data.dataSubjectRequests.map((request) => (
+                      <div className="list-row" key={request.id}>
+                        <div>
+                          <strong>
+                            {request.requestType} {request.subjectType}
+                          </strong>
+                          <span>
+                            {request.subjectId} · {request.status}
+                          </span>
+                          <small>{request.reason}</small>
+                        </div>
+                        {request.status === "PENDING" && canManage ? (
+                          <form
+                            action={decideDataSubjectRequestAction}
+                            className="row-form"
+                          >
+                            <input
+                              name="tenantId"
+                              type="hidden"
+                              value={tenant.id}
+                            />
+                            <input
+                              name="requestId"
+                              type="hidden"
+                              value={request.id}
+                            />
+                            <input
+                              name="reason"
+                              minLength={5}
+                              placeholder="Independent decision reason"
+                              required
+                            />
+                            <button
+                              className="small-button primary"
+                              name="decision"
+                              value="APPROVE"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              className="small-button danger"
+                              name="decision"
+                              value="REJECT"
+                            >
+                              Reject
+                            </button>
+                          </form>
+                        ) : request.downloadPath ? (
+                          <a
+                            className="small-button primary"
+                            href={`/privacy/data-subject-export.json?tenantId=${encodeURIComponent(tenant.id)}&requestId=${encodeURIComponent(request.id)}`}
+                          >
+                            Download export
+                          </a>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState
+                    title="No requests"
+                    body="Verified export and deletion requests will appear here."
                   />
                 )}
               </ActionPanel>

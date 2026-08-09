@@ -8,6 +8,7 @@ import {
 import { createHash } from "node:crypto";
 import type {
   ComplianceEvidencePackSummary,
+  DataSubjectRequestSummary,
   PrivacyAcceptanceSummary,
   PrivacyNoticeSummary,
   PrivacySubjectType,
@@ -20,6 +21,9 @@ import { PrismaService } from "../prisma/prisma.service";
 import type {
   AcceptPrivacyNoticeDto,
   CreateComplianceEvidencePackDto,
+  CreateDataSubjectRequestDto,
+  DecideDataSubjectRequestDto,
+  CreateDataLegalHoldDto,
   PublishPrivacyNoticeDto,
   UpdateSecurityPrivacyProfileDto,
 } from "./dto/privacy.dto";
@@ -27,6 +31,462 @@ import type {
 @Injectable()
 export class PrivacyService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+
+  async listLegalHolds(tenantId: string) {
+    return this.prisma.dataLegalHold.findMany({
+      where: { tenantId },
+      orderBy: { createdAt: "desc" },
+    });
+  }
+
+  async createLegalHold(
+    tenantId: string,
+    input: CreateDataLegalHoldDto,
+    actorId?: string,
+  ) {
+    await this.subjectRecord(tenantId, input.subjectType, input.subjectId);
+    const existing = await this.prisma.dataLegalHold.findFirst({
+      where: {
+        tenantId,
+        subjectType: input.subjectType,
+        subjectId: input.subjectId,
+        releasedAt: null,
+      },
+    });
+    if (existing)
+      throw new BadRequestException(
+        "An active legal hold already covers this subject",
+      );
+    return this.prisma.$transaction(async (tx) => {
+      const hold = await tx.dataLegalHold.create({
+        data: { tenantId, ...input, createdBy: actorId },
+      });
+      await tx.auditEvent.create({
+        data: {
+          tenantId,
+          actorId,
+          action: "data_legal_hold.create",
+          object: "DataLegalHold",
+          objectId: hold.id,
+          outcome: "ACTIVE",
+          newValue: {
+            subjectType: input.subjectType,
+            reasonLength: input.reason.length,
+          },
+        },
+      });
+      return hold;
+    });
+  }
+
+  async releaseLegalHold(
+    tenantId: string,
+    holdId: string,
+    reason: string,
+    actorId?: string,
+  ) {
+    const hold = await this.prisma.dataLegalHold.findFirst({
+      where: { id: holdId, tenantId, releasedAt: null },
+    });
+    if (!hold)
+      throw new NotFoundException(
+        "Active legal hold was not found for this tenant",
+      );
+    return this.prisma.$transaction(async (tx) => {
+      const released = await tx.dataLegalHold.update({
+        where: { id: hold.id },
+        data: { releasedAt: new Date(), releasedBy: actorId },
+      });
+      await tx.auditEvent.create({
+        data: {
+          tenantId,
+          actorId,
+          action: "data_legal_hold.release",
+          object: "DataLegalHold",
+          objectId: hold.id,
+          outcome: "RELEASED",
+          newValue: {
+            subjectType: hold.subjectType,
+            reasonLength: reason.length,
+          },
+        },
+      });
+      return released;
+    });
+  }
+
+  async listDataSubjectRequests(
+    tenantId: string,
+  ): Promise<DataSubjectRequestSummary[]> {
+    const requests = await this.prisma.dataSubjectRequest.findMany({
+      where: { tenantId },
+      orderBy: { createdAt: "desc" },
+    });
+    return requests.map((value) => this.dataSubjectRequestSummary(value));
+  }
+
+  async createDataSubjectRequest(
+    tenantId: string,
+    input: CreateDataSubjectRequestDto,
+    actorId?: string,
+  ): Promise<DataSubjectRequestSummary> {
+    const retentionUntil = input.retentionUntil
+      ? new Date(input.retentionUntil)
+      : null;
+    if (retentionUntil && retentionUntil <= new Date())
+      throw new BadRequestException(
+        "Retention obligations must end in the future",
+      );
+    await this.subjectRecord(tenantId, input.subjectType, input.subjectId);
+    const saved = await this.prisma.$transaction(async (tx) => {
+      const request = await tx.dataSubjectRequest.create({
+        data: {
+          tenantId,
+          requestType: input.requestType,
+          subjectType: input.subjectType,
+          subjectId: input.subjectId,
+          reason: input.reason,
+          retentionUntil,
+          requestedBy: actorId,
+        },
+      });
+      await tx.auditEvent.create({
+        data: {
+          tenantId,
+          actorId,
+          action: "data_subject_request.create",
+          object: "DataSubjectRequest",
+          objectId: request.id,
+          outcome: "PENDING",
+          newValue: {
+            requestType: input.requestType,
+            subjectType: input.subjectType,
+            retentionUntil,
+            reasonLength: input.reason.length,
+          },
+        },
+      });
+      return request;
+    });
+    return this.dataSubjectRequestSummary(saved);
+  }
+
+  async decideDataSubjectRequest(
+    tenantId: string,
+    requestId: string,
+    input: DecideDataSubjectRequestDto,
+    actorId?: string,
+  ): Promise<DataSubjectRequestSummary> {
+    const request = await this.prisma.dataSubjectRequest.findFirst({
+      where: { id: requestId, tenantId },
+    });
+    if (!request)
+      throw new NotFoundException(
+        "Data-subject request was not found for this tenant",
+      );
+    if (request.status !== "PENDING")
+      throw new BadRequestException("Only pending requests can be decided");
+    if (!actorId || actorId === request.requestedBy)
+      throw new ForbiddenException(
+        "A different authenticated administrator must decide this request",
+      );
+    if (input.decision === "REJECT") {
+      const rejected = await this.prisma.$transaction(async (tx) => {
+        const value = await tx.dataSubjectRequest.update({
+          where: { id: request.id },
+          data: {
+            status: "REJECTED",
+            approvedBy: actorId,
+            approvedAt: new Date(),
+            result: { decisionReason: input.reason },
+          },
+        });
+        await tx.auditEvent.create({
+          data: {
+            tenantId,
+            actorId,
+            action: "data_subject_request.reject",
+            object: "DataSubjectRequest",
+            objectId: request.id,
+            outcome: "REJECTED",
+            newValue: {
+              requestType: request.requestType,
+              subjectType: request.subjectType,
+              reasonLength: input.reason.length,
+            },
+          },
+        });
+        return value;
+      });
+      return this.dataSubjectRequestSummary(rejected);
+    }
+    const hold = await this.prisma.dataLegalHold.findFirst({
+      where: {
+        tenantId,
+        subjectType: request.subjectType,
+        subjectId: request.subjectId,
+        releasedAt: null,
+      },
+    });
+    const retentionActive =
+      !!request.retentionUntil && request.retentionUntil > new Date();
+    if (request.requestType === "DELETE" && (hold || retentionActive)) {
+      const blockers = [
+        hold ? "LEGAL_HOLD" : null,
+        retentionActive ? "RETENTION" : null,
+      ].filter(Boolean);
+      const blocked = await this.finishDataSubjectRequest(
+        request,
+        actorId,
+        "BLOCKED",
+        {
+          blockers,
+          legalHoldId: hold?.id ?? null,
+          retentionUntil: request.retentionUntil?.toISOString() ?? null,
+        },
+        input.reason,
+      );
+      return this.dataSubjectRequestSummary(blocked);
+    }
+    const subject = await this.subjectRecord(
+      tenantId,
+      request.subjectType,
+      request.subjectId,
+    );
+    const acceptances = await this.prisma.privacyAcceptance.findMany({
+      where: {
+        tenantId,
+        subjectId: {
+          in: [
+            request.subjectId,
+            (subject as { auth0Subject?: string | null }).auth0Subject,
+          ].filter(Boolean) as string[],
+        },
+      },
+    });
+    if (request.requestType === "EXPORT") {
+      const artifact = JSON.parse(
+        JSON.stringify({
+          schemaVersion: 1,
+          tenantId,
+          requestId,
+          subjectType: request.subjectType,
+          subjectId: request.subjectId,
+          generatedAt: new Date().toISOString(),
+          subject,
+          privacyAcceptances: acceptances,
+        }),
+      ) as Prisma.InputJsonValue;
+      const checksum = createHash("sha256")
+        .update(JSON.stringify(artifact))
+        .digest("hex");
+      const completed = await this.finishDataSubjectRequest(
+        request,
+        actorId,
+        "COMPLETED",
+        { exportedRecords: 1 + acceptances.length },
+        input.reason,
+        artifact,
+        checksum,
+      );
+      return this.dataSubjectRequestSummary(completed);
+    }
+    const completed = await this.prisma.$transaction(async (tx) => {
+      await tx.privacyAcceptance.deleteMany({
+        where: {
+          tenantId,
+          subjectId: {
+            in: [
+              request.subjectId,
+              (subject as { auth0Subject?: string | null }).auth0Subject,
+            ].filter(Boolean) as string[],
+          },
+        },
+      });
+      const anonymous = `deleted-${request.id}`;
+      if (request.subjectType === "STUDENT")
+        await tx.student.update({
+          where: { id: request.subjectId },
+          data: {
+            name: "Deleted subject",
+            studentCode: anonymous,
+            auth0Subject: null,
+            status: "WITHDRAWN",
+          },
+        });
+      if (request.subjectType === "GUARDIAN")
+        await tx.guardian.update({
+          where: { id: request.subjectId },
+          data: {
+            name: "Deleted subject",
+            email: null,
+            phone: null,
+            language: null,
+          },
+        });
+      if (request.subjectType === "USER")
+        await tx.user.update({
+          where: { id: request.subjectId },
+          data: {
+            name: "Deleted subject",
+            email: `${anonymous}@invalid.local`,
+            auth0Subject: null,
+            status: "DEACTIVATED",
+            forcedLogoutAt: new Date(),
+            deactivatedAt: new Date(),
+          },
+        });
+      const value = await tx.dataSubjectRequest.update({
+        where: { id: request.id },
+        data: {
+          status: "COMPLETED",
+          approvedBy: actorId,
+          approvedAt: new Date(),
+          completedAt: new Date(),
+          result: {
+            anonymizedRecords: 1,
+            deletedAcceptanceRecords: acceptances.length,
+          },
+        },
+      });
+      await tx.auditEvent.create({
+        data: {
+          tenantId,
+          actorId,
+          action: "data_subject_request.complete",
+          object: "DataSubjectRequest",
+          objectId: request.id,
+          outcome: "COMPLETED",
+          newValue: {
+            requestType: "DELETE",
+            subjectType: request.subjectType,
+            anonymizedRecords: 1,
+            deletedAcceptanceRecords: acceptances.length,
+            approvalReasonLength: input.reason.length,
+          },
+        },
+      });
+      return value;
+    });
+    return this.dataSubjectRequestSummary(completed);
+  }
+
+  async downloadDataSubjectExport(
+    tenantId: string,
+    requestId: string,
+  ): Promise<unknown> {
+    const request = await this.prisma.dataSubjectRequest.findFirst({
+      where: {
+        id: requestId,
+        tenantId,
+        requestType: "EXPORT",
+        status: "COMPLETED",
+      },
+    });
+    if (!request?.artifact)
+      throw new NotFoundException(
+        "Completed export was not found for this tenant",
+      );
+    return {
+      checksumAlgorithm: "SHA-256",
+      checksum: request.checksum,
+      artifact: request.artifact,
+    };
+  }
+
+  private async subjectRecord(
+    tenantId: string,
+    subjectType: string,
+    subjectId: string,
+  ): Promise<unknown> {
+    const select = { id: true, tenantId: true, createdAt: true };
+    const value =
+      subjectType === "STUDENT"
+        ? await this.prisma.student.findFirst({
+            where: { id: subjectId, tenantId },
+          })
+        : subjectType === "GUARDIAN"
+          ? await this.prisma.guardian.findFirst({
+              where: { id: subjectId, tenantId },
+            })
+          : await this.prisma.user.findFirst({
+              where: { id: subjectId, tenantId },
+            });
+    void select;
+    if (!value)
+      throw new NotFoundException("Subject was not found for this tenant");
+    return value;
+  }
+
+  private async finishDataSubjectRequest(
+    request: any,
+    actorId: string,
+    status: string,
+    result: Prisma.InputJsonValue,
+    approvalReason: string,
+    artifact?: Prisma.InputJsonValue,
+    checksum?: string,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const value = await tx.dataSubjectRequest.update({
+        where: { id: request.id },
+        data: {
+          status,
+          approvedBy: actorId,
+          approvedAt: new Date(),
+          completedAt: new Date(),
+          result,
+          artifact,
+          checksum,
+        },
+      });
+      await tx.auditEvent.create({
+        data: {
+          tenantId: request.tenantId,
+          actorId,
+          action:
+            status === "BLOCKED"
+              ? "data_subject_request.block"
+              : "data_subject_request.complete",
+          object: "DataSubjectRequest",
+          objectId: request.id,
+          outcome: status,
+          newValue: {
+            requestType: request.requestType,
+            subjectType: request.subjectType,
+            checksum: checksum ?? null,
+            approvalReasonLength: approvalReason.length,
+            result,
+          },
+        },
+      });
+      return value;
+    });
+  }
+
+  private dataSubjectRequestSummary(value: any): DataSubjectRequestSummary {
+    return {
+      id: value.id,
+      tenantId: value.tenantId,
+      requestType: value.requestType,
+      subjectType: value.subjectType,
+      subjectId: value.subjectId,
+      reason: value.reason,
+      status: value.status,
+      retentionUntil: value.retentionUntil?.toISOString() ?? null,
+      requestedBy: value.requestedBy,
+      approvedBy: value.approvedBy,
+      approvedAt: value.approvedAt?.toISOString() ?? null,
+      completedAt: value.completedAt?.toISOString() ?? null,
+      result: value.result as Record<string, unknown> | null,
+      checksum: value.checksum,
+      createdAt: value.createdAt.toISOString(),
+      downloadPath:
+        value.requestType === "EXPORT" && value.status === "COMPLETED"
+          ? `/api/v1/tenants/${value.tenantId}/privacy/data-subject-requests/${value.id}/download`
+          : null,
+    };
+  }
 
   async listEvidencePacks(
     tenantId: string,

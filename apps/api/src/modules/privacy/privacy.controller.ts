@@ -16,6 +16,10 @@ import type { AuthenticatedRequest } from "../auth/types/authenticated-request";
 import {
   AcceptPrivacyNoticeDto,
   CreateComplianceEvidencePackDto,
+  CreateDataSubjectRequestDto,
+  DecideDataSubjectRequestDto,
+  CreateDataLegalHoldDto,
+  ReleaseDataLegalHoldDto,
   PublishPrivacyNoticeDto,
   RevokePrivacyAcceptanceDto,
   UpdateSecurityPrivacyProfileDto,
@@ -28,6 +32,75 @@ export class PrivacyController {
   constructor(
     @Inject(PrivacyService) private readonly service: PrivacyService,
   ) {}
+  @Get("legal-holds") @RequirePermissions("audit:read") listLegalHolds(
+    @Param("tenantId") tenantId: string,
+  ) {
+    return this.service.listLegalHolds(tenantId);
+  }
+  @Post("legal-holds") @RequirePermissions("tenant:update") createLegalHold(
+    @Param("tenantId") tenantId: string,
+    @Body() body: CreateDataLegalHoldDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.service.createLegalHold(tenantId, body, req.user?.subject);
+  }
+  @Post("legal-holds/:holdId/release")
+  @RequirePermissions("tenant:update")
+  releaseLegalHold(
+    @Param("tenantId") tenantId: string,
+    @Param("holdId") holdId: string,
+    @Body() body: ReleaseDataLegalHoldDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.service.releaseLegalHold(
+      tenantId,
+      holdId,
+      body.reason,
+      req.user?.subject,
+    );
+  }
+  @Get("data-subject-requests")
+  @RequirePermissions("audit:read")
+  listDataSubjectRequests(@Param("tenantId") tenantId: string) {
+    return this.service.listDataSubjectRequests(tenantId);
+  }
+  @Post("data-subject-requests")
+  @RequirePermissions("audit:read")
+  createDataSubjectRequest(
+    @Param("tenantId") tenantId: string,
+    @Body() body: CreateDataSubjectRequestDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.service.createDataSubjectRequest(
+      tenantId,
+      body,
+      req.user?.subject,
+    );
+  }
+  @Post("data-subject-requests/:requestId/decision")
+  @RequirePermissions("tenant:update")
+  decideDataSubjectRequest(
+    @Param("tenantId") tenantId: string,
+    @Param("requestId") requestId: string,
+    @Body() body: DecideDataSubjectRequestDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.service.decideDataSubjectRequest(
+      tenantId,
+      requestId,
+      body,
+      req.user?.subject,
+    );
+  }
+  @Get("data-subject-requests/:requestId/download")
+  @RequirePermissions("audit:read")
+  @Header("Content-Type", "application/json; charset=utf-8")
+  downloadDataSubjectExport(
+    @Param("tenantId") tenantId: string,
+    @Param("requestId") requestId: string,
+  ) {
+    return this.service.downloadDataSubjectExport(tenantId, requestId);
+  }
   @Get("evidence-packs") @RequirePermissions("audit:read") listEvidencePacks(
     @Param("tenantId") tenantId: string,
   ) {

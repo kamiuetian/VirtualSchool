@@ -75,3 +75,22 @@ export type ComplianceEvidencePackSummary = {
   createdAt: string;
   downloadPath: string;
 };
+
+export type DataSubjectRequestSummary = {
+  id: string;
+  tenantId: string;
+  requestType: "EXPORT" | "DELETE";
+  subjectType: "STUDENT" | "GUARDIAN" | "USER";
+  subjectId: string;
+  reason: string;
+  status: "PENDING" | "COMPLETED" | "REJECTED" | "BLOCKED";
+  retentionUntil: string | null;
+  requestedBy: string | null;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  completedAt: string | null;
+  result: Record<string, unknown> | null;
+  checksum: string | null;
+  createdAt: string;
+  downloadPath: string | null;
+};

@@ -69,3 +69,32 @@ export class CreateComplianceEvidencePackDto {
     | "POLICIES"
   )[];
 }
+
+export class CreateDataSubjectRequestDto {
+  @IsIn(["EXPORT", "DELETE"]) requestType!: "EXPORT" | "DELETE";
+  @IsIn(["STUDENT", "GUARDIAN", "USER"]) subjectType!:
+    | "STUDENT"
+    | "GUARDIAN"
+    | "USER";
+  @IsString() @Length(1, 120) subjectId!: string;
+  @IsString() @Length(10, 500) reason!: string;
+  @IsOptional() @IsDateString() retentionUntil?: string;
+}
+
+export class DecideDataSubjectRequestDto {
+  @IsIn(["APPROVE", "REJECT"]) decision!: "APPROVE" | "REJECT";
+  @IsString() @Length(5, 500) reason!: string;
+}
+
+export class CreateDataLegalHoldDto {
+  @IsIn(["STUDENT", "GUARDIAN", "USER"]) subjectType!:
+    | "STUDENT"
+    | "GUARDIAN"
+    | "USER";
+  @IsString() @Length(1, 120) subjectId!: string;
+  @IsString() @Length(10, 500) reason!: string;
+}
+
+export class ReleaseDataLegalHoldDto {
+  @IsString() @Length(10, 500) reason!: string;
+}

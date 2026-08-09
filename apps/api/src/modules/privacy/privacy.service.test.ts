@@ -308,4 +308,133 @@ describe("PrivacyService", () => {
       (service as any).prisma.complianceEvidencePack.findFirst,
     ).toHaveBeenCalledWith({ where: { id: "pack-1", tenantId: "tenant-2" } });
   });
+
+  it("requires a different approver and blocks deletion under a legal hold", async () => {
+    const update = vi.fn(async ({ data }: any) => ({
+      id: "request-1",
+      tenantId: "tenant-1",
+      requestType: "DELETE",
+      subjectType: "STUDENT",
+      subjectId: "student-1",
+      reason: "Verified erasure request",
+      requestedBy: "privacy-1",
+      retentionUntil: null,
+      checksum: null,
+      createdAt: new Date("2026-08-09T00:00:00Z"),
+      ...data,
+    }));
+    const service = new PrivacyService({
+      dataSubjectRequest: {
+        findFirst: async () => ({
+          id: "request-1",
+          tenantId: "tenant-1",
+          requestType: "DELETE",
+          subjectType: "STUDENT",
+          subjectId: "student-1",
+          status: "PENDING",
+          requestedBy: "privacy-1",
+          retentionUntil: null,
+        }),
+      },
+      dataLegalHold: { findFirst: async () => ({ id: "hold-1" }) },
+      $transaction: async (callback: any) =>
+        callback({
+          dataSubjectRequest: { update },
+          auditEvent: { create: vi.fn() },
+        }),
+    } as never);
+    await expect(
+      service.decideDataSubjectRequest(
+        "tenant-1",
+        "request-1",
+        {
+          decision: "APPROVE",
+          reason: "Independent approval",
+        },
+        "privacy-1",
+      ),
+    ).rejects.toThrow("different authenticated administrator");
+    await expect(
+      service.decideDataSubjectRequest(
+        "tenant-1",
+        "request-1",
+        {
+          decision: "APPROVE",
+          reason: "Independent approval",
+        },
+        "privacy-2",
+      ),
+    ).resolves.toMatchObject({ status: "BLOCKED" });
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          result: expect.objectContaining({ blockers: ["LEGAL_HOLD"] }),
+        }),
+      }),
+    );
+  });
+
+  it("creates an immutable tenant-scoped subject export after approval", async () => {
+    const update = vi.fn(async ({ data }: any) => ({
+      id: "request-1",
+      tenantId: "tenant-1",
+      requestType: "EXPORT",
+      subjectType: "GUARDIAN",
+      subjectId: "guardian-1",
+      reason: "Verified access request",
+      requestedBy: "privacy-1",
+      retentionUntil: null,
+      createdAt: new Date("2026-08-09T00:00:00Z"),
+      ...data,
+    }));
+    const service = new PrivacyService({
+      dataSubjectRequest: {
+        findFirst: async () => ({
+          id: "request-1",
+          tenantId: "tenant-1",
+          requestType: "EXPORT",
+          subjectType: "GUARDIAN",
+          subjectId: "guardian-1",
+          status: "PENDING",
+          requestedBy: "privacy-1",
+          retentionUntil: null,
+        }),
+      },
+      dataLegalHold: { findFirst: async () => null },
+      guardian: {
+        findFirst: async ({ where }: any) => ({
+          id: where.id,
+          tenantId: where.tenantId,
+          name: "Guardian",
+        }),
+      },
+      privacyAcceptance: { findMany: async () => [] },
+      $transaction: async (callback: any) =>
+        callback({
+          dataSubjectRequest: { update },
+          auditEvent: { create: vi.fn() },
+        }),
+    } as never);
+    const result = await service.decideDataSubjectRequest(
+      "tenant-1",
+      "request-1",
+      {
+        decision: "APPROVE",
+        reason: "Identity and scope verified",
+      },
+      "privacy-2",
+    );
+    expect(result.status).toBe("COMPLETED");
+    expect(result.checksum).toMatch(/^[a-f0-9]{64}$/);
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          artifact: expect.objectContaining({
+            tenantId: "tenant-1",
+            subjectId: "guardian-1",
+          }),
+        }),
+      }),
+    );
+  });
 });
