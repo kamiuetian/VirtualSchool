@@ -17,6 +17,7 @@ describe("EnrollmentController", () => {
       listDevices: vi.fn(),
       listEnrollmentBatches: vi.fn(),
       recordDeviceCheckIn: vi.fn(),
+      revokeEnrollmentBatch: vi.fn(),
     } as never);
 
     await expect(
@@ -45,6 +46,7 @@ describe("EnrollmentController", () => {
       listDevices: vi.fn(),
       listEnrollmentBatches: vi.fn(),
       recordDeviceCheckIn,
+      revokeEnrollmentBatch: vi.fn(),
     } as never);
 
     await expect(
@@ -56,5 +58,26 @@ describe("EnrollmentController", () => {
       quarantined: true,
     });
     expect(recordDeviceCheckIn).toHaveBeenCalledOnce();
+  });
+
+  it("delegates enrollment batch revocation to the service", async () => {
+    const revokeEnrollmentBatch = vi.fn().mockResolvedValue({
+      id: "batch-1",
+      status: "REVOKED",
+      tenantId: "tenant-1",
+    });
+    const controller = new EnrollmentController({
+      assignDevice: vi.fn(),
+      createEnrollmentBatch: vi.fn(),
+      listDevices: vi.fn(),
+      listEnrollmentBatches: vi.fn(),
+      recordDeviceCheckIn: vi.fn(),
+      revokeEnrollmentBatch,
+    } as never);
+
+    await expect(
+      controller.revokeEnrollmentBatch("tenant-1", "batch-1"),
+    ).resolves.toMatchObject({ status: "REVOKED" });
+    expect(revokeEnrollmentBatch).toHaveBeenCalledWith("tenant-1", "batch-1");
   });
 });

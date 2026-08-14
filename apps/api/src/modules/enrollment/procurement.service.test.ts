@@ -30,17 +30,20 @@ const device = (id: string, serialNumber: string, assigned = false) => ({
 
 describe("procurement and replacement lifecycle", () => {
   it("rejects skipped batch transitions and cross-tenant item links", async () => {
-    const service = new EnrollmentService({
-      procurementBatch: {
-        findFirst: async () => ({
-          id: "batch-1",
-          tenantId: "tenant-1",
-          status: "PURCHASED",
-        }),
-      },
-      procurementDevice: { findFirst: async () => null },
-      device: { findFirst: async () => device("device-1", "SERIAL-1") },
-    } as never);
+    const service = new EnrollmentService(
+      {
+        procurementBatch: {
+          findFirst: async () => ({
+            id: "batch-1",
+            tenantId: "tenant-1",
+            status: "PURCHASED",
+          }),
+        },
+        procurementDevice: { findFirst: async () => null },
+        device: { findFirst: async () => device("device-1", "SERIAL-1") },
+      } as never,
+      {} as never,
+    );
 
     await expect(
       service.advanceProcurementBatch("tenant-1", "batch-1", {
@@ -68,32 +71,35 @@ describe("procurement and replacement lifecycle", () => {
     };
     const original = device("old", "OLD-001", true);
     const replacement = device("new", "NEW-001");
-    const service = new EnrollmentService({
-      device: {
-        findFirst: async ({ where }: { where: { id: string } }) =>
-          where.id === "old" ? original : replacement,
-      },
-      $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
-        callback({
-          auditEvent: { create: calls.audit },
-          deviceAssignment: {
-            updateMany: calls.assignmentsClosed,
-            create: calls.assignmentsCreated,
-          },
-          device: { update: calls.updates },
-          deviceCustodyEvent: { create: calls.custody },
-          deviceLifecycleEvent: { create: calls.lifecycle },
-          supportNote: { create: calls.notes },
-          deviceReplacement: {
-            create: async ({ data }: { data: Record<string, unknown> }) => ({
-              id: "replacement-1",
-              createdAt: now,
-              rmaNumber: null,
-              ...data,
-            }),
-          },
-        }),
-    } as never);
+    const service = new EnrollmentService(
+      {
+        device: {
+          findFirst: async ({ where }: { where: { id: string } }) =>
+            where.id === "old" ? original : replacement,
+        },
+        $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
+          callback({
+            auditEvent: { create: calls.audit },
+            deviceAssignment: {
+              updateMany: calls.assignmentsClosed,
+              create: calls.assignmentsCreated,
+            },
+            device: { update: calls.updates },
+            deviceCustodyEvent: { create: calls.custody },
+            deviceLifecycleEvent: { create: calls.lifecycle },
+            supportNote: { create: calls.notes },
+            deviceReplacement: {
+              create: async ({ data }: { data: Record<string, unknown> }) => ({
+                id: "replacement-1",
+                createdAt: now,
+                rmaNumber: null,
+                ...data,
+              }),
+            },
+          }),
+      } as never,
+      {} as never,
+    );
 
     await expect(
       service.replaceDevice("tenant-1", "old", {

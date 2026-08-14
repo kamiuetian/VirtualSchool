@@ -74,8 +74,50 @@ export type MdmPolicyPublishResult = {
   skipped?: boolean;
 };
 
+export type MdmEnrollmentTokenCreateInput = {
+  tenantId: string;
+  batchId: string;
+  expiresAt?: Date;
+  maxDevices?: number;
+  policyName?: string;
+};
+
+export type MdmEnrollmentTokenCreateResult = {
+  accepted: boolean;
+  connector: MdmConnectorKey;
+  enterpriseName?: string;
+  tokenName?: string;
+  tokenValue?: string;
+  qrCode?: string;
+  expirationTimestamp?: string;
+  policyName?: string;
+  request?: Record<string, unknown>;
+  response?: Record<string, unknown>;
+  failureReason?: string;
+  retryable?: boolean;
+};
+
+export type MdmEnrollmentTokenDeleteInput = {
+  tenantId: string;
+  tokenName: string;
+};
+
+export type MdmEnrollmentTokenDeleteResult = {
+  accepted: boolean;
+  connector: MdmConnectorKey;
+  tokenName: string;
+  failureReason?: string;
+  retryable?: boolean;
+};
+
 export interface MdmConnector {
   readonly key: MdmConnectorKey;
+  createEnrollmentToken(
+    input: MdmEnrollmentTokenCreateInput,
+  ): Promise<MdmEnrollmentTokenCreateResult>;
+  deleteEnrollmentToken(
+    input: MdmEnrollmentTokenDeleteInput,
+  ): Promise<MdmEnrollmentTokenDeleteResult>;
   dispatchCommand(
     input: MdmCommandDispatchInput,
   ): Promise<MdmCommandDispatchResult>;

@@ -38,6 +38,7 @@ function enrollmentKitText(
     `Expires: ${formatDate(batch.expiresAt)}`,
     `Device cap: ${batch.maxDevices ?? "No cap"}`,
     `Already enrolled: ${batch.enrolledCount}`,
+    `Google provisioning QR: ${batch.qrCode ? "Ready" : "Unavailable (legacy batch)"}`,
     `Enrollment key: ${maskToken(batch.token)}`,
     "",
     "Operator checklist:",

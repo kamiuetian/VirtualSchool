@@ -1,4 +1,5 @@
 import {
+  BadGatewayException,
   BadRequestException,
   ConflictException,
   Inject,
@@ -14,12 +15,13 @@ import type {
   DeviceReplacementSummary,
   PlatformCapabilityCatalog,
 } from "@virtual-school/shared";
-import { randomBytes } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import type {
   Device,
   EnrollmentBatch,
   EnrollmentBatchStatus,
 } from "../../generated/prisma";
+import { MdmConnectorRegistry } from "../mdm-connectors/mdm-connector.registry";
 import { PrismaService } from "../prisma/prisma.service";
 import type { AssignDeviceDto } from "./dto/assign-device.dto";
 import type { CreateEnrollmentBatchDto } from "./dto/create-enrollment-batch.dto";
@@ -40,7 +42,11 @@ import {
 
 @Injectable()
 export class EnrollmentService {
-  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+  constructor(
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(MdmConnectorRegistry)
+    private readonly connectorRegistry: MdmConnectorRegistry,
+  ) {}
 
   async listEnrollmentBatches(
     tenantId: string,
@@ -64,47 +70,190 @@ export class EnrollmentService {
     input: CreateEnrollmentBatchDto,
   ): Promise<EnrollmentBatchSummary> {
     await this.ensureTenantExists(tenantId);
+    const batchId = randomUUID();
+    const requestedExpiresAt = input.expiresAt
+      ? new Date(input.expiresAt)
+      : undefined;
 
-    const token = `enroll_${randomBytes(24).toString("base64url")}`;
+    if (requestedExpiresAt && requestedExpiresAt.getTime() <= Date.now()) {
+      throw new BadRequestException(
+        "Enrollment batch expiration must be in the future",
+      );
+    }
+
+    const policyName = await this.findEnrollmentPolicyName(tenantId);
+    const connector = this.connectorRegistry.getActiveConnector();
+    let provisioned;
+
+    try {
+      provisioned = await connector.createEnrollmentToken({
+        batchId,
+        expiresAt: requestedExpiresAt,
+        maxDevices: input.maxDevices,
+        policyName,
+        tenantId,
+      });
+    } catch (error) {
+      const reason = this.errorMessage(error);
+      await this.recordEnrollmentFailure(tenantId, batchId, reason);
+      throw new BadGatewayException(
+        `Android Management enrollment failed: ${reason}`,
+      );
+    }
+
+    const { expirationTimestamp, qrCode, tokenName, tokenValue } = provisioned;
+
+    if (
+      !provisioned.accepted ||
+      !tokenName ||
+      !tokenValue ||
+      !qrCode ||
+      !expirationTimestamp
+    ) {
+      const reason =
+        provisioned.failureReason ??
+        "Android Management API returned incomplete enrollment data";
+      await this.recordEnrollmentFailure(tenantId, batchId, reason);
+      throw new BadGatewayException(reason);
+    }
+
+    const providerExpiresAt = new Date(expirationTimestamp);
     const qrPayload = {
-      connector: "android-management-api",
-      enrollmentToken: token,
+      connector: provisioned.connector,
+      enterpriseName: provisioned.enterpriseName,
       intendedOwnership: "SCHOOL_OWNED",
+      policyName: provisioned.policyName,
+      providerTokenName: tokenName,
+      qrCode,
       tenantId,
     };
 
-    const batch = await this.prisma.$transaction(async (tx) => {
-      const created = await tx.enrollmentBatch.create({
-        data: {
-          expiresAt: input.expiresAt ? new Date(input.expiresAt) : undefined,
-          maxDevices: input.maxDevices,
-          name: input.name,
-          qrPayload,
+    let batch: EnrollmentBatch;
+
+    try {
+      batch = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.enrollmentBatch.create({
+          data: {
+            expiresAt: providerExpiresAt,
+            id: batchId,
+            maxDevices: input.maxDevices,
+            name: input.name,
+            providerTokenName: tokenName,
+            qrPayload,
+            tenantId,
+            token: tokenValue,
+          },
+        });
+
+        await tx.auditEvent.create({
+          data: {
+            action: "enrollment_batch.create",
+            newValue: {
+              expiresAt: created.expiresAt,
+              maxDevices: created.maxDevices,
+              name: created.name,
+              policyName: provisioned.policyName,
+              providerTokenName: tokenName,
+              status: created.status,
+            },
+            object: "EnrollmentBatch",
+            objectId: created.id,
+            outcome: "SUCCESS",
+            tenantId,
+          },
+        });
+
+        return created;
+      });
+    } catch (error) {
+      await connector
+        .deleteEnrollmentToken({
           tenantId,
-          token,
+          tokenName,
+        })
+        .catch(() => undefined);
+      throw error;
+    }
+
+    return this.toEnrollmentBatchSummary(batch);
+  }
+
+  async revokeEnrollmentBatch(
+    tenantId: string,
+    batchId: string,
+  ): Promise<EnrollmentBatchSummary> {
+    const batch = await this.prisma.enrollmentBatch.findFirst({
+      where: {
+        id: batchId,
+        tenantId,
+      },
+    });
+
+    if (!batch) {
+      throw new NotFoundException(
+        `Enrollment batch ${batchId} was not found for tenant ${tenantId}`,
+      );
+    }
+
+    if (batch.status === "REVOKED") {
+      return this.toEnrollmentBatchSummary(batch);
+    }
+
+    if (batch.providerTokenName) {
+      const connector = this.connectorRegistry.getActiveConnector();
+      let deletion;
+
+      try {
+        deletion = await connector.deleteEnrollmentToken({
+          tenantId,
+          tokenName: batch.providerTokenName,
+        });
+      } catch (error) {
+        const reason = this.errorMessage(error);
+        await this.recordEnrollmentRevocationFailure(tenantId, batchId, reason);
+        throw new BadGatewayException(
+          `Android Management token revocation failed: ${reason}`,
+        );
+      }
+
+      if (!deletion.accepted) {
+        const reason =
+          deletion.failureReason ?? "Enrollment token revocation was rejected";
+        await this.recordEnrollmentRevocationFailure(tenantId, batchId, reason);
+        throw new BadGatewayException(reason);
+      }
+    }
+
+    const revoked = await this.prisma.$transaction(async (tx) => {
+      const saved = await tx.enrollmentBatch.update({
+        data: {
+          status: "REVOKED",
+        },
+        where: {
+          id: batch.id,
         },
       });
 
       await tx.auditEvent.create({
         data: {
-          action: "enrollment_batch.create",
+          action: "enrollment_batch.revoke",
           newValue: {
-            expiresAt: created.expiresAt,
-            maxDevices: created.maxDevices,
-            name: created.name,
-            status: created.status,
+            status: saved.status,
           },
           object: "EnrollmentBatch",
-          objectId: created.id,
+          objectId: saved.id,
+          oldValue: {
+            status: batch.status,
+          },
           outcome: "SUCCESS",
           tenantId,
         },
       });
 
-      return created;
+      return saved;
     });
 
-    return this.toEnrollmentBatchSummary(batch);
+    return this.toEnrollmentBatchSummary(revoked);
   }
 
   async listProcurementBatches(
@@ -668,6 +817,16 @@ export class EnrollmentService {
       return saved;
     });
 
+    if (
+      !existing &&
+      batch.maxDevices &&
+      batch.enrolledCount + 1 >= batch.maxDevices
+    ) {
+      await this.revokeEnrollmentBatch(tenantId, batch.id).catch(
+        () => undefined,
+      );
+    }
+
     return {
       device: this.toDeviceSummary(device),
       quarantined: !device.studentId && !device.classId,
@@ -908,6 +1067,63 @@ export class EnrollmentService {
     }
   }
 
+  private async findEnrollmentPolicyName(
+    tenantId: string,
+  ): Promise<string | undefined> {
+    const policy = await this.prisma.policy.findFirst({
+      orderBy: {
+        mdmPublishedAt: "desc",
+      },
+      select: {
+        mdmPolicyName: true,
+      },
+      where: {
+        mdmPolicyName: {
+          not: null,
+        },
+        mdmPublishStatus: "PUBLISHED",
+        status: "PUBLISHED",
+        tenantId,
+      },
+    });
+
+    return policy?.mdmPolicyName ?? undefined;
+  }
+
+  private async recordEnrollmentFailure(
+    tenantId: string,
+    batchId: string,
+    reason: string,
+  ): Promise<void> {
+    await this.prisma.auditEvent.create({
+      data: {
+        action: "enrollment_batch.create_fail",
+        object: "EnrollmentBatch",
+        objectId: batchId,
+        outcome: "FAILED",
+        reason,
+        tenantId,
+      },
+    });
+  }
+
+  private async recordEnrollmentRevocationFailure(
+    tenantId: string,
+    batchId: string,
+    reason: string,
+  ): Promise<void> {
+    await this.prisma.auditEvent.create({
+      data: {
+        action: "enrollment_batch.revoke_fail",
+        object: "EnrollmentBatch",
+        objectId: batchId,
+        outcome: "FAILED",
+        reason,
+        tenantId,
+      },
+    });
+  }
+
   private async ensureBranchBelongsToTenant(
     tenantId: string,
     branchId: string | undefined,
@@ -993,6 +1209,14 @@ export class EnrollmentService {
   private toEnrollmentBatchSummary(
     batch: EnrollmentBatch,
   ): EnrollmentBatchSummary {
+    const qrPayload = batch.qrPayload as Record<string, unknown>;
+    const status =
+      batch.status === "ACTIVE" &&
+      batch.expiresAt &&
+      batch.expiresAt.getTime() <= Date.now()
+        ? "EXPIRED"
+        : (batch.status as EnrollmentBatchStatus);
+
     return {
       createdAt: batch.createdAt.toISOString(),
       enrolledCount: batch.enrolledCount,
@@ -1000,11 +1224,17 @@ export class EnrollmentService {
       id: batch.id,
       maxDevices: batch.maxDevices,
       name: batch.name,
-      qrPayload: batch.qrPayload as Record<string, unknown>,
-      status: batch.status as EnrollmentBatchStatus,
+      providerTokenName: batch.providerTokenName,
+      qrCode: typeof qrPayload.qrCode === "string" ? qrPayload.qrCode : null,
+      qrPayload,
+      status,
       tenantId: batch.tenantId,
       token: batch.token,
     };
+  }
+
+  private errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : "Unknown connector error";
   }
 
   private toDeviceSummary(device: Device): DeviceSummary {

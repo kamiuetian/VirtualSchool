@@ -1829,6 +1829,7 @@ model EnrollmentBatch {
   tenantId      String
   name          String
   token         String                @unique
+  providerTokenName String?           @unique
   status        EnrollmentBatchStatus @default(ACTIVE)
   expiresAt     DateTime?
   maxDevices    Int?

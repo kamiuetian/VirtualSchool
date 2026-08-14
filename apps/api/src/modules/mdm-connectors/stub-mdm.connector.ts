@@ -3,6 +3,10 @@ import type {
   MdmCommandDispatchInput,
   MdmCommandDispatchResult,
   MdmConnector,
+  MdmEnrollmentTokenCreateInput,
+  MdmEnrollmentTokenCreateResult,
+  MdmEnrollmentTokenDeleteInput,
+  MdmEnrollmentTokenDeleteResult,
   MdmPolicyPublishInput,
   MdmPolicyPublishResult,
 } from "./mdm-connector.types";
@@ -10,6 +14,29 @@ import type {
 @Injectable()
 export class StubMdmConnector implements MdmConnector {
   readonly key = "STUB" as const;
+
+  async createEnrollmentToken(
+    input: MdmEnrollmentTokenCreateInput,
+  ): Promise<MdmEnrollmentTokenCreateResult> {
+    return {
+      accepted: false,
+      connector: this.key,
+      failureReason: `Stub enrollment is unavailable for batch ${input.batchId}`,
+      retryable: false,
+    };
+  }
+
+  async deleteEnrollmentToken(
+    input: MdmEnrollmentTokenDeleteInput,
+  ): Promise<MdmEnrollmentTokenDeleteResult> {
+    return {
+      accepted: false,
+      connector: this.key,
+      failureReason: "Stub enrollment tokens cannot be revoked",
+      retryable: false,
+      tokenName: input.tokenName,
+    };
+  }
 
   async dispatchCommand(
     input: MdmCommandDispatchInput,

@@ -11,7 +11,10 @@ import {
   StatusPill,
   SubmitButton,
 } from "../../components/ui";
-import { createEnrollmentBatchAction } from "../../lib/actions";
+import {
+  createEnrollmentBatchAction,
+  revokeEnrollmentBatchAction,
+} from "../../lib/actions";
 import { getAdminData } from "../../lib/api";
 import { formatCount, formatDate, humanize } from "../../lib/format";
 
@@ -153,27 +156,39 @@ export default async function EnrollmentPage() {
                       </span>
                     </div>
                     <div className="qr-panel">
-                      <img
-                        alt={`Enrollment QR for ${batch.name}`}
-                        height={192}
-                        src={qrDataUrl}
-                        width={192}
-                      />
-                      <div className="qr-actions">
-                        <a
-                          className="small-button primary"
-                          download={`${safeFileName(batch.name)}-enrollment-qr.png`}
-                          href={qrDataUrl}
-                        >
-                          Download QR
-                        </a>
-                        <a
-                          className="small-button"
-                          href={`/enrollment/provisioning-kit.txt?batchId=${encodeURIComponent(batch.id)}`}
-                        >
-                          Download kit
-                        </a>
-                      </div>
+                      {qrDataUrl ? (
+                        <>
+                          <img
+                            alt={`Enrollment QR for ${batch.name}`}
+                            height={192}
+                            src={qrDataUrl}
+                            width={192}
+                          />
+                          <div className="qr-actions">
+                            <a
+                              className="small-button primary"
+                              download={`${safeFileName(batch.name)}-enrollment-qr.png`}
+                              href={qrDataUrl}
+                            >
+                              Download QR
+                            </a>
+                            <a
+                              className="small-button"
+                              href={`/enrollment/provisioning-kit.txt?batchId=${encodeURIComponent(batch.id)}`}
+                            >
+                              Download kit
+                            </a>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="operator-note" role="status">
+                          <QrCode size={18} />
+                          <span>
+                            This legacy batch has no Google provisioning QR.
+                            Revoke it and create a new batch.
+                          </span>
+                        </div>
+                      )}
                     </div>
                     <dl>
                       <div>
@@ -208,6 +223,19 @@ export default async function EnrollmentPage() {
                         key is intentionally masked in the portal.
                       </span>
                     </div>
+                    {batch.status === "ACTIVE" ? (
+                      <form action={revokeEnrollmentBatchAction}>
+                        <input name="batchId" type="hidden" value={batch.id} />
+                        <input
+                          name="tenantId"
+                          type="hidden"
+                          value={batch.tenantId}
+                        />
+                        <button className="small-button" type="submit">
+                          Revoke enrollment QR
+                        </button>
+                      </form>
+                    ) : null}
                   </article>
                 );
               })}
@@ -226,17 +254,17 @@ export default async function EnrollmentPage() {
 
 async function enrollmentQrDataUrl(
   batch: EnrollmentBatchSummary,
-): Promise<string> {
-  return QRCode.toDataURL(enrollmentQrText(batch), {
+): Promise<string | null> {
+  if (!batch.qrCode) {
+    return null;
+  }
+
+  return QRCode.toDataURL(batch.qrCode, {
     errorCorrectionLevel: "M",
     margin: 2,
     scale: 8,
     type: "image/png",
   });
-}
-
-function enrollmentQrText(batch: EnrollmentBatchSummary): string {
-  return JSON.stringify(batch.qrPayload);
 }
 
 function safeFileName(value: string): string {

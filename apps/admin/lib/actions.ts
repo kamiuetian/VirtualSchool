@@ -793,6 +793,20 @@ export async function createEnrollmentBatchAction(
   revalidateAll();
 }
 
+export async function revokeEnrollmentBatchAction(
+  formData: FormData,
+): Promise<void> {
+  await requireActionPermission("device:enroll");
+  const tenantId = required(formData, "tenantId");
+  const batchId = required(formData, "batchId");
+  await adminApiMutation(
+    "POST",
+    `/tenants/${tenantId}/enrollment-batches/${batchId}/revoke`,
+    {},
+  );
+  revalidateAll();
+}
+
 export async function assignDeviceAction(formData: FormData): Promise<void> {
   await requireActionPermission("device:enroll");
   const tenantId = required(formData, "tenantId");

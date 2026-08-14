@@ -589,6 +589,14 @@ const routes = [
           id: "batch-1",
           maxDevices: 50,
           name: "Pilot tablets",
+          providerTokenName:
+            "enterprises/enterprise-1/enrollmentTokens/token-1",
+          qrCode: JSON.stringify({
+            "android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE": {
+              "com.google.android.apps.work.clouddpc.EXTRA_ENROLLMENT_TOKEN":
+                "token-1",
+            },
+          }),
           qrPayload: { token: "token-1" },
           status: "ACTIVE",
           tenantId,

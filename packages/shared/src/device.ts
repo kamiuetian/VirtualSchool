@@ -101,6 +101,8 @@ export type EnrollmentBatchSummary = {
   maxDevices?: number | null;
   enrolledCount: number;
   qrPayload: Record<string, unknown>;
+  qrCode?: string | null;
+  providerTokenName?: string | null;
   createdAt: string;
 };
 

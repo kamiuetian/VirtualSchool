@@ -41,7 +41,7 @@ export class EnrollmentController {
   ) {}
 
   @Get("enrollment-batches")
-  @RequirePermissions("device:read")
+  @RequirePermissions("device:enroll")
   @ApiOkResponse({ description: "Tenant Android enrollment batches" })
   listEnrollmentBatches(
     @Param("tenantId") tenantId: string,
@@ -132,6 +132,18 @@ export class EnrollmentController {
     @Body() body: ReplaceDeviceDto,
   ): Promise<DeviceReplacementSummary> {
     return this.enrollmentService.replaceDevice(tenantId, deviceId, body);
+  }
+
+  @Post("enrollment-batches/:batchId/revoke")
+  @RequirePermissions("device:enroll")
+  @ApiOkResponse({
+    description: "Revoke an Android Management enrollment batch",
+  })
+  revokeEnrollmentBatch(
+    @Param("tenantId") tenantId: string,
+    @Param("batchId") batchId: string,
+  ): Promise<EnrollmentBatchSummary> {
+    return this.enrollmentService.revokeEnrollmentBatch(tenantId, batchId);
   }
 
   @Get("devices")
