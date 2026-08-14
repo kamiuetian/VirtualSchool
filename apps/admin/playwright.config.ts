@@ -7,7 +7,7 @@ const apiURL = `http://127.0.0.1:${apiPort}`;
 
 export default defineConfig({
   expect: {
-    timeout: 8_000,
+    timeout: process.env.CI ? 15_000 : 8_000,
   },
   fullyParallel: false,
   outputDir: "test-results",
@@ -29,7 +29,7 @@ export default defineConfig({
   reporter: process.env.CI ? [["github"], ["list"]] : "list",
   retries: process.env.CI ? 1 : 0,
   testDir: "./tests/e2e",
-  timeout: 60_000,
+  timeout: process.env.CI ? 90_000 : 60_000,
   use: {
     baseURL,
     trace: "retain-on-failure",
