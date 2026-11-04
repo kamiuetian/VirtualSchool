@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Virtual School</string>
+    <string name="policy_status">Mode: %1$s · Policy %2$d</string>
+    <string name="lost_device_message">This device is managed by your school. Please return it to school staff.</string>
+    <string name="school_messages_enabled">School messages are enabled for this device.</string>
+    <string name="support_message">Need help? Contact your school support team.</string>
+    <string name="approved_apps">Approved apps</string>
+    <string name="no_apps_available">No apps are available in this mode.</string>
+    <string name="learning_links">Learning links</string>
+</resources>

@@ -28,7 +28,7 @@ export class AuthService {
   >();
 
   constructor(@Optional() private readonly prisma?: PrismaService) {
-    const mode = (process.env.AUTH_MODE ?? "development").toLowerCase();
+    const mode = this.authMode();
     const issuer =
       process.env.AUTH0_ISSUER_BASE_URL ??
       this.issuerFromDomain(process.env.AUTH0_DOMAIN);
@@ -39,7 +39,7 @@ export class AuthService {
       jwksUri:
         process.env.AUTH0_JWKS_URI ??
         (issuer ? `${issuer}.well-known/jwks.json` : undefined),
-      mode: mode === "auth0" ? "auth0" : "development",
+      mode,
     };
 
     if (this.config.mode === "auth0") {
@@ -202,12 +202,9 @@ export class AuthService {
   private authenticateDevelopment(
     headers: Record<string, string | string[] | undefined>,
   ): AuthenticatedUser {
-    if (
-      process.env.NODE_ENV === "production" &&
-      process.env.ALLOW_DEVELOPMENT_AUTH_IN_PRODUCTION !== "true"
-    ) {
+    if (!this.isLocalDevelopmentRuntime()) {
       throw new UnauthorizedException(
-        "Development authentication is disabled in production",
+        "Development authentication is restricted to an explicit local development or test runtime",
       );
     }
 
@@ -215,6 +212,21 @@ export class AuthService {
       this.headerValue(headers["x-dev-role"]) ?? "PLATFORM_SUPER_ADMIN",
     );
     const tenantHeader = this.headerValue(headers["x-dev-tenant-id"]);
+    const tenantIds = tenantHeader
+      ? tenantHeader
+          .split(",")
+          .map((tenantId) => tenantId.trim())
+          .filter(Boolean)
+      : [];
+
+    if (
+      role !== "PLATFORM_SUPER_ADMIN" &&
+      (tenantIds.length === 0 || tenantIds.includes("*"))
+    ) {
+      throw new UnauthorizedException(
+        "Non-platform roles require an explicit tenant scope",
+      );
+    }
 
     return {
       authMode: "development",
@@ -223,10 +235,31 @@ export class AuthService {
       permissions: apiRolePermissions[role],
       role,
       subject: this.headerValue(headers["x-dev-subject"]) ?? "dev-user",
-      tenantIds: tenantHeader
-        ? tenantHeader.split(",").map((tenantId) => tenantId.trim())
-        : ["*"],
+      tenantIds: role === "PLATFORM_SUPER_ADMIN" ? ["*"] : tenantIds,
     };
+  }
+
+  private authMode(): AuthConfig["mode"] {
+    const rawMode = process.env.AUTH_MODE?.trim().toLowerCase();
+    if (rawMode !== "auth0" && rawMode !== "development") {
+      throw new Error(
+        "AUTH_MODE must be explicitly set to auth0 or development",
+      );
+    }
+
+    if (rawMode === "development" && !this.isLocalDevelopmentRuntime()) {
+      throw new Error(
+        "AUTH_MODE=development is allowed only when NODE_ENV is development or test",
+      );
+    }
+
+    return rawMode;
+  }
+
+  private isLocalDevelopmentRuntime(): boolean {
+    return (
+      process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test"
+    );
   }
 
   private userFromJwtPayload(payload: JWTPayload): AuthenticatedUser {
@@ -240,8 +273,13 @@ export class AuthService {
       this.claimStringArray(payload, "tenant_ids") ??
       [];
 
-    if (tenantIds.length === 0 && role !== "PLATFORM_SUPER_ADMIN") {
-      throw new UnauthorizedException("Token does not include tenant scope");
+    if (
+      role !== "PLATFORM_SUPER_ADMIN" &&
+      (tenantIds.length === 0 || tenantIds.includes("*"))
+    ) {
+      throw new UnauthorizedException(
+        "Non-platform roles require an explicit tenant scope",
+      );
     }
 
     return {

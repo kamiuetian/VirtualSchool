@@ -29,19 +29,18 @@ export class WorkerMdmConnector {
     scopes: [androidManagementScope],
   });
 
+  constructor() {
+    if (process.env.MDM_CONNECTOR_MODE !== "android-management") {
+      throw new Error(
+        "MDM_CONNECTOR_MODE must be explicitly set to android-management for the worker",
+      );
+    }
+  }
+
   async dispatchCommand(
     command: RemoteCommand,
     device: DispatchableDevice,
   ): Promise<WorkerMdmDispatchResult> {
-    if (process.env.MDM_CONNECTOR_MODE !== "android-management") {
-      return {
-        accepted: true,
-        connector: "STUB",
-        connectorCommandId: `stub:${command.id}`,
-        response: { mode: "worker" },
-      };
-    }
-
     const deviceName = this.resolveDeviceName(device);
     if (!deviceName) {
       return {

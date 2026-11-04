@@ -11,6 +11,7 @@ describe("AuthService", () => {
 
   it("builds a development user from explicit dev headers", async () => {
     vi.stubEnv("AUTH_MODE", "development");
+    vi.stubEnv("NODE_ENV", "test");
     const service = new AuthService();
 
     await expect(
@@ -29,6 +30,7 @@ describe("AuthService", () => {
 
   it("rejects unsupported development roles", async () => {
     vi.stubEnv("AUTH_MODE", "development");
+    vi.stubEnv("NODE_ENV", "test");
     const service = new AuthService();
 
     await expect(
@@ -38,17 +40,52 @@ describe("AuthService", () => {
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
-  it("rejects development authentication in production by default", async () => {
+  it("rejects wildcard tenant scope for non-platform development roles", async () => {
     vi.stubEnv("AUTH_MODE", "development");
-    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("NODE_ENV", "test");
     const service = new AuthService();
 
-    await expect(service.authenticate({})).rejects.toThrow(
-      "Development authentication is disabled in production",
+    await expect(
+      service.authenticate({
+        "x-dev-role": "SCHOOL_ADMIN",
+        "x-dev-subject": "local|school-admin",
+        "x-dev-tenant-id": "*",
+      }),
+    ).rejects.toThrow("explicit tenant scope");
+  });
+
+  it("normalizes platform development users to wildcard scope", async () => {
+    vi.stubEnv("AUTH_MODE", "development");
+    vi.stubEnv("NODE_ENV", "test");
+    const service = new AuthService();
+
+    await expect(
+      service.authenticate({
+        "x-dev-role": "PLATFORM_SUPER_ADMIN",
+        "x-dev-tenant-id": "tenant-1",
+      }),
+    ).resolves.toMatchObject({ tenantIds: ["*"] });
+  });
+
+  it("rejects development authentication during production startup", () => {
+    vi.stubEnv("AUTH_MODE", "development");
+    vi.stubEnv("NODE_ENV", "production");
+    expect(() => new AuthService()).toThrow(
+      "AUTH_MODE=development is allowed only",
     );
   });
 
+  it("rejects missing and unrecognized authentication modes", () => {
+    vi.stubEnv("AUTH_MODE", "");
+    expect(() => new AuthService()).toThrow("AUTH_MODE must be explicitly set");
+
+    vi.stubEnv("AUTH_MODE", "auth-zero");
+    expect(() => new AuthService()).toThrow("AUTH_MODE must be explicitly set");
+  });
+
   it("rejects Auth0 users that are not active in stored staff state", async () => {
+    vi.stubEnv("AUTH_MODE", "development");
+    vi.stubEnv("NODE_ENV", "test");
     const service = new AuthService({
       user: {
         findFirst: vi.fn().mockResolvedValue({
@@ -65,6 +102,8 @@ describe("AuthService", () => {
   });
 
   it("rejects Auth0 tokens issued before a forced logout", async () => {
+    vi.stubEnv("AUTH_MODE", "development");
+    vi.stubEnv("NODE_ENV", "test");
     const service = new AuthService({
       user: {
         findFirst: vi.fn().mockResolvedValue({
@@ -85,21 +124,21 @@ describe("AuthService", () => {
   });
 
   it("authenticates a tenant-scoped API key with only mapped scopes", async () => {
+    vi.stubEnv("AUTH_MODE", "development");
+    vi.stubEnv("NODE_ENV", "test");
     const key = "vsk_client123456789012345678.secret-value";
     const service = new AuthService({
       machineCredential: {
-        findUnique: vi
-          .fn()
-          .mockResolvedValue({
-            id: "machine-1",
-            tenantId: "tenant-1",
-            status: "ACTIVE",
-            secretHash: createHash("sha256").update(key).digest("hex"),
-            previousSecretHash: null,
-            previousValidUntil: null,
-            scopes: ["devices.read"],
-            rateLimitPerMinute: 20,
-          }),
+        findUnique: vi.fn().mockResolvedValue({
+          id: "machine-1",
+          tenantId: "tenant-1",
+          status: "ACTIVE",
+          secretHash: createHash("sha256").update(key).digest("hex"),
+          previousSecretHash: null,
+          previousValidUntil: null,
+          scopes: ["devices.read"],
+          rateLimitPerMinute: 20,
+        }),
         update: vi.fn().mockResolvedValue({}),
       },
     } as never);
@@ -114,21 +153,21 @@ describe("AuthService", () => {
   });
 
   it("enforces the configured per-credential request limit", async () => {
+    vi.stubEnv("AUTH_MODE", "development");
+    vi.stubEnv("NODE_ENV", "test");
     const key = "vsk_client123456789012345678.secret-value";
     const service = new AuthService({
       machineCredential: {
-        findUnique: vi
-          .fn()
-          .mockResolvedValue({
-            id: "limited-machine",
-            tenantId: "tenant-1",
-            status: "ACTIVE",
-            secretHash: createHash("sha256").update(key).digest("hex"),
-            previousSecretHash: null,
-            previousValidUntil: null,
-            scopes: ["tenant.read"],
-            rateLimitPerMinute: 1,
-          }),
+        findUnique: vi.fn().mockResolvedValue({
+          id: "limited-machine",
+          tenantId: "tenant-1",
+          status: "ACTIVE",
+          secretHash: createHash("sha256").update(key).digest("hex"),
+          previousSecretHash: null,
+          previousValidUntil: null,
+          scopes: ["tenant.read"],
+          rateLimitPerMinute: 1,
+        }),
         update: vi.fn().mockResolvedValue({}),
       },
     } as never);

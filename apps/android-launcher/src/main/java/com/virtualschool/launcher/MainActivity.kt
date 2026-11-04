@@ -62,7 +62,7 @@ class MainActivity : Activity() {
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(32, 32, 32, 32)
-            addView(header("Virtual School", 26f))
+            addView(header(getString(R.string.app_name), 26f))
             addView(header("${t("mode")}: ${policy.displayMode()} · ${t("policy")} ${policy.policyVersion}", 16f))
         }
 
@@ -133,6 +133,7 @@ class MainActivity : Activity() {
     private fun action(label: String, listener: () -> Unit) = Button(this).apply {
         text = label
         gravity = Gravity.START or Gravity.CENTER_VERTICAL
+        minHeight = (48 * resources.displayMetrics.density).toInt()
         layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         setOnClickListener { listener() }
     }

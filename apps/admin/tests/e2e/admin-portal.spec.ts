@@ -23,6 +23,30 @@ const pages = [
 ] as const;
 const mockApiURL = `http://127.0.0.1:${process.env.ADMIN_E2E_API_PORT ?? "4100"}`;
 
+test.describe("local login", () => {
+  test("infers the stored name, role, and school from email", async ({
+    page,
+  }) => {
+    await page.goto("/login");
+
+    await expect(page.getByLabel("Full name")).toHaveCount(0);
+    await expect(page.getByLabel("Access profile")).toHaveCount(0);
+    await expect(page.getByLabel(/School scope/)).toHaveCount(0);
+    await page.getByLabel("Email address").fill("admin@northview.edu");
+    await page.getByLabel("Password").fill("test-password");
+    await page.getByRole("button", { name: "Sign in" }).click();
+
+    await expect(page).toHaveURL("/");
+    await expect(page.locator(".workspace-header")).toContainText(
+      "Northview Primary School",
+    );
+    await expect(page.locator(".workspace-header")).toContainText("Aisha Khan");
+    await expect(page.locator(".workspace-header")).toContainText(
+      "School admin",
+    );
+  });
+});
+
 test.describe("admin portal regression", () => {
   test.beforeEach(async ({ baseURL, context }) => {
     await context.route("https://assets.example.edu/**", async (route) => {
@@ -62,6 +86,9 @@ test.describe("admin portal regression", () => {
         "src",
         "https://assets.example.edu/northview-logo.png",
       );
+      await expect(
+        page.getByText(/NON-PRODUCTION ENVIRONMENT|DATA MAY BE TEST DATA/i),
+      ).toHaveCount(0);
       expect(consoleErrors).toEqual([]);
     });
   }
@@ -133,6 +160,7 @@ test.describe("admin portal regression", () => {
     await expect(
       page.getByRole("heading", { name: "School profile and branding" }),
     ).toBeVisible();
+    await page.getByLabel("Edit school profile").click();
     await expect(
       page.getByRole("button", { name: "Save profile" }),
     ).toBeVisible();
@@ -543,13 +571,16 @@ test.describe("role-aware admin portal", () => {
     await expect(
       page.locator(".sidebar-nav").getByRole("link", { name: "Billing" }),
     ).toHaveCount(0);
+    await expect(page.getByText("Plan Usage Snapshot")).toHaveCount(0);
+    await expect(page.getByText("Published policies")).toHaveCount(0);
+    await expect(
+      page.getByText("School Readiness", { exact: true }),
+    ).toHaveCount(0);
 
     await page.goto("/roster");
     await expect(page).toHaveURL("/");
     await expect(
-      page.getByRole("heading", {
-        name: "Keep every school tablet ready for class.",
-      }),
+      page.getByRole("heading", { name: "Welcome back, Teacher." }),
     ).toBeVisible();
 
     await page.goto("/devices");
@@ -615,6 +646,11 @@ test.describe("role-aware admin portal", () => {
 
     await page.goto("/devices");
     await expect(page).toHaveURL("/");
+    await expect(page.getByText("Device Health And Support")).toHaveCount(0);
+    await expect(page.getByText("Latest Enrollments")).toHaveCount(0);
+    await expect(
+      page.getByText("School Readiness", { exact: true }),
+    ).toHaveCount(0);
   });
 
   test("hides operational command controls from school admins", async ({
@@ -623,6 +659,18 @@ test.describe("role-aware admin portal", () => {
     page,
   }) => {
     await signInAs(context, baseURL, "SCHOOL_ADMIN");
+
+    await page.goto("/tenants");
+    await expect(page.getByLabel("School name")).toHaveCount(0);
+    await expect(
+      page.locator(".profile-details").getByText("Northview Primary School"),
+    ).toBeVisible();
+    await page.getByLabel("Edit school profile").click();
+    await expect(page).toHaveURL(/\/tenants\?edit=profile/);
+    await expect(page.getByLabel("School name")).toHaveValue(
+      "Northview Primary School",
+    );
+    await expect(page.getByLabel("Cancel profile editing")).toBeVisible();
 
     await page.goto("/devices");
     await expect(

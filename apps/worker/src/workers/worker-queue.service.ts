@@ -177,7 +177,16 @@ export class WorkerQueueService implements OnModuleInit, OnModuleDestroy {
   }
 
   private redisUrl(): string {
-    return process.env.REDIS_URL ?? "redis://localhost:6379";
+    const value = process.env.REDIS_URL;
+    if (!value) {
+      throw new Error("REDIS_URL must be configured");
+    }
+
+    const url = new URL(value);
+    if (process.env.NODE_ENV === "production" && url.protocol !== "rediss:") {
+      throw new Error("Production REDIS_URL must use TLS (rediss://)");
+    }
+    return value;
   }
 
   private envInt(name: string, fallback: number): number {

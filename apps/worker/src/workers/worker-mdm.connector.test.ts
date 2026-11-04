@@ -6,26 +6,11 @@ describe("WorkerMdmConnector", () => {
     delete process.env.MDM_CONNECTOR_MODE;
   });
 
-  it("uses the safe stub connector unless production mode is configured", async () => {
-    const connector = new WorkerMdmConnector();
-
-    await expect(
-      connector.dispatchCommand(
-        {
-          expiresAt: null,
-          id: "command-1",
-          payload: {},
-          reason: null,
-          type: "LOCK",
-        } as never,
-        { connectorDeviceName: null, enrollmentId: null },
-      ),
-    ).resolves.toEqual({
-      accepted: true,
-      connector: "STUB",
-      connectorCommandId: "stub:command-1",
-      response: { mode: "worker" },
-    });
+  it("fails startup when the production connector is not configured", () => {
+    delete process.env.MDM_CONNECTOR_MODE;
+    expect(() => new WorkerMdmConnector()).toThrow(
+      "MDM_CONNECTOR_MODE must be explicitly set to android-management",
+    );
   });
 
   it("fails safely before authentication when production identity is missing", async () => {

@@ -4,7 +4,7 @@ import { EnrollmentService } from "./enrollment.service";
 import { assessAndroidCompliance } from "./device-capability.catalog";
 
 const now = new Date("2026-05-17T10:00:00.000Z");
-const providerExpiration = new Date("2026-08-15T12:00:00.000Z");
+const providerExpiration = new Date("2099-08-15T12:00:00.000Z");
 
 function connectorRegistry(overrides: Record<string, unknown> = {}) {
   return {

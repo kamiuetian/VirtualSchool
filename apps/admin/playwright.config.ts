@@ -49,6 +49,8 @@ export default defineConfig({
       command: `pnpm exec next dev -H 127.0.0.1 -p ${appPort}`,
       env: {
         ADMIN_API_BASE_URL: apiURL,
+        ADMIN_LOCAL_TEST_AUTH: "true",
+        ADMIN_LOCAL_TEST_PASSWORD: "test-password",
         NEXT_PUBLIC_API_BASE_URL: apiURL,
       },
       reuseExistingServer: false,

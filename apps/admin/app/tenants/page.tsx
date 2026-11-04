@@ -1,3 +1,5 @@
+import { Pencil, X } from "lucide-react";
+import Link from "next/link";
 import { AppShell } from "../../components/app-shell";
 import {
   ActionPanel,
@@ -28,13 +30,19 @@ import { formatCount, humanize } from "../../lib/format";
 
 export const dynamic = "force-dynamic";
 
-export default async function TenantsPage() {
+export default async function TenantsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ edit?: string }>;
+}) {
+  const { edit } = (await searchParams) ?? {};
   const data = await getAdminData("/tenants");
   const selectedTenant = data.selectedTenant;
   const canCreateTenant = roleCan(data.session.role, "tenant:create");
   const canUpdateTenant = roleCan(data.session.role, "tenant:update");
   const canInviteUsers = roleCan(data.session.role, "user:invite");
   const canSuspendUsers = roleCan(data.session.role, "user:suspend");
+  const isEditingProfile = canUpdateTenant && edit === "profile";
 
   return (
     <AppShell connectionIssue={data.connectionIssue} tenant={selectedTenant}>
@@ -77,18 +85,22 @@ export default async function TenantsPage() {
                   <Field label="School name">
                     <input
                       name="name"
-                      placeholder="Northview Primary School"
+                      placeholder="Official school name"
                       required
                     />
                   </Field>
                   <div className="form-row">
                     <Field label="Country">
-                      <input name="country" placeholder="US" required />
+                      <input
+                        name="country"
+                        placeholder="ISO country code"
+                        required
+                      />
                     </Field>
                     <Field label="Timezone">
                       <input
                         name="timezone"
-                        placeholder="America/New_York"
+                        placeholder="IANA timezone"
                         required
                       />
                     </Field>
@@ -112,7 +124,7 @@ export default async function TenantsPage() {
                   <Field label="Billing contact">
                     <input
                       name="primaryContactEmail"
-                      placeholder="admin@school.edu"
+                      placeholder="Billing contact email"
                       type="email"
                     />
                   </Field>
@@ -124,132 +136,198 @@ export default async function TenantsPage() {
             {selectedTenant ? (
               <>
                 {canUpdateTenant ? (
-                  <ActionPanel title="School profile and branding">
-                    <form
-                      action={updateTenantProfileAction}
-                      className="stacked-form"
-                    >
-                      <input
-                        name="tenantId"
-                        type="hidden"
-                        value={selectedTenant.id}
-                      />
-                      <Field label="School name">
+                  <ActionPanel
+                    actions={
+                      <Link
+                        aria-label={
+                          isEditingProfile
+                            ? "Cancel profile editing"
+                            : "Edit school profile"
+                        }
+                        className="icon-action"
+                        href={
+                          isEditingProfile
+                            ? "/tenants"
+                            : "/tenants?edit=profile"
+                        }
+                      >
+                        {isEditingProfile ? (
+                          <X size={17} />
+                        ) : (
+                          <Pencil size={17} />
+                        )}
+                      </Link>
+                    }
+                    title="School profile and branding"
+                  >
+                    {isEditingProfile ? (
+                      <form
+                        action={updateTenantProfileAction}
+                        className="stacked-form"
+                      >
                         <input
-                          name="name"
-                          defaultValue={selectedTenant.name}
-                          placeholder="Northview Primary School"
-                          required
+                          name="tenantId"
+                          type="hidden"
+                          value={selectedTenant.id}
                         />
-                      </Field>
-                      <div className="form-row">
-                        <Field label="Country">
+                        <Field label="School name">
                           <input
-                            name="country"
-                            defaultValue={selectedTenant.country}
-                            placeholder="US"
+                            name="name"
+                            defaultValue={selectedTenant.name}
+                            placeholder="Northview Primary School"
                             required
                           />
                         </Field>
-                        <Field label="Timezone">
+                        <div className="form-row">
+                          <Field label="Country">
+                            <input
+                              name="country"
+                              defaultValue={selectedTenant.country}
+                              placeholder="PK"
+                              required
+                            />
+                          </Field>
+                          <Field label="Timezone">
+                            <input
+                              name="timezone"
+                              defaultValue={selectedTenant.timezone}
+                              placeholder="Asia/Karachi"
+                              required
+                            />
+                          </Field>
+                        </div>
+                        <Field label="Guardian portal default language">
+                          <select
+                            name="language"
+                            defaultValue={selectedTenant.language ?? "en"}
+                          >
+                            <option value="en">English</option>
+                            <option value="ur">Urdu (اردو)</option>
+                          </select>
+                        </Field>
+                        <Field label="Logo URL">
                           <input
-                            name="timezone"
-                            defaultValue={selectedTenant.timezone}
-                            placeholder="America/New_York"
-                            required
+                            name="logoUrl"
+                            defaultValue={selectedTenant.logoUrl ?? ""}
+                            placeholder="https://school.edu/logo.png"
+                            type="url"
                           />
                         </Field>
-                      </div>
-                      <Field label="Guardian portal default language">
-                        <select
-                          name="language"
-                          defaultValue={selectedTenant.language ?? "en"}
-                        >
-                          <option value="en">English</option>
-                          <option value="ur">Urdu (اردو)</option>
-                        </select>
-                      </Field>
-                      <Field label="Logo URL">
-                        <input
-                          name="logoUrl"
-                          defaultValue={selectedTenant.logoUrl ?? ""}
-                          placeholder="https://school.edu/logo.png"
-                          type="url"
+                        <div className="form-row">
+                          <Field label="Primary color">
+                            <input
+                              name="primaryColor"
+                              defaultValue={
+                                selectedTenant.primaryColor ?? "#116b5f"
+                              }
+                              type="color"
+                            />
+                          </Field>
+                          <Field label="Accent color">
+                            <input
+                              name="accentColor"
+                              defaultValue={
+                                selectedTenant.accentColor ?? "#315f91"
+                              }
+                              type="color"
+                            />
+                          </Field>
+                        </div>
+                        <Field label="Website">
+                          <input
+                            name="websiteUrl"
+                            defaultValue={selectedTenant.websiteUrl ?? ""}
+                            placeholder="https://school.edu"
+                            type="url"
+                          />
+                        </Field>
+                        <div className="form-row">
+                          <Field label="Support email">
+                            <input
+                              name="supportEmail"
+                              defaultValue={selectedTenant.supportEmail ?? ""}
+                              placeholder="support@school.edu"
+                              type="email"
+                            />
+                          </Field>
+                          <Field label="Support phone">
+                            <input
+                              name="supportPhone"
+                              defaultValue={selectedTenant.supportPhone ?? ""}
+                              placeholder="+92 21 1234 5678"
+                            />
+                          </Field>
+                        </div>
+                        <div className="form-row">
+                          <Field label="Student terminology">
+                            <input
+                              name="studentLabel"
+                              defaultValue={
+                                selectedTenant.studentLabel ?? "Student"
+                              }
+                              maxLength={32}
+                              required
+                            />
+                          </Field>
+                          <Field label="Device terminology">
+                            <input
+                              name="deviceLabel"
+                              defaultValue={
+                                selectedTenant.deviceLabel ?? "Learning device"
+                              }
+                              maxLength={32}
+                              required
+                            />
+                          </Field>
+                        </div>
+                        <p className="form-help">
+                          Brand colors must meet WCAG contrast for readable
+                          white text. HTTPS is required for logos and websites.
+                        </p>
+                        <SubmitButton>Save profile</SubmitButton>
+                      </form>
+                    ) : (
+                      <div className="profile-details">
+                        <ProfileValue
+                          label="School name"
+                          value={selectedTenant.name}
                         />
-                      </Field>
-                      <div className="form-row">
-                        <Field label="Primary color">
-                          <input
-                            name="primaryColor"
-                            defaultValue={
-                              selectedTenant.primaryColor ?? "#116b5f"
-                            }
-                            type="color"
-                          />
-                        </Field>
-                        <Field label="Accent color">
-                          <input
-                            name="accentColor"
-                            defaultValue={
-                              selectedTenant.accentColor ?? "#315f91"
-                            }
-                            type="color"
-                          />
-                        </Field>
-                      </div>
-                      <Field label="Website">
-                        <input
-                          name="websiteUrl"
-                          defaultValue={selectedTenant.websiteUrl ?? ""}
-                          placeholder="https://school.edu"
-                          type="url"
+                        <ProfileValue
+                          label="Country"
+                          value={selectedTenant.country}
                         />
-                      </Field>
-                      <div className="form-row">
-                        <Field label="Support email">
-                          <input
-                            name="supportEmail"
-                            defaultValue={selectedTenant.supportEmail ?? ""}
-                            placeholder="support@school.edu"
-                            type="email"
-                          />
-                        </Field>
-                        <Field label="Support phone">
-                          <input
-                            name="supportPhone"
-                            defaultValue={selectedTenant.supportPhone ?? ""}
-                            placeholder="+1 555 0100"
-                          />
-                        </Field>
+                        <ProfileValue
+                          label="Timezone"
+                          value={selectedTenant.timezone}
+                        />
+                        <ProfileValue
+                          label="Guardian portal language"
+                          value={selectedTenant.language ?? "en"}
+                        />
+                        <ProfileValue
+                          label="Website"
+                          value={selectedTenant.websiteUrl}
+                        />
+                        <ProfileValue
+                          label="Support email"
+                          value={selectedTenant.supportEmail}
+                        />
+                        <ProfileValue
+                          label="Support phone"
+                          value={selectedTenant.supportPhone}
+                        />
+                        <ProfileValue
+                          label="Student terminology"
+                          value={selectedTenant.studentLabel ?? "Student"}
+                        />
+                        <ProfileValue
+                          label="Device terminology"
+                          value={
+                            selectedTenant.deviceLabel ?? "Learning device"
+                          }
+                        />
                       </div>
-                      <div className="form-row">
-                        <Field label="Student terminology">
-                          <input
-                            name="studentLabel"
-                            defaultValue={
-                              selectedTenant.studentLabel ?? "Student"
-                            }
-                            maxLength={32}
-                            required
-                          />
-                        </Field>
-                        <Field label="Device terminology">
-                          <input
-                            name="deviceLabel"
-                            defaultValue={
-                              selectedTenant.deviceLabel ?? "Learning device"
-                            }
-                            maxLength={32}
-                            required
-                          />
-                        </Field>
-                      </div>
-                      <p className="form-help">
-                        Brand colors must meet WCAG contrast for readable white
-                        text. HTTPS is required for logos and websites.
-                      </p>
-                      <SubmitButton>Save profile</SubmitButton>
-                    </form>
+                    )}
                   </ActionPanel>
                 ) : null}
 
@@ -681,6 +759,21 @@ export default async function TenantsPage() {
         ) : null}
       </div>
     </AppShell>
+  );
+}
+
+function ProfileValue({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | null | undefined;
+}) {
+  return (
+    <div>
+      <span>{label}</span>
+      <strong>{value ?? "Not configured"}</strong>
+    </div>
   );
 }
 

@@ -1,8 +1,8 @@
 const classesSampleCsv = [
   ["name", "grade", "subject", "branchId"],
-  ["Grade 4 Blue", "4", "Science", ""],
-  ["Grade 4 Mathematics", "4", "Mathematics", ""],
-  ["Grade 5 Reading", "5", "English", ""],
+  ["SAMPLE Grade 4 Blue", "4", "Science", ""],
+  ["SAMPLE Grade 4 Mathematics", "4", "Mathematics", ""],
+  ["SAMPLE Grade 5 Reading", "5", "English", ""],
 ]
   .map((row) => row.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(","))
   .join("\n");

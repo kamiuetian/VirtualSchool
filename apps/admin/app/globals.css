@@ -960,6 +960,40 @@ tr:last-child td {
   margin: 0;
 }
 
+.action-panel-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.action-panel-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.profile-details {
+  display: grid;
+  gap: 12px;
+}
+
+.profile-details > div {
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 4px;
+  padding-bottom: 10px;
+}
+
+.profile-details > div:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.profile-details span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .stacked-form,
 .inline-form {
   display: grid;

@@ -6,6 +6,38 @@ import {
 } from "./portal-access";
 
 describe("portal access", () => {
+  it.each([
+    [
+      "IT_ADMIN",
+      [
+        "/",
+        "/access",
+        "/enrollment",
+        "/devices",
+        "/policies",
+        "/privacy",
+        "/timetable",
+        "/apps",
+        "/alerts",
+        "/support",
+        "/reports",
+      ],
+    ],
+    [
+      "ACADEMIC_ADMIN",
+      ["/", "/roster", "/policies", "/timetable", "/apps", "/reports"],
+    ],
+    ["SUPPORT_AGENT", ["/", "/devices", "/alerts", "/support"]],
+    ["AUDITOR", ["/", "/access", "/privacy", "/reports"]],
+  ] as const)(
+    "limits %s navigation to its assigned areas",
+    (role, expected) => {
+      expect(visiblePortalNavigation(role).map((item) => item.href)).toEqual(
+        expected,
+      );
+    },
+  );
+
   it("shows platform operators every admin area", () => {
     expect(
       visiblePortalNavigation("PLATFORM_SUPER_ADMIN").map((item) => item.href),

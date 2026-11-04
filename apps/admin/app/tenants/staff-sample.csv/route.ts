@@ -1,8 +1,8 @@
 const staffSampleCsv = [
   ["name", "email", "role", "branchId"],
-  ["Aisha Khan", "aisha.khan@example.edu", "SCHOOL_ADMIN", ""],
-  ["Omar Malik", "omar.malik@example.edu", "TEACHER", ""],
-  ["Mina Patel", "mina.patel@example.edu", "IT_ADMIN", ""],
+  ["SAMPLE Administrator", "sample.admin@example.invalid", "SCHOOL_ADMIN", ""],
+  ["SAMPLE Teacher", "sample.teacher@example.invalid", "TEACHER", ""],
+  ["SAMPLE IT Administrator", "sample.it@example.invalid", "IT_ADMIN", ""],
 ]
   .map((row) => row.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(","))
   .join("\n");

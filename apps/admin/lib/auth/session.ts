@@ -24,6 +24,7 @@ export type DevelopmentSessionInput = {
 
 export async function getAdminSession(): Promise<AdminPortalSession | null> {
   if (process.env.ADMIN_AUTH_BYPASS === "true") {
+    assertLocalTestAuthEnabled("ADMIN_AUTH_BYPASS");
     return developmentSession();
   }
 
@@ -58,9 +59,7 @@ export async function signInDevelopmentSession(
     redirect("/auth/login");
   }
 
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("Auth0 must be configured before production sign-in");
-  }
+  assertLocalTestAuthEnabled("Development persona sign-in");
 
   const session = normalizeDevelopmentSession(input);
   const cookieStore = await cookies();
@@ -84,6 +83,21 @@ export function loginHref(): string {
 
 export function logoutHref(): string {
   return isAuth0Configured() ? "/auth/logout" : "/logout";
+}
+
+export function isLocalTestAuthEnabled(): boolean {
+  return (
+    process.env.ADMIN_LOCAL_TEST_AUTH === "true" &&
+    (process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test")
+  );
+}
+
+function assertLocalTestAuthEnabled(feature: string): void {
+  if (!isLocalTestAuthEnabled()) {
+    throw new Error(
+      `${feature} is restricted to an explicit local development or test runtime`,
+    );
+  }
 }
 
 export async function adminSessionHeaders(): Promise<HeadersInit> {
@@ -122,7 +136,10 @@ async function auth0Session(): Promise<AdminPortalSession | null> {
     accessToken: token,
     authMode: "auth0",
     email: stringClaim(user.email) ?? "unknown@virtualschool.local",
-    name: stringClaim(user.name) ?? stringClaim(user.email) ?? "School administrator",
+    name:
+      stringClaim(user.name) ??
+      stringClaim(user.email) ??
+      "School administrator",
     role: roleClaim(user["https://virtualschool/role"] ?? user.role),
     tenantIds: tenantClaims(
       user["https://virtualschool/tenant_ids"] ?? user.tenant_ids,
@@ -131,15 +148,13 @@ async function auth0Session(): Promise<AdminPortalSession | null> {
 }
 
 function developmentSession(): AdminPortalSession {
+  const role = roleClaim(process.env.ADMIN_API_ROLE ?? "PLATFORM_SUPER_ADMIN");
   return {
     authMode: "development",
     email: process.env.ADMIN_API_EMAIL ?? "admin@example.edu",
     name: process.env.ADMIN_API_NAME ?? "School administrator",
-    role: roleClaim(process.env.ADMIN_API_ROLE ?? "PLATFORM_SUPER_ADMIN"),
-    tenantIds: (process.env.ADMIN_API_TENANT_ID ?? "*")
-      .split(",")
-      .map((tenantId) => tenantId.trim())
-      .filter(Boolean),
+    role,
+    tenantIds: scopedTenantClaims(role, process.env.ADMIN_API_TENANT_ID),
   };
 }
 
@@ -176,13 +191,27 @@ function normalizeDevelopmentSession(
   input: Partial<DevelopmentSessionInput>,
 ): AdminPortalSession {
   const email = stringClaim(input.email) ?? "admin@example.edu";
+  const role = roleClaim(input.role ?? "PLATFORM_SUPER_ADMIN");
   return {
     authMode: "development",
     email,
     name: stringClaim(input.name) ?? email,
-    role: roleClaim(input.role ?? "PLATFORM_SUPER_ADMIN"),
-    tenantIds: tenantClaims(input.tenantIds ?? "*"),
+    role,
+    tenantIds: scopedTenantClaims(role, input.tenantIds),
   };
+}
+
+function scopedTenantClaims(role: Role, value: unknown): string[] {
+  if (role === "PLATFORM_SUPER_ADMIN") {
+    return ["*"];
+  }
+
+  const tenantIds = tenantClaims(value);
+  if (tenantIds.length === 0 || tenantIds.includes("*")) {
+    throw new Error("Non-platform roles require a specific school tenant ID");
+  }
+
+  return tenantIds;
 }
 
 function roleClaim(value: unknown): Role {

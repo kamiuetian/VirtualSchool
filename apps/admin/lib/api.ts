@@ -73,10 +73,21 @@ import {
 import type { AdminPortalSession } from "./auth/session";
 import { adminSessionHeaders, requireAdminSession } from "./auth/session";
 
-const baseUrl =
-  process.env.ADMIN_API_BASE_URL ??
-  process.env.NEXT_PUBLIC_API_BASE_URL ??
-  "http://localhost:4000/api/v1";
+function apiBaseUrl(): string {
+  const value =
+    process.env.ADMIN_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL;
+  if (!value) {
+    throw new Error(
+      "ADMIN_API_BASE_URL or NEXT_PUBLIC_API_BASE_URL must be configured",
+    );
+  }
+
+  const url = new URL(value);
+  if (process.env.NODE_ENV === "production" && url.protocol !== "https:") {
+    throw new Error("The production admin API URL must use HTTPS");
+  }
+  return value.replace(/\/$/, "");
+}
 
 export type AdminData = {
   tenants: TenantSummary[];
@@ -124,6 +135,11 @@ export async function getAdminData(
   const session = await requirePortalRouteAccess(requiredPath);
   const can = (permission: Parameters<typeof roleCan>[1]) =>
     roleCan(session.role, permission);
+  const canViewSchoolReadiness =
+    can("tenant:update") ||
+    can("roster:manage") ||
+    can("device:enroll") ||
+    can("policy:manage");
 
   const tenantsResult = await apiGet<TenantSummary[]>("/tenants");
   const tenants = tenantsResult.data ?? [];
@@ -203,7 +219,9 @@ export async function getAdminData(
     serviceStatus,
     backupOperations,
   ] = await Promise.all([
-    apiGet<OnboardingChecklist>(`${tenantPath}/onboarding-checklist`),
+    canViewSchoolReadiness
+      ? apiGet<OnboardingChecklist>(`${tenantPath}/onboarding-checklist`)
+      : skipped<OnboardingChecklist>(),
     can("device:read")
       ? apiGet<DeviceSummary[]>(`${tenantPath}/devices`)
       : skipped([]),
@@ -567,9 +585,10 @@ export type QuarterlyBusinessReviewSummary = {
   generatedAt: string;
 };
 
-export async function getQuarterlyBusinessReviews(
-  tenantId: string,
-): Promise<{ packs: QuarterlyBusinessReviewSummary[]; connectionIssue: boolean }> {
+export async function getQuarterlyBusinessReviews(tenantId: string): Promise<{
+  packs: QuarterlyBusinessReviewSummary[];
+  connectionIssue: boolean;
+}> {
   const result = await apiGet<QuarterlyBusinessReviewSummary[]>(
     `/tenants/${tenantId}/reports/quarterly-business-reviews`,
   );
@@ -646,7 +665,7 @@ export async function adminApiJsonMutation<T>(
   path: string,
   body: Record<string, unknown>,
 ): Promise<T> {
-  const response = await fetch(`${baseUrl}${path}`, {
+  const response = await fetch(`${apiBaseUrl()}${path}`, {
     body: JSON.stringify(removeEmptyValues(body)),
     cache: "no-store",
     headers: {
@@ -771,7 +790,7 @@ export async function getDeviceCapabilities(tenantId: string): Promise<{
 }
 
 export async function adminApiRawGet(path: string): Promise<Response> {
-  return fetch(`${baseUrl}${path}`, {
+  return fetch(`${apiBaseUrl()}${path}`, {
     cache: "no-store",
     headers: await authHeaders(),
   });
@@ -786,10 +805,9 @@ export async function getWebFilterSettings(
     )
   ).data;
 }
-
 async function apiGet<T>(path: string): Promise<ApiGetResult<T>> {
   try {
-    const response = await fetch(`${baseUrl}${path}`, {
+    const response = await fetch(`${apiBaseUrl()}${path}`, {
       cache: "no-store",
       headers: await authHeaders(),
       signal: AbortSignal.timeout(1800),

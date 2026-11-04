@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { authenticateDevelopmentCredentials } from "./development-identity";
 import {
   type DevelopmentSessionInput,
   signInDevelopmentSession,
@@ -15,12 +16,12 @@ export async function signInAction(formData: FormData): Promise<void> {
     throw new Error("Email and password are required");
   }
 
-  const input: DevelopmentSessionInput = {
-    email,
-    name: formValue(formData, "name"),
-    role: formValue(formData, "role"),
-    tenantIds: formValue(formData, "tenantIds") ?? "*",
-  };
+  let input: DevelopmentSessionInput;
+  try {
+    input = await authenticateDevelopmentCredentials(email, password);
+  } catch {
+    redirect("/login?error=invalid_credentials");
+  }
 
   await signInDevelopmentSession(input);
   redirect("/");

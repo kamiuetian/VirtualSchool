@@ -52,13 +52,7 @@ export function StatusPill({
   return <span className={`status-pill ${tone}`}>{children}</span>;
 }
 
-export function EmptyState({
-  body,
-  title,
-}: {
-  body: string;
-  title: string;
-}) {
+export function EmptyState({ body, title }: { body: string; title: string }) {
   return (
     <div className="empty-state">
       <strong>{title}</strong>
@@ -76,7 +70,10 @@ export function ProgressBar({
 }) {
   return (
     <span className="progress-track" aria-label={`${value}%`}>
-      <span className={`progress-fill ${tone}`} style={{ width: `${value}%` }} />
+      <span
+        className={`progress-fill ${tone}`}
+        style={{ width: `${value}%` }}
+      />
     </span>
   );
 }
@@ -97,15 +94,20 @@ export function Field({
 }
 
 export function ActionPanel({
+  actions,
   children,
   title,
 }: {
+  actions?: ReactNode;
   children: ReactNode;
   title: string;
 }) {
   return (
     <div className="action-panel">
-      <h3>{title}</h3>
+      <div className="action-panel-header">
+        <h3>{title}</h3>
+        {actions ? <div className="action-panel-actions">{actions}</div> : null}
+      </div>
       {children}
     </div>
   );

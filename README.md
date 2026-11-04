@@ -2,6 +2,10 @@
 
 This repository is the Phase 1 implementation workspace for the Android Managed Learning Device Platform.
 
+## Mission
+
+Virtual School is an open platform initiative created to promote access to quality education in developing and lower-resource communities, including countries often described as Third World countries. The project aims to help schools manage affordable learning devices, educational access, student safety, and classroom operations with technology that can be adapted to local infrastructure and needs.
+
 Phase 1 targets school-owned Android tablets and includes the SaaS admin portal, backend API, worker service, shared policy/domain types, Android launcher, secure browser, local development environment, and CI/CD foundations.
 
 ## Workspace

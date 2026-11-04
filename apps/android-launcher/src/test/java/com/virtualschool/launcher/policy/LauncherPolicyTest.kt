@@ -19,10 +19,14 @@ class LauncherPolicyTest {
     }
 
     @Test
-    fun exposesOnlyHttpLearningLinks() {
+    fun exposesOnlySafeHttpsLearningLinks() {
         val policy = sample(
             shortcuts = listOf(
                 WebShortcut("Math", "https://math.example.edu"),
+                WebShortcut("Cleartext", "http://math.example.edu"),
+                WebShortcut("Credentials", "https://student:secret@math.example.edu"),
+                WebShortcut("IPv4", "https://192.0.2.10/lesson"),
+                WebShortcut("Scheme confusion", "https:javascript:alert(1)"),
                 WebShortcut("Unsafe", "javascript:alert(1)"),
             ),
         )

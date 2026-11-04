@@ -1,5 +1,7 @@
 package com.virtualschool.launcher.policy
 
+import java.net.URI
+
 data class ApprovedApp(
     val name: String,
     val packageId: String,
@@ -38,8 +40,7 @@ data class LauncherPolicy(
 
     fun safeWebShortcuts(): List<WebShortcut> = webShortcuts
         .filter { shortcut ->
-            shortcut.title.isNotBlank() &&
-                (shortcut.url.startsWith("https://") || shortcut.url.startsWith("http://"))
+            shortcut.title.isNotBlank() && isSafeHttpsUrl(shortcut.url)
         }
         .distinctBy { it.url }
 
@@ -53,6 +54,19 @@ data class LauncherPolicy(
 
     companion object {
         private val PACKAGE_NAME = Regex("^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+$")
+        private val IPV4_ADDRESS = Regex("^\\d{1,3}(\\.\\d{1,3}){3}$")
+
+        private fun isSafeHttpsUrl(value: String): Boolean = try {
+            val uri = URI(value)
+            val host = uri.host
+            uri.scheme.equals("https", ignoreCase = true) &&
+                !host.isNullOrBlank() &&
+                uri.userInfo == null &&
+                !IPV4_ADDRESS.matches(host) &&
+                !host.contains(":")
+        } catch (_: Exception) {
+            false
+        }
 
         val safeDefault = LauncherPolicy(
             policyId = "unmanaged",
